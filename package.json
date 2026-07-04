@@ -1,0 +1,29 @@
+{
+  "name": "utaita",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "prepare": "panda codegen",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "check": "biome check",
+    "check:fix": "biome check --write",
+    "check:fix:unsafe": "biome check --write --unsafe",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.16.1",
+    "solid-js": "^1.9.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.2",
+    "@pandacss/dev": "^1.11.4",
+    "@types/node": "^24.13.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vite-plugin-solid": "^2.11.12"
+  },
+  "packageManager": "pnpm@11.9.0"
+}
