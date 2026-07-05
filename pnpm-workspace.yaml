@@ -1,2 +1,4 @@
 allowBuilds:
   esbuild: true
+  # msw's postinstall only prints a sponsorship message; nothing to build.
+  msw: false
