@@ -6,6 +6,15 @@ obvious. Stories are grouped by phase; unscheduled ideas go to the icebox.
 > Status: initial draft seeded from the roadmap. To be curated against real
 > frustrations with pleroma-fe — observe actual usage and rewrite.
 
+## Phase 0 — Foundation
+
+Instead of user stories, a single vertical slice serves as the done condition:
+
+- [ ] Fetch a timeline from the reference instance through the dev proxy with
+      the generated typed client and render it as a list of status cards
+      inside the (rough) app shell. The dev token is injected from env; when
+      it is unset, a handled 401 surfaces in the UI.
+
 ## Phase 1 — Read-only MVP
 
 - [ ] As a user I can log in with my instance account and stay logged in

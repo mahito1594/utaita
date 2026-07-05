@@ -31,7 +31,8 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [ ] Vite dev proxy (`/api`, `/oauth`, `/nodeinfo` → リファレンスインスタンス)
 - [ ] solid-router のデータプリミティブ (`query`/`createAsync`) の使い方を確立、feature ベースのディレクトリ構成
 - [ ] Panda のデザイントークン (パレット、タイポグラフィ、spacing、radius、ダークモード)
-- [ ] 影響が最も大きい 2 つのラフワイヤー: アプリシェルと Status カード
+- [x] 影響が最も大きい 2 つのラフワイヤー: アプリシェルと Status カード
+      ([app-shell](./design/app-shell-20260705.html), [status-card](./design/status-card-20260705.html))
 
 学びの目標: OpenAPI 駆動の開発。Akkoma が自身の API をどう公開しているか。
 

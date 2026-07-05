@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status card wireframe — 2026-07-05</title>
+<style>
+:root{--bg:#f5f5f4;--surface:#fff;--line:#c8c6c0;--line-strong:#8a8880;--text:#2c2c2a;--muted:#77756e;--accent:#185fa5;--accent-bg:#e6f1fb;--warn-bg:#faeeda;--warn:#854f0b;--skeleton:#e4e2dc}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--surface:#2a2a28;--line:#4a4a46;--line-strong:#6e6c66;--text:#e8e6e0;--muted:#a5a39c;--accent:#85b7eb;--accent-bg:#0c2c47;--warn-bg:#3a2f14;--warn:#fac775;--skeleton:#3a3a36}}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;line-height:1.5}
+h1{font-size:20px;font-weight:600}
+h2{font-size:15px;font-weight:600;margin:24px 0 8px}
+.caption{font-size:12px;color:var(--muted)}
+.zone{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px}
+.cond{border-style:dashed;color:var(--muted)}
+ul{font-size:13px}
+li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<h1>Status card wireframe</h1>
+<p class="caption">2026-07-05 · Phase 0 kickoff. Dashed = conditional (rendered only when the field is present). Zone order is the decision; visual styling is not.</p>
+
+<div style="max-width:420px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin-top:16px">
+  <div class="zone cond">⟳ Boost line — "boosted by X" (reblog wrapper flattened into one card)</div>
+  <div class="zone" style="display:flex;gap:10px;align-items:center">
+    <div style="width:40px;height:40px;border-radius:50%;background:var(--skeleton);flex-shrink:0"></div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13px">Display name :custom_emoji:</div>
+      <div class="caption" style="font-size:11px">@acct@remote.host</div>
+    </div>
+    <div class="caption" style="font-size:11px;text-align:right">3m<br>visibility icon</div>
+  </div>
+  <div class="zone cond">↰ Reply-to line — "replying to @who". Metadata: sits above the CW bar so it stays visible while collapsed.</div>
+  <div class="zone cond" style="border-color:var(--warn);background:var(--warn-bg);color:var(--warn)">CW: spoiler_text <span style="float:right;font-size:11px">[expand ▾] — must not shift scroll position</span></div>
+  <div class="zone" style="padding:0">
+    <div style="padding:10px;line-height:1.6">Body — sanitized HTML with inline custom emoji</div>
+    <div class="cond" style="border-top:1px dashed var(--line-strong);padding:6px 10px;font-size:12px">▣ Media grid — alt text, sensitive blur; remote attachments may lack blurhash/meta. Same block as the body.</div>
+  </div>
+  <div class="zone cond">❝ Quote block (Akkoma quote) — below the body+media block. Reserved slot only; Phase 1 scope is ADR-0007.</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px">
+    <span style="border:1px solid var(--accent);background:var(--accent-bg);color:var(--accent);border-radius:999px;padding:2px 10px">😸 3 (me)</span>
+    <span style="border:1px solid var(--line);border-radius:999px;padding:2px 10px;color:var(--muted)">[img] remote_emoji@host 1</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:12px;padding:4px 8px 0;border-top:1px solid var(--line)">
+    <span>reply 2</span><span>boost 5</span><span>fav 12</span><span>bookmark</span><span>react</span>
+  </div>
+</div>
+
+<h2>Decisions</h2>
+<ul>
+<li>Zone order: boost line → header → reply-to line → CW bar → body + media (one block) → quote → reaction chips → action bar.</li>
+<li>Boost renders as a header line on a single card. Nested inner card rejected: breaks the vertical rhythm of the timeline.</li>
+<li>Reply-to line sits below the header but above the CW bar — it is metadata, not spoilable content, so it stays visible while the CW is collapsed.</li>
+<li>Body and media form one contiguous block; the quote block goes below it. Quote above media rejected: a quote-reply with attached images would split the author's own content.</li>
+<li>Reaction chips render image emoji (remote reactions have <code>name@host</code> + <code>url</code>) and highlight <code>me</code>.</li>
+<li>Action bar (with counts) is visible from Phase 1, read-only until Phase 2. Included now because card height/spacing feeds the design tokens.</li>
+</ul>
+
+<h2>Field sources (verified against the reference instance, 2026-07-05)</h2>
+<ul>
+<li><code>reblog</code> → boost line; <code>in_reply_to_id</code> / <code>pleroma.in_reply_to_account_acct</code> → reply-to line.</li>
+<li><code>spoiler_text</code> + <code>sensitive</code> → CW bar. <code>content</code> (HTML) + <code>emojis</code> → body. <code>media_attachments</code> → media grid.</li>
+<li><code>quote</code> / <code>quote_id</code> → quote block. <code>emoji_reactions</code> (count, name, url, me, account_ids) → chips.</li>
+<li><code>replies_count</code> / <code>reblogs_count</code> / <code>favourites_count</code> + <code>visibility</code> → action bar / header.</li>
+</ul>
+</body>
+</html>

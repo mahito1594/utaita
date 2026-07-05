@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App shell wireframe — 2026-07-05</title>
+<style>
+:root{--bg:#f5f5f4;--surface:#fff;--line:#c8c6c0;--line-strong:#8a8880;--text:#2c2c2a;--muted:#77756e;--accent:#185fa5;--skeleton:#e4e2dc}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--surface:#2a2a28;--line:#4a4a46;--line-strong:#6e6c66;--text:#e8e6e0;--muted:#a5a39c;--accent:#85b7eb;--skeleton:#3a3a36}}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;line-height:1.5}
+h1{font-size:20px;font-weight:600}
+h2{font-size:15px;font-weight:600;margin:24px 0 8px}
+.caption{font-size:12px;color:var(--muted)}
+.frames{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+.reserved{border-style:dashed!important;color:var(--muted)}
+.skel{background:var(--skeleton);border-radius:4px}
+ul{font-size:13px}
+li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<h1>App shell wireframe</h1>
+<p class="caption">2026-07-05 · Phase 0 kickoff. Dashed = reserved for a later phase, not built in Phase 0/1.</p>
+
+<div class="frames">
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px">Mobile (375px, one-handed reach)</figcaption>
+<div style="width:290px;height:560px;background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;display:flex;flex-direction:column;position:relative;overflow:hidden">
+  <nav style="display:flex;border-bottom:1px solid var(--line);font-size:12px;text-align:center">
+    <div style="flex:1;padding:10px 0;font-weight:600;border-bottom:2px solid var(--accent)">Home</div>
+    <div style="flex:1;padding:10px 0;color:var(--muted)">Local</div>
+    <div style="flex:1;padding:10px 0;color:var(--muted)">Bubble</div>
+    <div style="flex:1;padding:10px 0;color:var(--muted)">Fedi</div>
+  </nav>
+  <main style="flex:1;padding:10px;display:flex;flex-direction:column;gap:8px">
+    <div style="border:1px solid var(--line);border-radius:8px;padding:10px;flex:1">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <div class="skel" style="width:32px;height:32px;border-radius:50%"></div>
+        <div style="flex:1"><div class="skel" style="height:8px;width:70%;margin-bottom:4px"></div><div class="skel" style="height:6px;width:45%"></div></div>
+      </div>
+      <div class="skel" style="height:6px;margin-bottom:4px"></div>
+      <div class="skel" style="height:6px;width:80%"></div>
+      <p class="caption" style="margin:8px 0 0;font-size:11px">Status card ×N — infinite scroll<br>(see status-card-20260705.html)</p>
+    </div>
+    <div style="border:1px solid var(--line);border-radius:8px;padding:10px;flex:1">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <div class="skel" style="width:32px;height:32px;border-radius:50%"></div>
+        <div style="flex:1"><div class="skel" style="height:8px;width:60%;margin-bottom:4px"></div><div class="skel" style="height:6px;width:40%"></div></div>
+      </div>
+      <div class="skel" style="height:6px;margin-bottom:4px"></div>
+      <div class="skel" style="height:6px;width:65%"></div>
+    </div>
+  </main>
+  <div class="reserved" style="position:absolute;right:14px;bottom:64px;width:48px;height:48px;border-radius:50%;border:1.5px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;background:var(--surface);font-size:20px">＋</div>
+  <nav style="display:flex;border-top:1px solid var(--line);padding:10px 0;font-size:11px;text-align:center;color:var(--muted)">
+    <div style="flex:1;color:var(--text);font-weight:600">Timeline</div>
+    <div style="flex:1">Notif</div>
+    <div class="reserved" style="flex:1;border:none">Search</div>
+    <div style="flex:1">Profile</div>
+  </nav>
+</div>
+</figure>
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px">Desktop — same single column, centered (~600px), nav moves to a left rail</figcaption>
+<div style="width:420px;height:300px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;display:flex;overflow:hidden">
+  <nav style="width:90px;border-right:1px solid var(--line);padding:12px 10px;font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:10px">
+    <div style="color:var(--text);font-weight:600">Timeline</div>
+    <div>Notif</div>
+    <div class="reserved">Search</div>
+    <div>Profile</div>
+    <div class="reserved" style="margin-top:auto;border:1px dashed var(--line-strong);border-radius:6px;padding:4px;text-align:center">Compose</div>
+  </nav>
+  <main style="flex:1;display:flex;justify-content:center;padding:10px;background:var(--bg)">
+    <div style="width:75%;background:var(--surface);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column">
+      <div style="display:flex;border-bottom:1px solid var(--line);font-size:10px;text-align:center">
+        <div style="flex:1;padding:6px 0;font-weight:600;border-bottom:2px solid var(--accent)">Home</div>
+        <div style="flex:1;padding:6px 0;color:var(--muted)">Local</div>
+        <div style="flex:1;padding:6px 0;color:var(--muted)">Bubble</div>
+        <div style="flex:1;padding:6px 0;color:var(--muted)">Fedi</div>
+      </div>
+      <div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:6px">
+        <div class="skel" style="flex:1;border-radius:6px"></div>
+        <div class="skel" style="flex:1;border-radius:6px"></div>
+      </div>
+    </div>
+  </main>
+</div>
+</figure>
+
+</div>
+
+<h2>Decisions</h2>
+<ul>
+<li>Single column everywhere. Multi-column deck rejected: conflicts with the one-handed / no-horizontal-scroll stories.</li>
+<li>Timeline switcher (home / local / bubble / federated) is a tab row at the top of the column. Each tab keeps its own scroll position for the session.</li>
+<li>Bottom tabs: Timeline / Notifications / Search (Phase 2, reserved) / <strong>own Profile</strong>. Favourites and bookmarks lists live as tabs on the own-profile screen (they are "my" API resources: <code>/api/v1/favourites</code>, <code>/api/v1/bookmarks</code>). Settings is a gear inside the profile screen.</li>
+<li>Compose FAB: bottom-right thumb zone, reserved now so Phase 2 doesn't break the layout.</li>
+</ul>
+
+<h2>Open</h2>
+<ul>
+<li>Left swipe-in drawer: parked. It is an overlay, so it can be added later without reserving space. Watch for gesture conflict with a possible horizontal-swipe timeline switcher. Decide from dogfooding.</li>
+</ul>
+</body>
+</html>
