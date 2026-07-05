@@ -27,5 +27,5 @@ Template:
 | [0003](./0003-oauth.md) | OAuth via dynamic app registration; phased token scopes; no PKCE available |
 | [0004](./0004-data-fetching.md) | Server state via solid-router primitives; hand-rolled cursor pagination |
 | [0005](./0005-deployment.md) | Staged rollout via `preferred_frontend` |
-| [0006](./0006-dev-token-injection.md) | (draft) Where the dev access token is injected before OAuth exists |
+| [0006](./0006-dev-token-injection.md) | Dev access token is injected by the Vite proxy, discarded when OAuth lands |
 | [0007](./0007-quote-posts-phase1-scope.md) | (draft) Whether quote posts are in the Phase 1 status card scope |
