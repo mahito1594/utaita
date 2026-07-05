@@ -6,7 +6,15 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": false
+    "ignoreUnknown": false,
+    "includes": [
+      "**",
+      "!src/api/schema.d.ts",
+      "!openapi.json",
+      "!docs/design",
+      "!.claude",
+      "!**/*.svg"
+    ]
   },
   "formatter": {
     "enabled": true,
