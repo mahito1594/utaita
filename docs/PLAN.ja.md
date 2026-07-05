@@ -32,7 +32,9 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
       認証ヘッダ注入は Phase 1、401 は値として表現済み)
 - [x] Vite dev proxy (`/api`, `/oauth`, `/nodeinfo` → リファレンスインスタンス、
       token サーバ側注入 — ADR-0006 実装)
-- [ ] solid-router のデータプリミティブ (`query`/`createAsync`) の使い方を確立、feature ベースのディレクトリ構成
+- [x] solid-router のデータプリミティブ (`query`/`createAsync`) の使い方を確立、
+      entities/pages ベースのディレクトリ構成 ([ADR-0010](./adr/0010-directory-structure.md)。
+      エラーは値のまま UI へ — ADR-0008 amendment)
 - [ ] Panda のデザイントークン (パレット、タイポグラフィ、spacing、radius、ダークモード)
 - [x] 影響が最も大きい 2 つのラフワイヤー: アプリシェルと Status カード
       ([app-shell](./design/app-shell-20260705.html), [status-card](./design/status-card-20260705.html))
@@ -97,3 +99,6 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   (Markdown, MFM など複数ソース形式対応のため)。
 - 通知に Mastodon にない type が来る。未知の type で落ちない設計にする。
 - リモート添付には `blurhash` / `meta` / 焦点情報が無いことがある。
+- 未認証時の応答はエンドポイントごとに違う: home タイムラインは 403
+  `{"error": "Invalid credentials."}`、public は 401 `{"error": "authorization
+  required for timeline view"}`。認証要求の判定を 401 だけで行うと漏れる。

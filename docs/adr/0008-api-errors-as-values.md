@@ -61,7 +61,36 @@ failure shapes — HTTP errors as values, network failures as exceptions — int
 - `Result` lives in `src/api/` until a third non-API use appears, then moves
   to a shared module.
 
+## Amendment (2026-07-05): how the UI consumes error values
+
+Session B forced the question this ADR left open: solid-router's documented
+idiom is throw-plus-ErrorBoundary, which collides with errors-as-values.
+Resolved as a role split:
+
+- **Suspense means loading, Result means failure.** `createAsync` may
+  suspend while a query resolves, but the resolved value is always
+  `Result<T, ApiError>`; components branch on it in JSX. A 401 is the
+  timeline's normal answer until auth exists, and a network failure is
+  everyday weather on mobile — both are render branches (`switch` on
+  `error.kind`), not exceptions. `throw` is reserved for genuine bugs; one
+  ErrorBoundary in the app shell is the last resort, and API failures never
+  reach it.
+- **Recovery is always `revalidate`.** The query cache stores whatever the
+  function returns, so an `Err` is cached like an `Ok` — accepted, not
+  fought. A cached 401 stays true until auth state changes (then revalidate
+  by prefix); a cached network error is behind a retry button that calls
+  `revalidate(key)`. Revalidation runs in a transition, so current UI holds
+  during refetch.
+- `network.cause` stays unclassified (`unknown`) until a UI needs to
+  distinguish offline/timeout/DNS; refinement happens in `toResult` as new
+  `kind`s, invisible to transport.
+
+Rejected: a hybrid that throws "unexpected" errors (network) and keeps only
+"expected" ones (4xx) as values — it blurs the type-level contract exactly
+where mobile use makes network failure a first-class UI state.
+
 ## References
 
 - Transport choice and codegen pipeline: [ADR-0002](./0002-api-client.md)
 - openapi-fetch error semantics: https://openapi-ts.dev/openapi-fetch/
+- Query cache and revalidate semantics: https://docs.solidjs.com/solid-router/reference/data-apis/query

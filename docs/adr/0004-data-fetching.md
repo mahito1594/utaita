@@ -44,6 +44,17 @@ timeline performance ever demands it.
   a normalized cache, supersede this ADR and reconsider solid-query.
 - One fewer dependency, and no TanStack v5→v6 migration at project start.
 
+## Note (2026-07-05)
+
+"createResource plus a Solid store" above is mechanism detail, not the
+decision's essence (no solid-query; hand-rolled accumulation; query for
+entity fetches). With errors now flowing as Result values all the way to
+components (ADR-0008 amendment), createResource's throw-based Suspense
+integration buys little — a plain async function feeding a store, with a
+hand-rolled loading signal, may fit better. Re-decide the mechanism at
+Phase 1 kickoff, in front of the real requirements (scroll retention,
+CW toggling without scroll jumps, prepending new statuses).
+
 ## References
 
 - https://docs.solidjs.com/solid-router/reference/data-apis/query
