@@ -29,3 +29,4 @@ Template:
 | [0005](./0005-deployment.md) | Staged rollout via `preferred_frontend` |
 | [0006](./0006-dev-token-injection.md) | Dev access token is injected by the Vite proxy, discarded when OAuth lands |
 | [0007](./0007-quote-posts-phase1-scope.md) | (draft) Whether quote posts are in the Phase 1 status card scope |
+| [0008](./0008-api-errors-as-values.md) | API errors are values — Result-based wrapper over openapi-fetch |
