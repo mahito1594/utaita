@@ -1,5 +1,7 @@
 import { Route, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Suspense } from "solid-js";
+import { getHomeTimeline } from "../pages/timeline/queries";
+import { TimelinePage } from "../pages/timeline/TimelinePage";
 
 // The app's one ErrorBoundary. API failures never land here — they travel as
 // Result values down to the page that rendered them (ADR-0008); anything
@@ -19,11 +21,13 @@ const Layout = (props: ParentProps) => (
   </>
 );
 
-const Home = () => <p>Timeline coming soon.</p>;
-
 const App = () => (
   <Router root={Layout}>
-    <Route path="/" component={Home} />
+    <Route
+      path="/"
+      component={TimelinePage}
+      preload={() => getHomeTimeline()}
+    />
   </Router>
 );
 
