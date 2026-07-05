@@ -27,6 +27,8 @@ paying for itself, delete it.
 - [ ] Retrospective: what worked, what to change in this file
 - [ ] Promote decisions worth keeping into ADRs
 - [ ] Sync `.ja.md` sources to their English `.md` counterparts
+- [ ] Check that the root `CLAUDE.md` still matches reality (commands, docs
+      pointers, agreements)
 - [ ] Write up learnings as a blog post (link indexed privately, not in-repo)
 - [ ] Update the current-status section of [PLAN.md](./PLAN.md)
 
