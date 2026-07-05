@@ -38,3 +38,13 @@ the instance-served OpenAPI spec and consumed via openapi-fetch.
   `openapi.json`), design tokens, auth header injection. Divergence there is
   a bug, not tolerable duplication.
 - Commit messages carry the "why" of a change.
+
+## Testing agreements ([ADR-0009](docs/adr/0009-testing-strategy.md))
+
+- Mock only at the HTTP boundary, via MSW. No interface/DI indirection for
+  testability; wanting a hand-written mock means pure logic should be
+  extracted instead.
+- Test observable behavior at page level (happy-dom +
+  `@solidjs/testing-library`), not component internals. Pure logic is
+  tested thickly with plain Vitest; no mocks, no DOM.
+- No coverage targets. No E2E until the login flow stabilizes.
