@@ -31,6 +31,21 @@ regeneration script so the spec version is explicit and reviewable.
   response differences from vanilla Mastodon are ours to handle (see
   PLAN.md pitfalls).
 
+## Amendment (2026-07-05)
+
+Two refinements from Phase 0 session A:
+
+- The generated types (`src/api/schema.d.ts`) are committed alongside
+  `openapi.json`. Being in the same commit is what guarantees spec and types
+  agree; regeneration shows API changes as a reviewable diff at both the
+  spec and the type level; and a fresh clone builds without network access.
+- The regeneration script reads its source URL from an env var
+  (`DEV_INSTANCE_URL` in `.env.local`, untracked) rather than hardcoding an
+  instance. The committed spec contains no instance-specific values
+  (verified: `servers` is empty, `info.version` carries the Akkoma release
+  version), so the artifact describes an Akkoma version, not a particular
+  server.
+
 ## References
 
 - https://docs.akkoma.dev/stable/development/API/differences_in_mastoapi_responses/

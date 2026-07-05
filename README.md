@@ -1,28 +1,46 @@
-## Usage
+# utaita
+
+A modern web frontend for [Akkoma](https://akkoma.social/), distributed as
+static files and served by the instance itself from
+`$instance_static/frontends/<name>/<ref>`. The API is always same-origin;
+there is no instance picker.
+
+Supported Akkoma version: **3.19.0** (the committed [openapi.json](./openapi.json)
+was generated from it — see [ADR-0002](./docs/adr/0002-api-client.md)).
+
+## Development setup
+
+Requires Node 24 and pnpm (managed via [mise](https://mise.jdx.dev/)).
 
 ```bash
-$ npm install # or pnpm install or yarn install
+pnpm install
+cp .env.example .env.local   # then fill in your dev instance
+pnpm dev
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+The dev server proxies `/api`, `/oauth`, and `/nodeinfo` to
+`DEV_INSTANCE_URL`, so the app talks to a real instance while staying
+same-origin. If `DEV_ACCESS_TOKEN` is set, the proxy injects it server-side
+as an `Authorization` header; the token never reaches the browser
+([ADR-0006](./docs/adr/0006-dev-token-injection.md)). Leave it unset to
+exercise the unauthenticated (401) paths.
 
-## Available Scripts
+## Scripts
 
-In the project directory, you can run:
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Dev server with the instance proxy |
+| `pnpm build` | Typecheck + production build |
+| `pnpm check` / `pnpm check:fix` | Biome lint + format |
+| `pnpm typecheck` | TypeScript only |
+| `pnpm api:spec` | Refetch `openapi.json` from `DEV_INSTANCE_URL` |
+| `pnpm api:types` | Regenerate `src/api/schema.d.ts` from `openapi.json` |
 
-### `npm run dev`
+Both `openapi.json` and the generated types are committed; regenerate them
+together so API changes show up as one reviewable diff.
 
-Runs the app in the development mode.<br>
-Open [http://localhost:5173](http://localhost:5173) to view it in the browser.
+## Documentation
 
-### `npm run build`
-
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
-
-## Deployment
-
-Learn more about deploying your application with the [documentations](https://vite.dev/guide/static-deploy.html)
+- Roadmap and phase status: [docs/PLAN.md](./docs/PLAN.md)
+- Decisions with lasting consequences: [docs/adr/](./docs/adr/)
+- How we work: [docs/process.md](./docs/process.md)

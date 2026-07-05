@@ -26,9 +26,12 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 
 ## Phase 0 — 基盤
 
-- [ ] `openapi.json` をコミットし、spec 取得 + 型再生成の pnpm script を追加
-- [ ] openapi-fetch ラッパー (base URL、認証ヘッダ注入、401 ハンドリング)
-- [ ] Vite dev proxy (`/api`, `/oauth`, `/nodeinfo` → リファレンスインスタンス)
+- [x] `openapi.json` をコミットし、spec 取得 + 型再生成の pnpm script を追加
+      (生成型もコミット、取得元 URL は env 化 — ADR-0002 amendment)
+- [x] openapi-fetch ラッパー (`Result<T, ApiError>` ベース — [ADR-0008](./adr/0008-api-errors-as-values.md)。
+      認証ヘッダ注入は Phase 1、401 は値として表現済み)
+- [x] Vite dev proxy (`/api`, `/oauth`, `/nodeinfo` → リファレンスインスタンス、
+      token サーバ側注入 — ADR-0006 実装)
 - [ ] solid-router のデータプリミティブ (`query`/`createAsync`) の使い方を確立、feature ベースのディレクトリ構成
 - [ ] Panda のデザイントークン (パレット、タイポグラフィ、spacing、radius、ダークモード)
 - [x] 影響が最も大きい 2 つのラフワイヤー: アプリシェルと Status カード
