@@ -49,7 +49,7 @@ function App() {
             <li>
               <a href="https://solidjs.com/" target="_blank" rel="noopener">
                 <img class="button-icon" src={solidLogo} alt="" />
-                Learn more
+                Learn more about SolidJS
               </a>
             </li>
           </ul>
