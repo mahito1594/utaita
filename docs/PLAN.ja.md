@@ -22,7 +22,8 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [x] 調査: Akkoma の API・認証・Streaming・frontend デプロイ
 - [x] 調査: 先行事例 (Elk, Phanpy, Soapbox, pleroma-fe) と SolidJS エコシステム
 - [x] リファレンスインスタンスの spec で型生成を検証 (173 paths, 79 schemas)
-- [ ] Phase 0 進行中
+- [x] Phase 0 完了 (2026-07-06)
+- [ ] Phase 1 キックオフ待ち
 
 ## Phase 0 — 基盤
 
@@ -35,7 +36,9 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [x] solid-router のデータプリミティブ (`query`/`createAsync`) の使い方を確立、
       entities/pages ベースのディレクトリ構成 ([ADR-0010](./adr/0010-directory-structure.md)。
       エラーは値のまま UI へ — ADR-0008 amendment)
-- [ ] Panda のデザイントークン (パレット、タイポグラフィ、spacing、radius、ダークモード)
+- [x] Panda のデザイントークン (パレット、タイポグラフィ、spacing、radius。
+      ライトテーマのみ — ダークモードは個人用途につき不採用、
+      根拠は [design/tokens.md](./design/tokens.md))
 - [x] 影響が最も大きい 2 つのラフワイヤー: アプリシェルと Status カード
       ([app-shell](./design/app-shell-20260705.html), [status-card](./design/status-card-20260705.html))
 
@@ -52,7 +55,6 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [ ] スレッド (会話ツリー) 表示
 - [ ] プロフィールページ (ヘッダ、投稿/返信/メディアのタブ、フォロー関係の表示)
 - [ ] 通知 (閲覧のみ。`pleroma:emoji_reaction`, `move` など未知の type で落ちない)
-- [ ] 最低限の設定 (テーマ切替)
 
 学びの目標: OAuth2 authorization code フローの手実装。カーソルページネーション
 (`max_id`/`min_id`、Link ヘッダ、辞書順ソート可能な 128bit ID)。API レスポンスと
@@ -102,3 +104,8 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 - 未認証時の応答はエンドポイントごとに違う: home タイムラインは 403
   `{"error": "Invalid credentials."}`、public は 401 `{"error": "authorization
   required for timeline view"}`。認証要求の判定を 401 だけで行うと漏れる。
+- Bearer 認証されたリクエストに対して Akkoma は httpOnly のセッション Cookie も
+  `Set-Cookie` で返す。dev proxy 越しだとこの Cookie が localhost に保存され、
+  proxy のトークン注入を外してもブラウザは認証されたままになる (2026-07-06 に
+  実測)。「未認証の挙動」をブラウザで確かめるときは Cookie を消すこと。OAuth
+  実装時のログアウト検証でも同じ罠に注意。

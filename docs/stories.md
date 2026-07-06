@@ -10,10 +10,13 @@ obvious. Stories are grouped by phase; unscheduled ideas go to the icebox.
 
 Instead of user stories, a single vertical slice serves as the done condition:
 
-- [ ] Fetch a timeline from the reference instance through the dev proxy with
+- [x] Fetch a timeline from the reference instance through the dev proxy with
       the generated typed client and render it as a list of status cards
       inside the (rough) app shell. The dev token is injected from env; when
-      it is unset, a handled 401 surfaces in the UI.
+      it is unset, a handled 401/403 (differs per endpoint — see the pitfalls
+      in PLAN.md) surfaces in the UI. (Verified 2026-07-06: the 200 path in a
+      real browser, the 401/403 path via the page test plus a raw fetch
+      against the instance.)
 
 ## Phase 1 — Read-only MVP
 
@@ -32,7 +35,6 @@ Instead of user stories, a single vertical slice serves as the done condition:
       emoji reactions apart at a glance.
 - [ ] I can use the app comfortably on a phone (in-hand reachability, no
       horizontal overflow) and on a desktop.
-- [ ] I can switch between light and dark themes.
 
 ## Phase 2 — Writing
 

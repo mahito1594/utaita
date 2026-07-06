@@ -22,16 +22,26 @@ hardcoded.
 - [x] Research: Akkoma API surface, auth, streaming, frontend deployment
 - [x] Research: prior art (Elk, Phanpy, Soapbox, pleroma-fe) and SolidJS ecosystem
 - [x] Validated codegen from the reference instance spec (173 paths, 79 schemas)
-- [ ] Phase 0 in progress
+- [x] Phase 0 complete (2026-07-06)
+- [ ] Phase 1 kickoff pending
 
 ## Phase 0 — Foundation
 
-- [ ] Commit `openapi.json`; add a pnpm script to fetch the spec and regenerate types
-- [ ] openapi-fetch client wrapper (base URL, auth header injection, 401 handling)
-- [ ] Vite dev proxy (`/api`, `/oauth`, `/nodeinfo` → reference instance)
-- [ ] Establish solid-router data-primitive usage (`query`/`createAsync`); feature-based directory layout
-- [ ] Design tokens in Panda (palette, typography, spacing, radius, dark mode)
-- [ ] Rough wireframes for the two highest-impact pieces: app shell and status card
+- [x] Commit `openapi.json`; add a pnpm script to fetch the spec and regenerate
+      types (generated types committed too; source URL via env — ADR-0002 amendment)
+- [x] openapi-fetch client wrapper (`Result<T, ApiError>` based —
+      [ADR-0008](./adr/0008-api-errors-as-values.md); auth header injection is
+      Phase 1, 401 already expressed as a value)
+- [x] Vite dev proxy (`/api`, `/oauth`, `/nodeinfo` → reference instance,
+      server-side token injection — ADR-0006 implemented)
+- [x] Establish solid-router data-primitive usage (`query`/`createAsync`);
+      entities/pages directory layout ([ADR-0010](./adr/0010-directory-structure.md);
+      errors travel to the UI as values — ADR-0008 amendment)
+- [x] Design tokens in Panda (palette, typography, spacing, radius. Light theme
+      only — dark mode rejected for a personal-use client; rationale in
+      [design/tokens.md](./design/tokens.md))
+- [x] Rough wireframes for the two highest-impact pieces: app shell and status card
+      ([app-shell](./design/app-shell-20260705.html), [status-card](./design/status-card-20260705.html))
 
 Learning goals: OpenAPI-driven development; how Akkoma advertises its API.
 
@@ -46,7 +56,6 @@ Make it the client you open every day, before it can write anything.
 - [ ] Thread (conversation tree) view
 - [ ] Profile page (header, statuses/replies/media tabs, relationship state)
 - [ ] Notifications (read-only; tolerate unknown types such as `pleroma:emoji_reaction`, `move`)
-- [ ] Minimal settings (theme toggle)
 
 Learning goals: OAuth2 authorization code flow by hand; cursor pagination
 (`max_id`/`min_id`, Link header, 128-bit lexically sortable IDs); how API
@@ -93,3 +102,12 @@ Learning goals: realtime over Phoenix-backed WebSockets; offline-first storage.
   (multiple source formats: Markdown, MFM, …).
 - Notifications include non-Mastodon types; never crash on unknown types.
 - Remote attachments may lack `blurhash` / `meta` / focal point.
+- Unauthenticated responses differ per endpoint: the home timeline answers 403
+  `{"error": "Invalid credentials."}` while public answers 401 `{"error":
+  "authorization required for timeline view"}`. Testing only for 401 misses
+  the auth requirement.
+- Akkoma answers Bearer-authenticated requests with an httpOnly session cookie
+  (`Set-Cookie`). Through the dev proxy that cookie lands on localhost, so the
+  browser stays authenticated even after the proxy stops injecting the token
+  (observed 2026-07-06). Clear cookies when checking unauthenticated behavior
+  in a browser; the same trap applies to logout verification once OAuth lands.

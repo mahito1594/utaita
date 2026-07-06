@@ -29,6 +29,8 @@ the instance-served OpenAPI spec and consumed via openapi-fetch.
 - `pnpm dev` — dev server; `pnpm build` — typecheck + production build
 - `pnpm check` / `pnpm check:fix` — Biome lint + format
 - `pnpm typecheck` — TypeScript only
+- `pnpm test` / `pnpm test:watch` — Vitest (401 noise in the output is a known
+  by-product of failure-path tests; `Tests N passed` + exit 0 means green)
 
 ## Working agreements that affect code
 
@@ -37,6 +39,9 @@ the instance-served OpenAPI spec and consumed via openapi-fetch.
 - Exception — centralized from day one: API shapes (generated types from
   `openapi.json`), design tokens, auth header injection. Divergence there is
   a bug, not tolerable duplication.
+- Components consume semantic tokens only (`bg.*`, `text.*`, …); raw palette
+  references or hex literals in `src/` are a bug
+  ([docs/design/tokens.md](docs/design/tokens.md)).
 - Commit messages carry the "why" of a change.
 
 ## Testing agreements ([ADR-0009](docs/adr/0009-testing-strategy.md))
