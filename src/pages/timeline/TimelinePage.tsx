@@ -1,8 +1,19 @@
 import { createAsync, revalidate } from "@solidjs/router";
 import { For, Show } from "solid-js";
+import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { getHomeTimeline } from "./queries";
+
+const errorBox = css({
+  bg: "error.subtle",
+  color: "error.default",
+  borderWidth: "1px",
+  borderColor: "error.default",
+  borderRadius: "lg",
+  p: "3",
+  fontSize: "sm",
+});
 
 // Errors are ordinary render branches, not exceptions (ADR-0008): a 401 is
 // the timeline's normal answer until auth exists, and a network failure is
@@ -17,18 +28,32 @@ const TimelineError = (props: { error: ApiError }) => {
       // 403 "Invalid credentials.", public responds 401 — both mean "no
       // valid user", so both get the sign-in prompt.
       return props.error.status === 401 || props.error.status === 403 ? (
-        <p>Sign-in required to view this timeline.</p>
+        <p class={errorBox}>Sign-in required to view this timeline.</p>
       ) : (
-        <p>
+        <p class={errorBox}>
           Request failed ({props.error.status}
           {props.error.message ? `: ${props.error.message}` : ""}).
         </p>
       );
     case "network":
       return (
-        <p>
+        <p class={errorBox}>
           Connection failed — check your network.{" "}
-          <button type="button" onClick={() => revalidate(getHomeTimeline.key)}>
+          <button
+            type="button"
+            class={css({
+              px: "3",
+              py: "1",
+              fontSize: "sm",
+              borderWidth: "1px",
+              borderColor: "error.default",
+              borderRadius: "md",
+              bg: "bg.surface",
+              cursor: "pointer",
+              _hover: { bg: "bg.subtle" },
+            })}
+            onClick={() => revalidate(getHomeTimeline.key)}
+          >
             Retry
           </button>
         </p>
@@ -44,7 +69,13 @@ export const TimelinePage = () => {
       {(result) => {
         const r = result();
         return r.ok ? (
-          <For each={r.value}>{(status) => <StatusCard status={status} />}</For>
+          <div
+            class={css({ display: "flex", flexDirection: "column", gap: "3" })}
+          >
+            <For each={r.value}>
+              {(status) => <StatusCard status={status} />}
+            </For>
+          </div>
         ) : (
           <TimelineError error={r.error} />
         );
