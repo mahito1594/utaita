@@ -24,6 +24,31 @@ the instance-served OpenAPI spec and consumed via openapi-fetch.
 - ADRs, READMEs, process.md, and this file are English-only.
 - Discussion happens in chat (Japanese is fine); only outcomes are recorded.
 
+## Agreement gate
+
+- Research findings stay proposals until the user explicitly agrees. Never
+  promote a recommendation to a decision or write an ADR as `accepted` on
+  your own.
+- A request to set up or organize documentation is not approval of the
+  technical choices written into it.
+- Before creating a new document or artifact, state its intended location,
+  language, and visibility (public repo vs. untracked note) in one line,
+  then write.
+
+## Decision heuristics
+
+The "why" behind existing ADRs; apply these when weighing new choices:
+
+- Prefer official/standard primitives (platform APIs, @solidjs/router
+  built-ins) over third-party abstractions. A new dependency must do a job
+  the standard stack cannot.
+- Avoid dependencies with a history of frequent breaking changes; this
+  project optimizes for low-maintenance longevity.
+- No interface/DI indirection for flexibility; wire concrete implementations
+  at the composition root.
+- YAGNI: design for the current story, not anticipated ones (rule of three
+  below is the code-level counterpart).
+
 ## Commands
 
 - `pnpm dev` — dev server; `pnpm build` — typecheck + production build

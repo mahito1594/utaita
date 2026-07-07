@@ -52,10 +52,14 @@ is recorded.
 
 ## Where things get written down
 
-| Kind | Place |
-| --- | --- |
-| Decisions with lasting consequences | [adr/](./adr/) |
-| Backlog and acceptance criteria | [stories.md](./stories.md) |
-| Design tokens and wireframes | [design/](./design/) |
-| Learning narratives | Personal blog (indexed in `CLAUDE.local.md`, untracked) |
-| Rationale for a specific change | Commit message |
+| Kind | Place | Example |
+| --- | --- | --- |
+| Decisions with lasting consequences | [adr/](./adr/) | Testing strategy: happy-dom + MSW (ADR-0009) |
+| Standing rules agents follow every session | root `CLAUDE.md` | "Mock only at the HTTP boundary"; semantic-tokens-only rule |
+| Backlog and acceptance criteria | [stories.md](./stories.md) | Phase done conditions |
+| Design tokens and wireframes | [design/](./design/) | Light-only token rationale |
+| Rationale for a specific change | Commit message | Why a workaround was chosen |
+
+Gray-zone rule: an ADR records why a decision was made; `CLAUDE.md` records
+the standing rules that follow from it (the same topic may land in both).
+Anything session-scoped stays out of the repo, in untracked local notes.
