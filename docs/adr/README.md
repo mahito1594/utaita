@@ -32,3 +32,4 @@ Template:
 | [0008](./0008-api-errors-as-values.md) | API errors are values — Result-based wrapper over openapi-fetch |
 | [0009](./0009-testing-strategy.md) | Testing strategy — classical school, MSW as the sole mock boundary |
 | [0010](./0010-directory-structure.md) | Directory structure — entities/pages, not feature slices |
+| [0011](./0011-default-actions-stay-in-app.md) | Default tap actions never leave the app |

@@ -23,7 +23,10 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [x] 調査: 先行事例 (Elk, Phanpy, Soapbox, pleroma-fe) と SolidJS エコシステム
 - [x] リファレンスインスタンスの spec で型生成を検証 (173 paths, 79 schemas)
 - [x] Phase 0 完了 (2026-07-06)
-- [ ] Phase 1 キックオフ待ち
+- [x] Phase 1 キックオフ (2026-07-07) — Done 条件とストーリーは
+      [stories.ja.md](./stories.ja.md)、ワイヤー対象はログイン/未認証・会話ツリー・
+      プロフィール・通知の 4 画面 (各セッション冒頭に just-in-time で描く)
+- [ ] Phase 1 進行中 (次: OAuth ログイン)
 
 ## Phase 0 — 基盤
 
@@ -49,10 +52,11 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 書き込みより先に「毎日開くクライアント」にする。
 
 - [ ] OAuth ログイン (動的アプリ登録、[ADR-0003](./adr/0003-oauth.md)) とセッション管理
-- [ ] タイムライン: home / local / bubble (Akkoma 独自) / federated、無限スクロール付き
+- [ ] タイムライン: home / local / bubble (Akkoma 独自) / federated、
+      無限スクロールと新着の手動更新付き
 - [ ] Status カード: サニタイズ済み HTML 本文、カスタム絵文字、添付メディア、
-      CW/sensitive、絵文字リアクション表示、ブースト表示
-- [ ] スレッド (会話ツリー) 表示
+      CW/sensitive、絵文字リアクション表示、ブースト表示、投票・リンクプレビューの閲覧
+- [ ] スレッド (会話ツリー) 表示 (未取得の親は resolve で取得 — ADR-0011)
 - [ ] プロフィールページ (ヘッダ、投稿/返信/メディアのタブ、フォロー関係の表示)
 - [ ] 通知 (閲覧のみ。`pleroma:emoji_reaction`, `move` など未知の type で落ちない)
 
@@ -104,6 +108,17 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 - 未認証時の応答はエンドポイントごとに違う: home タイムラインは 403
   `{"error": "Invalid credentials."}`、public は 401 `{"error": "authorization
   required for timeline view"}`。認証要求の判定を 401 だけで行うと漏れる。
+- 親がローカル DB に未取得の返信では `in_reply_to_id` が実在の ID ではなく
+  プレースホルダー文字列 `"_"` になる (`in_reply_to_account_id` も同様)。実際の
+  親は `akkoma.in_reply_to_apid` (AP URI) にのみ入る。`/api/v2/search` の
+  `resolve=true` でサーバに取得させてから context を再取得する経路がある
+  (2026-07-07 に実測。resolve がスレッドをどこまで遡るかは未検証)。
+- ページネーション情報は `Link` ヘッダのみ (レスポンスボディに無い)。`limit` は
+  指定しても 40 でクランプされる (2026-07-07 に実測)。
+- 絵文字リアクションは Unicode 絵文字だと `url` が null、リモートカスタム絵文字だと
+  `name` が `shortcode@host` 形式で `url` に画像 URL が入る。null 分岐を忘れると
+  描画が壊れる。同じ配列がトップレベル `emoji_reactions` と
+  `pleroma.emoji_reactions` に重複して来る (2026-07-07 に実測)。
 - Bearer 認証されたリクエストに対して Akkoma は httpOnly のセッション Cookie も
   `Set-Cookie` で返す。dev proxy 越しだとこの Cookie が localhost に保存され、
   proxy のトークン注入を外してもブラウザは認証されたままになる (2026-07-06 に

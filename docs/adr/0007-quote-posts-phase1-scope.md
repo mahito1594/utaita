@@ -18,7 +18,11 @@ not reshuffle the card.
 
 ## Decision
 
-Deferred to the Phase 1 kickoff (story curation).
+Deferred again at the Phase 1 kickoff (2026-07-07): decided at the start of
+the status-card story session, informed by dogfooding. Note that quotes are
+structurally distinct from URLs in the body — the status carries dedicated
+`quote`, `quote_id` (alias `quoted_status_id`), and `quote_apid` fields — so
+rendering them does not depend on any URL heuristics.
 
 ## Consequences
 
