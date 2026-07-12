@@ -74,6 +74,31 @@ src/
   features-vs-widgets distinction generates placement debates a solo
   project cannot afford; two categories with a mechanical test suffice.
 
+## Amendment (2026-07-12): the OAuth callback is app machinery, not a page
+
+Phase 1's OAuth work produced the first recorded exception to the
+mechanical "does it have a URL?" test. The `/oauth-callback` route
+component lives in `app/`, not `pages/`: its whole job is writing session
+state — composition-root business — and a page could not import the
+session shell without breaking the one-way dependency rule (nothing
+imports app). The URL exists only because the authorization code flow
+needs a fixed landing path. Comparable clients treat the callback the
+same way: Phanpy parses the code in its root component, Elk in an
+app-level plugin; neither has a callback page.
+
+Two adjacent placements, recorded at the same time:
+
+- Token persistence and auth-header injection sit at the bottom
+  (`api/token-store.ts`), so lower layers can reach auth facts without
+  importing `app`. If a page ever needs "current user" data (Phase 2
+  compose is the likely first), push that piece down — an `api/`-level
+  call or an entity — never import `app`.
+- Endpoints the instance spec does not declare as paths (`/oauth/token`
+  and `/oauth/revoke` appear only as security-scheme URLs) get
+  hand-written transport in `api/` (`api/oauth.ts`), folded into the same
+  `Result` convention as `toResult`. The Decision's "api/: nothing more"
+  reads as "transport only", not "generated calls only".
+
 ## References
 
 - Server-state primitives and pagination ownership: [ADR-0004](./0004-data-fetching.md)
