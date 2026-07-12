@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login gate wireframe — 2026-07-12</title>
+<style>
+:root{--bg:#f5f5f4;--surface:#fff;--line:#c8c6c0;--line-strong:#8a8880;--text:#2c2c2a;--muted:#77756e;--accent:#185fa5;--error:#a53434;--skeleton:#e4e2dc}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--surface:#2a2a28;--line:#4a4a46;--line-strong:#6e6c66;--text:#e8e6e0;--muted:#a5a39c;--accent:#85b7eb;--error:#e08a8a;--skeleton:#3a3a36}}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;line-height:1.5}
+h1{font-size:20px;font-weight:600}
+h2{font-size:15px;font-weight:600;margin:24px 0 8px}
+.caption{font-size:12px;color:var(--muted)}
+.frames{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.frame{width:220px;height:400px;background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;box-sizing:border-box;text-align:center}
+.brand{font-size:18px;font-weight:600}
+.host{font-size:12px;color:var(--muted)}
+.btn{border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:10px 28px;font-size:14px;font-weight:600}
+.btn.disabled{border-color:var(--line);color:var(--muted)}
+.spin{width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%}
+.err{border:1px solid var(--error);border-radius:8px;padding:10px;font-size:12px;color:var(--error);width:100%;box-sizing:border-box}
+ul{font-size:13px}
+li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<h1>Login gate wireframe</h1>
+<p class="caption">2026-07-12 · Phase 1 session 1. One layout, four states. The gate is a state, not a place: it renders full-screen at whatever URL the user opened, and the OAuth callback reuses the same layout as its busy state.</p>
+
+<div class="frames">
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px">1. idle</figcaption>
+<div class="frame">
+  <div class="brand">utaita</div>
+  <div class="host">ringed.space</div>
+  <div class="btn">Log in</div>
+</div>
+</figure>
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px">2. busy, outbound (register app → redirect to /oauth/authorize)</figcaption>
+<div class="frame">
+  <div class="brand">utaita</div>
+  <div class="host">ringed.space</div>
+  <div class="btn disabled">Log in</div>
+  <div style="display:flex;gap:8px;align-items:center"><div class="spin"></div><span class="caption">Redirecting…</span></div>
+</div>
+</figure>
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px">3. busy, return leg (/oauth-callback exchanging code — same layout, no button)</figcaption>
+<div class="frame">
+  <div class="brand">utaita</div>
+  <div class="host">ringed.space</div>
+  <div style="display:flex;gap:8px;align-items:center"><div class="spin"></div><span class="caption">Signing in…</span></div>
+</div>
+</figure>
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px">4. error (registration failed / authorize denied / exchange failed — all converge here)</figcaption>
+<div class="frame">
+  <div class="brand">utaita</div>
+  <div class="host">ringed.space</div>
+  <div class="err">Login failed: 〈message from ApiError / access_denied〉</div>
+  <div class="btn">Log in</div>
+</div>
+</figure>
+
+</div>
+
+<h2>Decisions</h2>
+<ul>
+<li>Gate, not prompt: the reference instance requires auth for timelines, so an unauthenticated shell would be all errors. Full-screen login at any URL; on success the same URL renders its real page (no redirect bookkeeping).</li>
+<li>Identity is app name + <code>location.host</code> only. No <code>/api/v1/instance</code> fetch before login — it would add a failure mode to the very first screen for decoration. Phase 4 polish candidate.</li>
+<li>The callback screen is not a separate design: state 3 is the same centered column. Errors from all three failure sources (registration, authorize denial, code exchange) land in the same inline message + retry button (errors travel as values, ADR-0008).</li>
+<li>Centered single column, button in one-handed reach on mobile; semantic tokens only.</li>
+<li>No scope explanation on this screen — the instance's own /oauth/authorize page shows what is being granted.</li>
+</ul>
+
+<h2>Open</h2>
+<ul>
+<li>None for this screen. Logout affordance lives in the app shell header (see app-shell wireframe backlog), not here.</li>
+</ul>
+</body>
+</html>
