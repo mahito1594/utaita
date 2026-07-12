@@ -1,0 +1,19 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+// Ban type assertions: they bypass the checker, and this codebase prefers
+// parse-don't-validate narrowing (see src/api/oauth.ts parseTokenResponse).
+// `as const` stays allowed — it widens nothing. Test files are exempted in
+// biome.json via the plugin's `includes`. Note the exclusion must be the
+// string match `"const"`; the snippet form `` `const` `` does not match.
+or {
+  `$expr as $type` where {
+    not $type <: "const",
+    register_diagnostic(span=$expr, message="Type assertion (`as`) bypasses the type checker; parse/narrow instead.")
+  },
+  // The angle-bracket form escapes the snippet pattern above; match the
+  // syntax node directly. It cannot occur in .tsx (parsed as JSX there).
+  TsTypeAssertionExpression() as $assertion where {
+    register_diagnostic(span=$assertion, message="Angle-bracket type assertion (`<T>expr`) bypasses the type checker; parse/narrow instead.")
+  }
+}

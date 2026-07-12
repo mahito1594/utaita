@@ -29,6 +29,12 @@
       "solid": "all"
     }
   },
+  "plugins": [
+    {
+      "path": "./biome-plugins/no-as.grit",
+      "includes": ["**", "!**/*.test.ts", "!**/*.test.tsx"]
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double"
