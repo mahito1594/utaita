@@ -9,6 +9,7 @@ import { createSignal, createUniqueId, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
+import { ActionBar } from "./ActionBar";
 import { EmojiText } from "./EmojiText";
 import { LinkPreview } from "./LinkPreview";
 import { MediaGrid } from "./MediaGrid";
@@ -18,8 +19,10 @@ import { QuoteCard } from "./QuoteCard";
 import { ReactionChips } from "./ReactionChips";
 import { StatusContent } from "./StatusContent";
 import { relativeTime } from "./time";
+import type { Status } from "./types";
 
-export type Status = components["schemas"]["Status"];
+export type { Status } from "./types";
+
 type Account = Status["account"];
 type VisibilityScope = components["schemas"]["VisibilityScope"];
 
@@ -276,6 +279,7 @@ export const StatusCard = (props: { status: Status }) => {
       {/* Reactions are reader metadata, not spoilable content — they stay
           visible while the CW is collapsed (wireframe zone order). */}
       <ReactionChips reactions={parseEmojiReactions(subject())} />
+      <ActionBar status={subject()} />
     </article>
   );
 };
