@@ -443,6 +443,43 @@ test("a link preview renders title and provider as an external link", async () =
   expect(await findByText("conf.example")).toBeInTheDocument();
 });
 
+test("reaction chips render unicode and image reactions with counts", async () => {
+  // Reaction url is absent from the generated type (spec lags the wire) —
+  // non-fresh variables sidestep the excess-property check.
+  const unicodeReaction = { name: "😸", count: 3, me: true };
+  const remoteReaction = {
+    name: "neofox@remote.example",
+    count: 1,
+    me: false,
+    url: "https://remote.example/emoji/neofox.png",
+  };
+  const reactedStatus: Status = {
+    id: "110000000000000032",
+    content: "<p>popular post</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    pleroma: { emoji_reactions: [unicodeReaction, remoteReaction] },
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () =>
+      HttpResponse.json([reactedStatus]),
+    ),
+  );
+  const { findByText, findByAltText, findByTitle } = renderApp();
+
+  const unicodeChip = await findByTitle("😸");
+  expect(unicodeChip).toHaveTextContent("😸");
+  expect(unicodeChip).toHaveTextContent("3");
+  expect(unicodeChip).toHaveAttribute("data-me");
+
+  expect(await findByAltText("neofox@remote.example")).toBeInTheDocument();
+  expect(await findByText("1")).toBeInTheDocument();
+});
+
 test("external links are decorated to open in a new tab", async () => {
   const linkStatus: Status = {
     id: "110000000000000002",
