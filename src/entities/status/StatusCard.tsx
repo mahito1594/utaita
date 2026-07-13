@@ -13,7 +13,9 @@ import { EmojiText } from "./EmojiText";
 import { LinkPreview } from "./LinkPreview";
 import { MediaGrid } from "./MediaGrid";
 import { PollView } from "./PollView";
+import { parseEmojiReactions } from "./parse";
 import { QuoteCard } from "./QuoteCard";
+import { ReactionChips } from "./ReactionChips";
 import { StatusContent } from "./StatusContent";
 import { relativeTime } from "./time";
 
@@ -271,6 +273,9 @@ export const StatusCard = (props: { status: Status }) => {
           {(quote) => <QuoteCard status={quote()} />}
         </Show>
       </div>
+      {/* Reactions are reader metadata, not spoilable content — they stay
+          visible while the CW is collapsed (wireframe zone order). */}
+      <ReactionChips reactions={parseEmojiReactions(subject())} />
     </article>
   );
 };
