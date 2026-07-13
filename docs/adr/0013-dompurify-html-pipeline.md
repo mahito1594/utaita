@@ -54,7 +54,11 @@ omits):
    is static per status, so no reactivity is lost.
 
 The walk logic is a pure function (`DocumentFragment` in, transformed
-fragment out) per the functional-core rule, tested thickly in happy-dom.
+fragment out) per the functional-core rule, tested thickly under **jsdom**:
+DOMPurify silently degrades to a no-op under happy-dom (`isSupported`
+reports true but `<script>`/`onclick` survive; verified 2026-07-13 with
+happy-dom 20.10.6 + dompurify 3.4.12), so the pipeline tests opt into jsdom
+per-file while page-level tests stay on happy-dom (ADR-0009).
 
 Alongside this, the **`blurhash`** package (Wolt's reference implementation,
 zero-dependency, API stable across years) is added for sensitive-media
