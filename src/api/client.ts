@@ -44,12 +44,23 @@ export const toResult = async <T>(
 ): Promise<Result<T, ApiError>> => {
   try {
     const { data, error, response } = await call;
+    if (!response.ok) {
+      return err({
+        kind: "http",
+        status: response.status,
+        message: errorMessage(error),
+      });
+    }
+    // openapi-fetch yields data: undefined for bodyless successes (204,
+    // HEAD, empty body). Every endpoint this app calls is typed with a
+    // JSON body, so an empty success is a malformed response here — a
+    // future bodyless endpoint gets its own wrapper, not a loosened T.
     return data !== undefined
       ? ok(data)
       : err({
           kind: "http",
           status: response.status,
-          message: errorMessage(error),
+          message: "empty response body",
         });
   } catch (cause) {
     return err({ kind: "network", cause });
