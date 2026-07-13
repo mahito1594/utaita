@@ -1,7 +1,10 @@
+import { useLocation, useNavigate } from "@solidjs/router";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 import { BlurhashImage } from "./BlurhashImage";
+import { MediaOverlay } from "./MediaOverlay";
+import { overlayStateFor, parseOverlayState } from "./overlay";
 import { parseAttachmentExtras } from "./parse";
 
 type Attachment = components["schemas"]["Attachment"];
@@ -19,10 +22,29 @@ const clampRatio = (ratio: number | null): string =>
 export const MediaGrid = (props: {
   attachments: readonly Attachment[];
   sensitive: boolean;
+  statusId: string;
 }) => {
   const [revealed, setRevealed] = createSignal(false);
   const hidden = () => props.sensitive && !revealed();
   const single = () => props.attachments.length === 1;
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Opening pushes a history entry on the current path (same-path navigation
+  // still pushes when the state differs — solid-router navigateFromRoute),
+  // so back closes; closing is always navigate(-1).
+  const openOverlay = (index: number) =>
+    navigate(`${location.pathname}${location.search}`, {
+      state: overlayStateFor(props.statusId, index),
+      scroll: false,
+    });
+  const overlayAttachment = () => {
+    const parsed = parseOverlayState(location.state);
+    if (parsed === null || parsed.overlayStatusId !== props.statusId) {
+      return null;
+    }
+    return props.attachments[parsed.overlayIndex] ?? null;
+  };
 
   return (
     <div class={css({ position: "relative" })}>
@@ -38,7 +60,7 @@ export const MediaGrid = (props: {
         }}
       >
         <For each={props.attachments}>
-          {(attachment) => {
+          {(attachment, index) => {
             const extras = parseAttachmentExtras(attachment);
             return (
               <div
@@ -75,18 +97,33 @@ export const MediaGrid = (props: {
                     }
                   >
                     <Match when={attachment.type === "image"}>
-                      <img
-                        src={attachment.preview_url ?? attachment.url}
-                        alt={attachment.description ?? ""}
-                        loading="lazy"
+                      <button
+                        type="button"
+                        onClick={() => openOverlay(index())}
+                        aria-label={attachment.description || "view media"}
                         class={css({
                           display: "block",
                           width: "100%",
                           height: "100%",
-                          objectFit: "cover",
-                          bg: "bg.subtle",
+                          p: 0,
+                          border: "none",
+                          bg: "transparent",
+                          cursor: "zoom-in",
                         })}
-                      />
+                      >
+                        <img
+                          src={attachment.preview_url ?? attachment.url}
+                          alt={attachment.description ?? ""}
+                          loading="lazy"
+                          class={css({
+                            display: "block",
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            bg: "bg.subtle",
+                          })}
+                        />
+                      </button>
                     </Match>
                     <Match when={attachment.type === "video"}>
                       {/* biome-ignore lint/a11y/useMediaCaption: fediverse attachments carry no caption tracks; description covers a11y */}
@@ -159,6 +196,14 @@ export const MediaGrid = (props: {
             Show media
           </button>
         </div>
+      </Show>
+      <Show when={overlayAttachment()}>
+        {(attachment) => (
+          <MediaOverlay
+            attachment={attachment()}
+            onClose={() => navigate(-1)}
+          />
+        )}
       </Show>
     </div>
   );
