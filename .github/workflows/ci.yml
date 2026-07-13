@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push supersedes any in-flight run for the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    # Required status checks match on this display name (globally across
+    # workflows), so it is namespaced and pinned before branch protection
+    # ever references it — renaming would strand the required check.
+    name: ci-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Nothing here pushes back; don't leave the token on disk.
+          persist-credentials: false
+
+      # Single source of truth for tool versions: mise.toml (node) and
+      # package.json's packageManager field (pnpm, via mise's idiomatic
+      # version file support).
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          cache: true
+
+      # prepare runs `panda codegen`; typecheck and build need the generated
+      # styled-system output.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm check:deps
+      - run: pnpm build
