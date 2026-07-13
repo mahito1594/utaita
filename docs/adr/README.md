@@ -28,9 +28,10 @@ Template:
 | [0004](./0004-data-fetching.md) | Server state via solid-router primitives; hand-rolled cursor pagination |
 | [0005](./0005-deployment.md) | Staged rollout via `preferred_frontend` |
 | [0006](./0006-dev-token-injection.md) | Dev access token is injected by the Vite proxy, discarded when OAuth lands |
-| [0007](./0007-quote-posts-phase1-scope.md) | (draft) Whether quote posts are in the Phase 1 status card scope |
+| [0007](./0007-quote-posts-phase1-scope.md) | Quote posts are in the Phase 1 card scope, rendered at depth 1 |
 | [0008](./0008-api-errors-as-values.md) | API errors are values — Result-based wrapper over openapi-fetch |
 | [0009](./0009-testing-strategy.md) | Testing strategy — classical school, MSW as the sole mock boundary |
 | [0010](./0010-directory-structure.md) | Directory structure — entities/pages, not feature slices |
 | [0011](./0011-default-actions-stay-in-app.md) | Default tap actions never leave the app |
 | [0012](./0012-enforce-boundaries-with-dependency-cruiser.md) | Enforce directory boundaries with dependency-cruiser |
+| [0013](./0013-dompurify-html-pipeline.md) | Sanitize status HTML with DOMPurify in a fragment pipeline |
