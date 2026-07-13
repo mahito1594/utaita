@@ -368,6 +368,49 @@ test("a null quote keeps the body's RE: link as the fallback", async () => {
   ).toBeInTheDocument();
 });
 
+test("a poll renders options, counts, and its closed state read-only", async () => {
+  // own_votes is absent from the generated Poll type (spec lags the wire) —
+  // non-fresh variable sidesteps the excess-property check.
+  const rawPoll = {
+    id: "500000000000000001",
+    options: [
+      { title: "accept", votes_count: 6 },
+      { title: "deny", votes_count: 4 },
+    ],
+    votes_count: 10,
+    voters_count: null,
+    multiple: false,
+    expired: true,
+    expires_at: "2026-07-01T00:00:00.000Z",
+    voted: true,
+    own_votes: [0],
+  };
+  const pollStatus: Status = {
+    id: "110000000000000030",
+    content: "<p>which?</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    poll: rawPoll,
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([pollStatus])),
+  );
+  const { findByText, queryByRole } = renderApp();
+
+  expect(await findByText("accept")).toBeInTheDocument();
+  expect(await findByText("60% (6)")).toBeInTheDocument();
+  expect(await findByText("40% (4)")).toBeInTheDocument();
+  expect(await findByText(/10 votes/)).toBeInTheDocument();
+  expect(await findByText(/closed/)).toBeInTheDocument();
+  // Read-only: options are not buttons or inputs.
+  expect(queryByRole("radio")).not.toBeInTheDocument();
+  expect(queryByRole("checkbox")).not.toBeInTheDocument();
+});
+
 test("external links are decorated to open in a new tab", async () => {
   const linkStatus: Status = {
     id: "110000000000000002",

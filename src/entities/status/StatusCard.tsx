@@ -11,6 +11,7 @@ import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 import { EmojiText } from "./EmojiText";
 import { MediaGrid } from "./MediaGrid";
+import { PollView } from "./PollView";
 import { QuoteCard } from "./QuoteCard";
 import { StatusContent } from "./StatusContent";
 import { relativeTime } from "./time";
@@ -252,6 +253,9 @@ export const StatusCard = (props: { status: Status }) => {
           // the quoted URL (ADR-0007); without one it stays as the fallback.
           hasQuoteCard={subject().quote != null}
         />
+        <Show when={subject().poll}>
+          {(poll) => <PollView poll={poll()} />}
+        </Show>
         <Show when={(subject().media_attachments ?? []).length > 0}>
           <MediaGrid
             attachments={subject().media_attachments ?? []}
