@@ -11,6 +11,7 @@ import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 import { EmojiText } from "./EmojiText";
 import { MediaGrid } from "./MediaGrid";
+import { QuoteCard } from "./QuoteCard";
 import { StatusContent } from "./StatusContent";
 import { relativeTime } from "./time";
 
@@ -247,8 +248,9 @@ export const StatusCard = (props: { status: Status }) => {
           content={subject().content ?? ""}
           emojis={subject().emojis ?? []}
           mentions={subject().mentions ?? []}
-          // Becomes `quote != null` when the quote mini-card lands (ADR-0007).
-          hasQuoteCard={false}
+          // With a quote card below, the server's "RE:" link would duplicate
+          // the quoted URL (ADR-0007); without one it stays as the fallback.
+          hasQuoteCard={subject().quote != null}
         />
         <Show when={(subject().media_attachments ?? []).length > 0}>
           <MediaGrid
@@ -256,6 +258,9 @@ export const StatusCard = (props: { status: Status }) => {
             sensitive={subject().sensitive ?? false}
             statusId={subject().id ?? ""}
           />
+        </Show>
+        <Show when={subject().quote}>
+          {(quote) => <QuoteCard status={quote()} />}
         </Show>
       </div>
     </article>

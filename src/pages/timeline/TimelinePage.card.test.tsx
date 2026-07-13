@@ -289,6 +289,85 @@ test("tapping an image opens the overlay; closing pops history", async () => {
   ).toBeInTheDocument();
 });
 
+test("a quote renders as a depth-1 mini-card and strips the RE: link", async () => {
+  const quoteInline =
+    '<span class="quote-inline"><br />RE: <a href="https://fixture.example/objects/aaa">https://fixture.example/objects/aaa</a></span>';
+  const quoted: Status = {
+    id: "110000000000000020",
+    content: `<p>nested words${quoteInline}</p>`,
+    created_at: "2026-07-05T11:00:00.000Z",
+    // Depth 2: must NOT render as a card inside the mini-card.
+    quote: {
+      id: "110000000000000021",
+      content: "<p>deepest words</p>",
+      created_at: "2026-07-05T10:00:00.000Z",
+      account: {
+        id: "900000000000000005",
+        acct: "erin@fixture.example",
+        display_name: "Erin Deepest",
+      },
+    },
+    account: {
+      id: "900000000000000004",
+      acct: "quinn@fixture.example",
+      display_name: "Quinn Quoted",
+    },
+  };
+  const quoting: Status = {
+    id: "110000000000000022",
+    content: `<p>my take${quoteInline}</p>`,
+    created_at: "2026-07-05T12:00:00.000Z",
+    quote: quoted,
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([quoting])),
+  );
+  const { findByText, queryByText } = renderApp();
+
+  // Mini-card: quoted author and body are visible.
+  expect(await findByText("Quinn Quoted")).toBeInTheDocument();
+  expect(await findByText("nested words")).toBeInTheDocument();
+  // The quoting body's RE: link is stripped (a card replaces it)…
+  expect(queryByText(/my takeRE:/)).not.toBeInTheDocument();
+  // …but the mini-card keeps its own RE: link (depth cut) instead of
+  // rendering the depth-2 status as another card.
+  expect(
+    await findByText("https://fixture.example/objects/aaa"),
+  ).toBeInTheDocument();
+  expect(queryByText("Erin Deepest")).not.toBeInTheDocument();
+  expect(queryByText("deepest words")).not.toBeInTheDocument();
+});
+
+test("a null quote keeps the body's RE: link as the fallback", async () => {
+  const unfetchedQuote: Status = {
+    id: "110000000000000023",
+    content:
+      '<p>look at this<span class="quote-inline"><br />RE: <a href="https://remote.example/objects/bbb">https://remote.example/objects/bbb</a></span></p>',
+    quote: null,
+    created_at: "2026-07-05T12:00:00.000Z",
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () =>
+      HttpResponse.json([unfetchedQuote]),
+    ),
+  );
+  const { findByText } = renderApp();
+
+  expect(
+    await findByText("https://remote.example/objects/bbb"),
+  ).toBeInTheDocument();
+});
+
 test("external links are decorated to open in a new tab", async () => {
   const linkStatus: Status = {
     id: "110000000000000002",
