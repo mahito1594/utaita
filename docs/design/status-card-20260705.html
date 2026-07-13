@@ -19,7 +19,7 @@ li{margin-bottom:4px}
 </head>
 <body>
 <h1>Status card wireframe</h1>
-<p class="caption">2026-07-05 · Phase 0 kickoff. Dashed = conditional (rendered only when the field is present). Zone order is the decision; visual styling is not.</p>
+<p class="caption">2026-07-05 · Phase 0 kickoff, extended 2026-07-13 at the status-card session (poll, link preview, media detail, quote mini-card). Dashed = conditional (rendered only when the field is present). Zone order is the decision; visual styling is not.</p>
 
 <div style="max-width:420px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin-top:16px">
   <div class="zone cond">⟳ Boost line — "boosted by X" (reblog wrapper flattened into one card)</div>
@@ -34,10 +34,17 @@ li{margin-bottom:4px}
   <div class="zone cond">↰ Reply-to line — "replying to @who". Metadata: sits above the CW bar so it stays visible while collapsed.</div>
   <div class="zone cond" style="border-color:var(--warn);background:var(--warn-bg);color:var(--warn)">CW: spoiler_text <span style="float:right;font-size:11px">[expand ▾] — must not shift scroll position</span></div>
   <div class="zone" style="padding:0">
-    <div style="padding:10px;line-height:1.6">Body — sanitized HTML with inline custom emoji</div>
-    <div class="cond" style="border-top:1px dashed var(--line-strong);padding:6px 10px;font-size:12px">▣ Media grid — alt text, sensitive blur; remote attachments may lack blurhash/meta. Same block as the body.</div>
+    <div style="padding:10px;line-height:1.6">Body — sanitized HTML (DOMPurify, ADR-0013) with inline custom emoji (client-side <code>:shortcode:</code> replacement); <code>span.quote-inline</code> stripped when the quote card below renders</div>
+    <div class="cond" style="border-top:1px dashed var(--line-strong);padding:6px 10px;font-size:12px">☑ Poll — options + vote counts + ratio bars, closes-at / closed state, read-only. <code>voters_count</code> may be null; <code>voted</code>/<code>own_votes</code> absent when unauthenticated.</div>
+    <div class="cond" style="border-top:1px dashed var(--line-strong);padding:6px 10px;font-size:12px">▣ Media grid — 2 columns, full width when single; tap opens a full-size overlay that the back gesture closes (history-integrated). Video/audio native. Sensitive hidden by default behind blurhash (plain placeholder when blurhash is missing — remote attachments lack blurhash/meta). Alt text from <code>description</code>.</div>
+    <div class="cond" style="border-top:1px dashed var(--line-strong);padding:6px 10px;font-size:12px">🔗 Link preview — fixed-ratio thumbnail + title + provider, whole card opens externally. Lightweight: no embed html. <code>card.image</code> may be null.</div>
   </div>
-  <div class="zone cond">❝ Quote block (Akkoma quote) — below the body+media block. Reserved slot only; Phase 1 scope is ADR-0007.</div>
+  <div class="zone cond" style="padding:6px">❝ Quote mini-card (ADR-0007, accepted 2026-07-13) — depth 1:
+    <div style="border:1px dashed var(--line);border-radius:6px;padding:6px 8px;margin-top:4px;font-size:11px">
+      compact header (avatar · display name · @acct) → body (quote-inline kept = RE: link) → media grid.
+      No action bar, no reaction chips, no nested quote card. Tap → thread (thread session).
+    </div>
+  </div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px">
     <span style="border:1px solid var(--accent);background:var(--accent-bg);color:var(--accent);border-radius:999px;padding:2px 10px">😸 3 (me)</span>
     <span style="border:1px solid var(--line);border-radius:999px;padding:2px 10px;color:var(--muted)">[img] remote_emoji@host 1</span>
@@ -53,6 +60,9 @@ li{margin-bottom:4px}
 <li>Boost renders as a header line on a single card. Nested inner card rejected: breaks the vertical rhythm of the timeline.</li>
 <li>Reply-to line sits below the header but above the CW bar — it is metadata, not spoilable content, so it stays visible while the CW is collapsed.</li>
 <li>Body and media form one contiguous block; the quote block goes below it. Quote above media rejected: a quote-reply with attached images would split the author's own content.</li>
+<li>2026-07-13: Poll and link preview live inside the body block (order: body text → poll → media → link preview) — they are the author's content, so the CW bar hides them together with the body. Poll above media: a poll is part of the prose flow; the preview is derived metadata and goes last.</li>
+<li>2026-07-13: Media overlay is history-integrated — opening pushes a history entry, the back gesture/button closes it. Deep-linking an open overlay is a non-goal.</li>
+<li>2026-07-13: Quote renders as a depth-1 mini-card (ADR-0007): the mini-card keeps the server's RE: link instead of nesting further quote cards, so deep chains degrade to links.</li>
 <li>Reaction chips render image emoji (remote reactions have <code>name@host</code> + <code>url</code>) and highlight <code>me</code>.</li>
 <li>Action bar (with counts) is visible from Phase 1, read-only until Phase 2. Included now because card height/spacing feeds the design tokens.</li>
 </ul>
@@ -63,6 +73,8 @@ li{margin-bottom:4px}
 <li><code>spoiler_text</code> + <code>sensitive</code> → CW bar. <code>content</code> (HTML) + <code>emojis</code> → body. <code>media_attachments</code> → media grid.</li>
 <li><code>quote</code> / <code>quote_id</code> → quote block. <code>emoji_reactions</code> (count, name, url, me, account_ids) → chips.</li>
 <li><code>replies_count</code> / <code>reblogs_count</code> / <code>favourites_count</code> + <code>visibility</code> → action bar / header.</li>
+<li>2026-07-13: <code>poll</code> (options[].title/votes_count, expired, expires_at, multiple, voters_count, akkoma.anonymous) → poll zone. <code>card</code> (title, image, provider_name; no blurhash/dimensions) → link preview.</li>
+<li>2026-07-13: <code>Attachment.blurhash</code> / <code>meta</code> and reaction <code>url</code>/<code>account_ids</code> are absent from the instance spec but present in real responses — parsed at the boundary (see PLAN pitfalls).</li>
 </ul>
 </body>
 </html>
