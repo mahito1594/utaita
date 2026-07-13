@@ -1,11 +1,9 @@
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
+import { StatusContent } from "./StatusContent";
 
 export type Status = components["schemas"]["Status"];
 
-// `content` is HTML rendered and sanitized by the instance; we trust it as-is.
-// Custom emoji, media attachments, CW/sensitive handling all arrive in
-// Phase 1 — this card is deliberately the roughest thing that can be read.
 export const StatusCard = (props: { status: Status }) => (
   <article
     class={css({
@@ -54,19 +52,12 @@ export const StatusCard = (props: { status: Status }) => (
         {props.status.created_at}
       </time>
     </header>
-    <div
-      class={css({
-        lineHeight: "relaxed",
-        wordBreak: "break-word",
-        // Instance HTML arrives with its own paragraphs/links; preflight
-        // stripped their styles, so restore the minimum here.
-        "& :where(p + p)": { mt: "2" },
-        "& :where(a)": {
-          color: "accent.default",
-          textDecoration: "underline",
-        },
-      })}
-      innerHTML={props.status.content ?? ""}
+    <StatusContent
+      content={props.status.content ?? ""}
+      emojis={props.status.emojis ?? []}
+      mentions={props.status.mentions ?? []}
+      // Becomes `quote != null` when the quote mini-card lands (ADR-0007).
+      hasQuoteCard={false}
     />
   </article>
 );

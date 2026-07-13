@@ -1,6 +1,7 @@
 import { Route, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css } from "../../styled-system/css";
+import { ProfilePage } from "../pages/profile/ProfilePage";
 import { getHomeTimeline } from "../pages/timeline/queries";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
 import { LoginScreen } from "./LoginScreen";
@@ -104,6 +105,9 @@ const App = () => (
         component={TimelinePage}
         preload={() => (authenticated() ? getHomeTimeline() : undefined)}
       />
+      {/* /@:acct is not expressible in solid-router (a segment is dynamic
+          only when it starts with ":"), hence /users/ — see profilePath */}
+      <Route path="/users/:acct" component={ProfilePage} />
     </Route>
   </Router>
 );
