@@ -33,3 +33,4 @@ Template:
 | [0009](./0009-testing-strategy.md) | Testing strategy — classical school, MSW as the sole mock boundary |
 | [0010](./0010-directory-structure.md) | Directory structure — entities/pages, not feature slices |
 | [0011](./0011-default-actions-stay-in-app.md) | Default tap actions never leave the app |
+| [0012](./0012-enforce-boundaries-with-dependency-cruiser.md) | Enforce directory boundaries with dependency-cruiser |

@@ -15,6 +15,7 @@
     "check": "biome check",
     "check:fix": "biome check --write",
     "check:fix:unsafe": "biome check --write --unsafe",
+    "check:deps": "depcruise src",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.13.2",
+    "dependency-cruiser": "^18.0.0",
     "happy-dom": "^20.10.6",
     "msw": "^2.14.6",
     "openapi-typescript": "^7.13.0",
