@@ -142,6 +142,33 @@ test("display names render custom emoji as images", async () => {
   expect(await findByAltText(":party:")).toBeInTheDocument();
 });
 
+test("a content warning hides the body until expanded, without unmounting it", async () => {
+  const cwStatus: Status = {
+    id: "110000000000000013",
+    content: "<p>Spoiled contents</p>",
+    spoiler_text: "CW: the reveal",
+    created_at: "2026-07-05T12:00:00.000Z",
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([cwStatus])),
+  );
+  const { findByRole, findByText } = renderApp();
+
+  const toggle = await findByRole("button", { name: "CW: the reveal" });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  // Present in the DOM (hidden, not unmounted) but invisible.
+  expect(await findByText("Spoiled contents")).not.toBeVisible();
+
+  await userEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(await findByText("Spoiled contents")).toBeVisible();
+});
+
 test("external links are decorated to open in a new tab", async () => {
   const linkStatus: Status = {
     id: "110000000000000002",
