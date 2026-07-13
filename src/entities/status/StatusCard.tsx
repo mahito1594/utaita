@@ -10,6 +10,7 @@ import { Dynamic } from "solid-js/web";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 import { EmojiText } from "./EmojiText";
+import { MediaGrid } from "./MediaGrid";
 import { StatusContent } from "./StatusContent";
 import { relativeTime } from "./time";
 
@@ -231,7 +232,17 @@ export const StatusCard = (props: { status: Status }) => {
       {/* hidden (not unmounted) while collapsed: reopening must not re-run
           the pipeline or lose revealed-media state, and the toggle button
           itself never moves, so scroll position stays put. */}
-      <div id={bodyId} hidden={spoiler() !== "" && !cwExpanded()}>
+      <div
+        id={bodyId}
+        hidden={spoiler() !== "" && !cwExpanded()}
+        class={css({
+          display: "flex",
+          flexDirection: "column",
+          gap: "2",
+          // The author display would otherwise beat the UA [hidden] rule.
+          "&[hidden]": { display: "none" },
+        })}
+      >
         <StatusContent
           content={subject().content ?? ""}
           emojis={subject().emojis ?? []}
@@ -239,6 +250,12 @@ export const StatusCard = (props: { status: Status }) => {
           // Becomes `quote != null` when the quote mini-card lands (ADR-0007).
           hasQuoteCard={false}
         />
+        <Show when={(subject().media_attachments ?? []).length > 0}>
+          <MediaGrid
+            attachments={subject().media_attachments ?? []}
+            sensitive={subject().sensitive ?? false}
+          />
+        </Show>
       </div>
     </article>
   );

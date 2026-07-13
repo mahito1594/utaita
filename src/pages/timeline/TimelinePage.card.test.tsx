@@ -169,6 +169,81 @@ test("a content warning hides the body until expanded, without unmounting it", a
   expect(await findByText("Spoiled contents")).toBeVisible();
 });
 
+test("sensitive media hides behind a reveal button; missing blurhash does not crash", async () => {
+  // blurhash is absent from the generated Attachment type (spec lags the
+  // wire) — and absent from this remote-style fixture too, exercising the
+  // plain-placeholder fallback.
+  const sensitiveStatus: Status = {
+    id: "110000000000000014",
+    content: "<p>look at this</p>",
+    sensitive: true,
+    created_at: "2026-07-05T12:00:00.000Z",
+    media_attachments: [
+      {
+        id: "300000000000000001",
+        type: "image",
+        url: "https://fixture.example/media/full.png",
+        preview_url: "https://fixture.example/media/preview.png",
+        description: "a fixture image",
+      },
+    ],
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () =>
+      HttpResponse.json([sensitiveStatus]),
+    ),
+  );
+  const { findByRole, findByAltText, queryByAltText } = renderApp();
+
+  const reveal = await findByRole("button", { name: "Show media" });
+  expect(queryByAltText("a fixture image")).not.toBeInTheDocument();
+
+  await userEvent.click(reveal);
+  expect(await findByAltText("a fixture image")).toBeInTheDocument();
+});
+
+test("non-sensitive images render directly with alt text", async () => {
+  const mediaStatus: Status = {
+    id: "110000000000000015",
+    content: "<p>photo</p>",
+    sensitive: false,
+    created_at: "2026-07-05T12:00:00.000Z",
+    media_attachments: [
+      {
+        id: "300000000000000002",
+        type: "image",
+        url: "https://fixture.example/media/full2.png",
+        preview_url: "https://fixture.example/media/preview2.png",
+        description: "second fixture image",
+      },
+      {
+        id: "300000000000000003",
+        type: "image",
+        url: "https://fixture.example/media/full3.png",
+        description: "third fixture image",
+      },
+    ],
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([mediaStatus])),
+  );
+  const { findByAltText, queryByRole } = renderApp();
+
+  expect(await findByAltText("second fixture image")).toBeInTheDocument();
+  expect(await findByAltText("third fixture image")).toBeInTheDocument();
+  expect(queryByRole("button", { name: "Show media" })).not.toBeInTheDocument();
+});
+
 test("external links are decorated to open in a new tab", async () => {
   const linkStatus: Status = {
     id: "110000000000000002",
