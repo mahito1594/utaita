@@ -66,7 +66,7 @@ export const StatusCard = (props: { status: Status }) => (
           textDecoration: "underline",
         },
       })}
-      innerHTML={props.status.content}
+      innerHTML={props.status.content ?? ""}
     />
   </article>
 );

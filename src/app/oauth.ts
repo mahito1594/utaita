@@ -24,7 +24,9 @@ export const buildAuthorizeUrl = (params: {
   })}`;
 
 export type CallbackParams =
-  | { kind: "code"; code: string; state?: string }
+  // `state` is required-but-nullable: parsing always evaluates it, so "key
+  // absent" would be a meaningless third state (exactOptionalPropertyTypes).
+  | { kind: "code"; code: string; state: string | undefined }
   // The instance redirected back with an OAuth error (e.g. access_denied
   // when the user refused the authorization prompt).
   | { kind: "denied"; error: string }

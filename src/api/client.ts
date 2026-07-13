@@ -7,7 +7,10 @@ import { loadToken } from "./token-store";
 // on `kind`; 401 surfaces as http(401) and is the UI's business to render.
 export type ApiError =
   | { kind: "network"; cause: unknown }
-  | { kind: "http"; status: number; message?: string };
+  // `message` is required-but-nullable: it is always computed at
+  // construction, so "key absent" would be a meaningless third state
+  // (exactOptionalPropertyTypes).
+  | { kind: "http"; status: number; message: string | undefined };
 
 // Akkoma error bodies are `{ "error": string }`; anything else degrades to
 // an undefined message rather than failing.
