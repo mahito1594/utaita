@@ -480,6 +480,34 @@ test("reaction chips render unicode and image reactions with counts", async () =
   expect(await findByText("1")).toBeInTheDocument();
 });
 
+test("the action bar shows counts read-only", async () => {
+  const countedStatus: Status = {
+    id: "110000000000000033",
+    content: "<p>counted</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    replies_count: 2,
+    reblogs_count: 5,
+    favourites_count: 12,
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () =>
+      HttpResponse.json([countedStatus]),
+    ),
+  );
+  const { findByTitle } = renderApp();
+
+  expect(await findByTitle("replies")).toHaveTextContent("2");
+  expect(await findByTitle("boosts")).toHaveTextContent("5");
+  expect(await findByTitle("favourites")).toHaveTextContent("12");
+  // Read-only: none of them are buttons.
+  expect((await findByTitle("bookmark")).tagName).toBe("SPAN");
+});
+
 test("external links are decorated to open in a new tab", async () => {
   const linkStatus: Status = {
     id: "110000000000000002",

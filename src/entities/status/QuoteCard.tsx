@@ -3,8 +3,8 @@ import { createSignal, createUniqueId, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import { EmojiText } from "./EmojiText";
 import { MediaGrid } from "./MediaGrid";
-import type { Status } from "./StatusCard";
 import { StatusContent } from "./StatusContent";
+import type { Status } from "./types";
 
 /**
  * Quote mini-card (ADR-0007), depth 1 by design: it renders no quote card of
