@@ -10,6 +10,7 @@ import { Dynamic } from "solid-js/web";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 import { EmojiText } from "./EmojiText";
+import { LinkPreview } from "./LinkPreview";
 import { MediaGrid } from "./MediaGrid";
 import { PollView } from "./PollView";
 import { QuoteCard } from "./QuoteCard";
@@ -262,6 +263,9 @@ export const StatusCard = (props: { status: Status }) => {
             sensitive={subject().sensitive ?? false}
             statusId={subject().id ?? ""}
           />
+        </Show>
+        <Show when={subject().card}>
+          {(card) => <LinkPreview card={card()} />}
         </Show>
         <Show when={subject().quote}>
           {(quote) => <QuoteCard status={quote()} />}

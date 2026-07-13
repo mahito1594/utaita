@@ -411,6 +411,38 @@ test("a poll renders options, counts, and its closed state read-only", async () 
   expect(queryByRole("checkbox")).not.toBeInTheDocument();
 });
 
+test("a link preview renders title and provider as an external link", async () => {
+  const cardStatus: Status = {
+    id: "110000000000000031",
+    content: "<p>came across this</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    card: {
+      type: "link",
+      url: "https://conf.example/2026",
+      title: "Fixture Conference 2026",
+      description: "an event",
+      provider_name: "conf.example",
+      image: "https://conf.example/ogp.png",
+    },
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([cardStatus])),
+  );
+  const { findByRole, findByText } = renderApp();
+
+  const preview = await findByRole("link", {
+    name: /Fixture Conference 2026/,
+  });
+  expect(preview).toHaveAttribute("href", "https://conf.example/2026");
+  expect(preview).toHaveAttribute("target", "_blank");
+  expect(await findByText("conf.example")).toBeInTheDocument();
+});
+
 test("external links are decorated to open in a new tab", async () => {
   const linkStatus: Status = {
     id: "110000000000000002",
