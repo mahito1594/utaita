@@ -1,10 +1,11 @@
+import ChevronDown from "lucide-solid/icons/chevron-down";
 import Globe from "lucide-solid/icons/globe";
 import House from "lucide-solid/icons/house";
 import Lock from "lucide-solid/icons/lock";
 import LockOpen from "lucide-solid/icons/lock-open";
 import Mail from "lucide-solid/icons/mail";
 import Repeat2 from "lucide-solid/icons/repeat-2";
-import { Show } from "solid-js";
+import { createSignal, createUniqueId, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
@@ -34,6 +35,9 @@ export const StatusCard = (props: { status: Status }) => {
   // the boost line, every other zone reads the boosted status (wireframe
   // decision — a nested inner card breaks the timeline's vertical rhythm).
   const subject = () => props.status.reblog ?? props.status;
+  const spoiler = () => subject().spoiler_text ?? "";
+  const [cwExpanded, setCwExpanded] = createSignal(false);
+  const bodyId = createUniqueId();
   // "_" is Akkoma's placeholder for replies whose parent is unfetched (PLAN
   // pitfalls) — it still marks the status as a reply.
   const replyTo = () =>
@@ -183,13 +187,59 @@ export const StatusCard = (props: { status: Status }) => {
           {replyTo() !== null ? `@${replyTo()}` : "a post"}
         </div>
       </Show>
-      <StatusContent
-        content={subject().content ?? ""}
-        emojis={subject().emojis ?? []}
-        mentions={subject().mentions ?? []}
-        // Becomes `quote != null` when the quote mini-card lands (ADR-0007).
-        hasQuoteCard={false}
-      />
+      <Show when={spoiler() !== ""}>
+        <button
+          type="button"
+          aria-expanded={cwExpanded()}
+          aria-controls={bodyId}
+          onClick={() => setCwExpanded((expanded) => !expanded)}
+          class={css({
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "2",
+            width: "100%",
+            textAlign: "left",
+            px: "2.5",
+            py: "1.5",
+            fontSize: "sm",
+            bg: "bg.subtle",
+            borderWidth: "1px",
+            borderColor: "border.default",
+            borderRadius: "md",
+            cursor: "pointer",
+          })}
+        >
+          <span class={css({ minWidth: 0, wordBreak: "break-word" })}>
+            <EmojiText text={spoiler()} emojis={subject().emojis ?? []} />
+          </span>
+          <span
+            aria-hidden="true"
+            class={css({
+              display: "inline-flex",
+              flexShrink: 0,
+              color: "text.muted",
+              transitionProperty: "transform",
+              transitionDuration: "fast",
+            })}
+            style={{ transform: cwExpanded() ? "rotate(180deg)" : undefined }}
+          >
+            <ChevronDown size={16} />
+          </span>
+        </button>
+      </Show>
+      {/* hidden (not unmounted) while collapsed: reopening must not re-run
+          the pipeline or lose revealed-media state, and the toggle button
+          itself never moves, so scroll position stays put. */}
+      <div id={bodyId} hidden={spoiler() !== "" && !cwExpanded()}>
+        <StatusContent
+          content={subject().content ?? ""}
+          emojis={subject().emojis ?? []}
+          mentions={subject().mentions ?? []}
+          // Becomes `quote != null` when the quote mini-card lands (ADR-0007).
+          hasQuoteCard={false}
+        />
+      </div>
     </article>
   );
 };
