@@ -45,7 +45,7 @@ export const OAuthCallback = () => {
       when={error()}
       fallback={
         <GateFrame>
-          <p class={css({ fontSize: "sm", color: "text.muted" })}>
+          <p role="status" class={css({ fontSize: "sm", color: "text.muted" })}>
             Signing in…
           </p>
         </GateFrame>

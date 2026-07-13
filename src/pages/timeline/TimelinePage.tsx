@@ -28,16 +28,18 @@ const TimelineError = (props: { error: ApiError }) => {
       // 403 "Invalid credentials.", public responds 401 — both mean "no
       // valid user", so both get the sign-in prompt.
       return props.error.status === 401 || props.error.status === 403 ? (
-        <p class={errorBox}>Sign-in required to view this timeline.</p>
+        <p class={errorBox} role="alert">
+          Sign-in required to view this timeline.
+        </p>
       ) : (
-        <p class={errorBox}>
+        <p class={errorBox} role="alert">
           Request failed ({props.error.status}
           {props.error.message ? `: ${props.error.message}` : ""}).
         </p>
       );
     case "network":
       return (
-        <p class={errorBox}>
+        <p class={errorBox} role="alert">
           Connection failed — check your network.{" "}
           <button
             type="button"

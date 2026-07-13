@@ -74,9 +74,10 @@ test("renders a sign-in prompt when the timeline answers 401", async () => {
       ),
     ),
   );
-  const { findByText } = renderTimeline();
+  const { findByRole } = renderTimeline();
 
-  expect(await findByText(/sign-in required/i)).toBeInTheDocument();
+  // role="alert" so the error is announced, not merely painted.
+  expect(await findByRole("alert")).toHaveTextContent(/sign-in required/i);
 });
 
 test("renders a sign-in prompt when the timeline answers 403", async () => {

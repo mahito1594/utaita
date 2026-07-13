@@ -3,7 +3,13 @@
 // by OAuthCallback via GateFrame), and error. It is a state, not a place:
 // no /login route exists, the AuthGate renders this at whatever URL the
 // user opened.
-import { createSignal, onCleanup, type ParentProps, Show } from "solid-js";
+import {
+  createSignal,
+  onCleanup,
+  onMount,
+  type ParentProps,
+  Show,
+} from "solid-js";
 import { css } from "../../styled-system/css";
 import { login, type SessionError } from "./session";
 
@@ -65,6 +71,18 @@ export const LoginScreen = (props: { initialError?: SessionError }) => {
   window.addEventListener("pageshow", onPageShow);
   onCleanup(() => window.removeEventListener("pageshow", onPageShow));
 
+  // Clicking sets `disabled` on the still-focused button, which blurs it
+  // (HTML focus rules) — without an explicit landing spot a keyboard or
+  // screen-reader user is left on <body> with no announcement when the
+  // flow fails. Solid renders synchronously, so the ref is set right after
+  // setError and the error box can take focus itself.
+  let errorEl: HTMLParagraphElement | undefined;
+
+  onMount(() => {
+    // Mounted already showing an error (the callback's failure hand-off).
+    if (error() !== undefined) errorEl?.focus();
+  });
+
   const handleLogin = async () => {
     setBusy(true);
     setError(undefined);
@@ -72,6 +90,7 @@ export const LoginScreen = (props: { initialError?: SessionError }) => {
     if (!result.ok) {
       setError(result.error);
       setBusy(false);
+      errorEl?.focus();
     }
     // Ok means the browser is navigating to the authorize page — stay busy.
   };
@@ -79,7 +98,11 @@ export const LoginScreen = (props: { initialError?: SessionError }) => {
   return (
     <GateFrame>
       <Show when={error()}>
-        {(e) => <p class={errorBox}>{errorText(e())}</p>}
+        {(e) => (
+          <p class={errorBox} role="alert" tabindex="-1" ref={errorEl}>
+            {errorText(e())}
+          </p>
+        )}
       </Show>
       <button
         type="button"
@@ -103,7 +126,9 @@ export const LoginScreen = (props: { initialError?: SessionError }) => {
         Log in
       </button>
       <Show when={busy()}>
-        <p class={css({ fontSize: "sm", color: "text.muted" })}>Redirecting…</p>
+        <p role="status" class={css({ fontSize: "sm", color: "text.muted" })}>
+          Redirecting…
+        </p>
       </Show>
     </GateFrame>
   );

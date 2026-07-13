@@ -139,11 +139,15 @@ test("registration failure surfaces on the gate with retry", async () => {
       HttpResponse.json({ error: "invalid request" }, { status: 422 }),
     ),
   );
-  const { findByRole, findByText } = render(() => <App />);
+  const { findByRole } = render(() => <App />);
 
   await userEvent.click(await findByRole("button", { name: "Log in" }));
 
-  expect(await findByText(/login failed \(422/i)).toBeInTheDocument();
+  // Announced as an alert, and focus lands on it: disabling the clicked
+  // button blurred it, so the error box is the explicit landing spot.
+  const alert = await findByRole("alert");
+  expect(alert).toHaveTextContent(/login failed \(422/i);
+  expect(alert).toHaveFocus();
   // The button doubles as the retry affordance (wireframe decision).
   expect(await findByRole("button", { name: "Log in" })).toBeEnabled();
 });

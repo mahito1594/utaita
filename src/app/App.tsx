@@ -69,7 +69,11 @@ const Layout = (props: ParentProps) => (
         fallback={(err) => <p>Something went wrong: {String(err)}</p>}
       >
         <Suspense
-          fallback={<p class={css({ color: "text.muted" })}>Loading…</p>}
+          fallback={
+            <p role="status" class={css({ color: "text.muted" })}>
+              Loading…
+            </p>
+          }
         >
           {props.children}
         </Suspense>
