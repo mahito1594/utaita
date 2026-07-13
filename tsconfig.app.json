@@ -18,6 +18,14 @@
     "jsxImportSource": "solid-js",
 
     /* Linting */
+    /* strict is the TS 6.0 compiler default; spelled out so a TS downgrade
+       can never silently drop it. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
