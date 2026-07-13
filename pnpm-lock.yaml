@@ -14,6 +14,9 @@ importers:
       dompurify:
         specifier: ^3.4.12
         version: 3.4.12
+      lucide-solid:
+        specifier: ^1.24.0
+        version: 1.24.0(solid-js@1.9.14)
       openapi-fetch:
         specifier: ^0.17.0
         version: 0.17.0
@@ -1708,6 +1711,11 @@ packages:
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
+
+  lucide-solid@1.24.0:
+    resolution: {integrity: sha512-0mgYCmcW2TogIgDI15C+HYNdQhjHeHViYW4laUnRKrzFPG3DThb3MOlqRPa/7WZv1Uzh5nZJ9sgvi/MYQ4WKQA==}
+    peerDependencies:
+      solid-js: ^1.4.7
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -4166,6 +4174,10 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  lucide-solid@1.24.0(solid-js@1.9.14):
+    dependencies:
+      solid-js: 1.9.14
 
   lz-string@1.5.0: {}
 
