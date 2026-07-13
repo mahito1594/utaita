@@ -26,7 +26,10 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [x] Phase 1 キックオフ (2026-07-07) — Done 条件とストーリーは
       [stories.ja.md](./stories.ja.md)、ワイヤー対象はログイン/未認証・会話ツリー・
       プロフィール・通知の 4 画面 (各セッション冒頭に just-in-time で描く)
-- [ ] Phase 1 進行中 (次: OAuth ログイン)
+- [x] Phase 1 セッション 1 (OAuth ログイン) 完了 (2026-07-12。ストーリーのチェックは
+      スマホ実機確認待ち)
+- [ ] Phase 1 進行中 (現在: Status カード — 引用スコープは ADR-0007 で確定、
+      サニタイズ/HTML パイプラインは ADR-0013)
 
 ## Phase 0 — 基盤
 
@@ -119,6 +122,16 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   `name` が `shortcode@host` 形式で `url` に画像 URL が入る。null 分岐を忘れると
   描画が壊れる。同じ配列がトップレベル `emoji_reactions` と
   `pleroma.emoji_reactions` に重複して来る (2026-07-07 に実測)。
+- インスタンス配信の spec に実レスポンスへ遅れているフィールドがある:
+  `Attachment.blurhash` / `Attachment.meta`、絵文字リアクションの `url` /
+  `account_ids` は spec に無いが実測では来る (2026-07-13 に確認)。生成型に無い
+  フィールドは境界パース (`in` ナローイング) で補う。逆に poll の `voted` /
+  `own_votes` は spec 上 nullable だが未認証時はキー自体が欠落する。
+- カスタム絵文字は `content` HTML 内で `:shortcode:` テキストのまま配信される
+  (`<img>` 化されない、2026-07-13 に実測)。クライアントが `emojis` 配列で置換する。
+- 引用投稿の `content` にはサーバが `<span class="quote-inline">` で RE: リンクを
+  自動付加する (投稿者ソースには無い)。引用カードを描画するときだけ除去する
+  (ADR-0007)。
 - Bearer 認証されたリクエストに対して Akkoma は httpOnly のセッション Cookie も
   `Set-Cookie` で返す。dev proxy 越しだとこの Cookie が localhost に保存され、
   proxy のトークン注入を外してもブラウザは認証されたままになる (2026-07-06 に
