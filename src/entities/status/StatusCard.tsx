@@ -254,6 +254,7 @@ export const StatusCard = (props: { status: Status }) => {
           <MediaGrid
             attachments={subject().media_attachments ?? []}
             sensitive={subject().sensitive ?? false}
+            statusId={subject().id ?? ""}
           />
         </Show>
       </div>

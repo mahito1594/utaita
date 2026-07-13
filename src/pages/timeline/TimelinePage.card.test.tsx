@@ -3,7 +3,7 @@
 // behavior at page level; the pipeline internals are covered in
 // entities/status/content.test.ts under jsdom).
 import { MemoryRouter, query, Route } from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -242,6 +242,51 @@ test("non-sensitive images render directly with alt text", async () => {
   expect(await findByAltText("second fixture image")).toBeInTheDocument();
   expect(await findByAltText("third fixture image")).toBeInTheDocument();
   expect(queryByRole("button", { name: "Show media" })).not.toBeInTheDocument();
+});
+
+test("tapping an image opens the overlay; closing pops history", async () => {
+  const mediaStatus: Status = {
+    id: "110000000000000016",
+    content: "<p>pic</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    media_attachments: [
+      {
+        id: "300000000000000004",
+        type: "image",
+        url: "https://fixture.example/media/full4.png",
+        preview_url: "https://fixture.example/media/preview4.png",
+        description: "overlay fixture",
+      },
+    ],
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([mediaStatus])),
+  );
+  const { findByRole } = renderApp();
+
+  await userEvent.click(
+    await findByRole("button", { name: "overlay fixture" }),
+  );
+  // The overlay renders through a Portal onto document.body, outside the
+  // render container — query via screen.
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toBeInTheDocument();
+
+  // Close = navigate(-1): the back gesture and the button share this path.
+  // If same-path navigation ever stopped pushing (solid-router internal
+  // behavior, not documented), there would be no entry to pop and the dialog
+  // would survive this click.
+  await userEvent.click(await screen.findByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  // Still on the timeline, not navigated away.
+  expect(
+    await findByRole("button", { name: "overlay fixture" }),
+  ).toBeInTheDocument();
 });
 
 test("external links are decorated to open in a new tab", async () => {
