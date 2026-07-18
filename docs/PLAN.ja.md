@@ -97,7 +97,8 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 
 - Streaming API (WebSocket `/api/v1/streaming`、再接続/バックオフ設計)
 - 下書き (IndexedDB)、リスト、フィルタ、必要になったらリスト仮想化
-- 差別化 UX (Phanpy 風キャッチアップビューなど)、i18n、a11y 強化、PWA
+- 差別化 UX (Phanpy 風キャッチアップビューなど)、i18n (カード時刻表示の
+  再設計・タイムゾーン設定を含む — stories の Icebox 参照)、a11y 強化、PWA
 
 学びの目標: Phoenix ベースの WebSocket リアルタイム。オフラインファーストの永続化。
 
