@@ -44,3 +44,13 @@ together so API changes show up as one reviewable diff.
 - Roadmap and phase status: [docs/PLAN.md](./docs/PLAN.md)
 - Decisions with lasting consequences: [docs/adr/](./docs/adr/)
 - How we work: [docs/process.md](./docs/process.md)
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
+
+Third-party dependencies bundled into the production build are
+attributed in `dist/THIRD_PARTY_LICENSES.md`, generated automatically
+by Vite's `build.license` during `pnpm build`. `pnpm check:licenses`
+guards CI against dependencies with licenses outside the permissive
+allowlist.

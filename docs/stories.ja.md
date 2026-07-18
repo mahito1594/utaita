@@ -56,3 +56,4 @@
 - DM の閲覧 (spec のタイムライン一覧に direct が無い — Akkoma の chats 機構の調査から)
 - リモートにしか存在しない返信の補完 (発言元インスタンスの公開 API をマージする差別化機能。同一オリジン前提と衝突するため要設計)
 - カード時刻表示の再設計: 相対時刻 ("5m") が良いデザインかは要議論 — dogfooding で不満が出るか観察し、材料が揃い次第議論。現状の絶対時刻はカレンダー表示 ("Jul 5") がブラウザのローカル TZ (Intl デフォルト)、ツールチップ (`title`) は API の生 ISO 文字列。理想は利用者が設定でタイムゾーンを選べること。実装スロットは Phase 4 の i18n と同時 (time.ts はロケールも "en" ハードコードで、同じ箇所を触るため — PLAN 参照)
+- About 画面 + `/THIRD_PARTY_LICENSES.md` へのリンク(Vite の `build.license` で自動生成)。同時にバグ報告リンク等を `package.json` の `bugs.url` から import する形にする。attribution ファイルの補完性(現状 blurhash のように upstream で LICENSE 欠落の依存が空 body で並ぶ)は実装時に判断し、必要なら `rollup-plugin-license` で SPDX テキストを合成する fallback を検討。実装スロットは i18n / 設定画面ができるタイミング — Phase 4 想定
