@@ -43,6 +43,11 @@ export const renderContent = (
       "input",
       "style",
     ],
+    // The style *attribute* (as opposed to the <style> tag above) survives
+    // the html profile and lets a remote post overlay the whole viewport,
+    // e.g. `style="position:fixed;inset:0;z-index:999999"` (found in review
+    // 2026-07-18).
+    FORBID_ATTR: ["style"],
   });
   if (options.hasQuoteCard) {
     for (const span of fragment.querySelectorAll("span.quote-inline")) {

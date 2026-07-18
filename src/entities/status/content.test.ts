@@ -71,6 +71,16 @@ describe("sanitization", () => {
     const div = render('<a href="javascript:alert(1)">x</a>');
     expect(div.querySelector("a")?.getAttribute("href")).toBeNull();
   });
+
+  test("the style attribute is stripped but the element survives", () => {
+    // A remote post could otherwise overlay the whole viewport with a link
+    // (found in review 2026-07-18).
+    const div = render(
+      '<a href="https://x.test" style="position:fixed;inset:0;z-index:999999">x</a>',
+    );
+    expect(div.querySelector("a")?.getAttribute("style")).toBeNull();
+    expect(div.querySelector("a")?.getAttribute("href")).toBe("https://x.test");
+  });
 });
 
 describe("custom emoji replacement", () => {
