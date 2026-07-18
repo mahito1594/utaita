@@ -443,6 +443,69 @@ test("a link preview renders title and provider as an external link", async () =
   expect(await findByText("conf.example")).toBeInTheDocument();
 });
 
+test("a card with an unsafe url scheme renders the preview text without an anchor", async () => {
+  const unsafeCardStatus: Status = {
+    id: "110000000000000034",
+    content: "<p>suspicious link</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    card: {
+      type: "link",
+      url: "javascript:alert(1)",
+      title: "Fixture Unsafe Card",
+      description: "a suspicious link",
+      provider_name: "conf.example",
+    },
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () =>
+      HttpResponse.json([unsafeCardStatus]),
+    ),
+  );
+  const { findByText, queryByRole } = renderApp();
+
+  expect(await findByText("Fixture Unsafe Card")).toBeInTheDocument();
+  expect(
+    queryByRole("link", { name: /Fixture Unsafe Card/ }),
+  ).not.toBeInTheDocument();
+});
+
+test("an unknown-type attachment with an unsafe url scheme renders its description without an anchor", async () => {
+  const unsafeAttachmentStatus: Status = {
+    id: "110000000000000035",
+    content: "<p>weird attachment</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    media_attachments: [
+      {
+        id: "300000000000000005",
+        type: "unknown",
+        url: "javascript:alert(1)",
+        description: "an unsafe attachment",
+      },
+    ],
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () =>
+      HttpResponse.json([unsafeAttachmentStatus]),
+    ),
+  );
+  const { findByText, queryByRole } = renderApp();
+
+  expect(await findByText("an unsafe attachment")).toBeInTheDocument();
+  expect(
+    queryByRole("link", { name: "an unsafe attachment" }),
+  ).not.toBeInTheDocument();
+});
+
 test("reaction chips render unicode and image reactions with counts", async () => {
   // Reaction url is absent from the generated type (spec lags the wire) —
   // non-fresh variables sidestep the excess-property check.

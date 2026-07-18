@@ -1,33 +1,24 @@
 import { Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
+import { safeExternalHref } from "./url";
 
 type Card = NonNullable<components["schemas"]["Status"]["card"]>;
 
-/**
- * Lightweight link preview: fixed-ratio thumbnail + title + provider, the
- * whole card opening the link externally (an explicit link affordance,
- * consistent with ADR-0011). No embed html, no player. The card payload
- * carries no blurhash or dimensions (measured 2026-07-13), hence the fixed
- * thumbnail box.
- */
-export const LinkPreview = (props: { card: Card }) => (
-  <a
-    href={props.card.url}
-    target="_blank"
-    rel="noopener noreferrer"
-    class={css({
-      display: "flex",
-      gap: "2.5",
-      alignItems: "stretch",
-      borderWidth: "1px",
-      borderColor: "border.default",
-      borderRadius: "md",
-      overflow: "hidden",
-      textDecoration: "none",
-      _hover: { bg: "bg.subtle" },
-    })}
-  >
+const cardClass = css({
+  display: "flex",
+  gap: "2.5",
+  alignItems: "stretch",
+  borderWidth: "1px",
+  borderColor: "border.default",
+  borderRadius: "md",
+  overflow: "hidden",
+  textDecoration: "none",
+  _hover: { bg: "bg.subtle" },
+});
+
+const CardBody = (props: { card: Card }) => (
+  <>
     <Show when={props.card.image}>
       {(image) => (
         <img
@@ -80,5 +71,37 @@ export const LinkPreview = (props: { card: Card }) => (
         </span>
       </Show>
     </div>
-  </a>
+  </>
+);
+
+/**
+ * Lightweight link preview: fixed-ratio thumbnail + title + provider, the
+ * whole card opening the link externally (an explicit link affordance,
+ * consistent with ADR-0011). No embed html, no player. The card payload
+ * carries no blurhash or dimensions (measured 2026-07-13), hence the fixed
+ * thumbnail box. `card.url` is API-provided and bypasses DOMPurify (it never
+ * touches `renderContent`); `safeExternalHref` is the scheme check standing
+ * in for it — an unsafe scheme renders the same visual card without the
+ * anchor, never as a clickable link.
+ */
+export const LinkPreview = (props: { card: Card }) => (
+  <Show
+    when={safeExternalHref(props.card.url)}
+    fallback={
+      <div class={cardClass}>
+        <CardBody card={props.card} />
+      </div>
+    }
+  >
+    {(href) => (
+      <a
+        href={href()}
+        target="_blank"
+        rel="noopener noreferrer"
+        class={cardClass}
+      >
+        <CardBody card={props.card} />
+      </a>
+    )}
+  </Show>
 );
