@@ -1,6 +1,16 @@
 {
   "name": "utaita",
   "private": true,
+  "license": "MIT",
+  "author": "Mahito TANNO",
+  "description": "A modern web frontend for Akkoma",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mahito1594/utaita.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mahito1594/utaita/issues"
+  },
   "version": "0.0.0",
   "type": "module",
   "scripts": {
