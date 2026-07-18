@@ -6,6 +6,7 @@ import { BlurhashImage } from "./BlurhashImage";
 import { MediaOverlay } from "./MediaOverlay";
 import { overlayStateFor, parseOverlayState } from "./overlay";
 import { parseAttachmentExtras } from "./parse";
+import { safeExternalHref } from "./url";
 
 type Attachment = components["schemas"]["Attachment"];
 
@@ -77,23 +78,46 @@ export const MediaGrid = (props: {
                 >
                   <Switch
                     fallback={
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class={css({
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          height: "100%",
-                          bg: "bg.subtle",
-                          color: "accent.default",
-                          fontSize: "sm",
-                          textDecoration: "underline",
-                        })}
+                      // attachment.url is API-provided and bypasses
+                      // DOMPurify (never touches renderContent); an unsafe
+                      // scheme falls back to a plain, non-interactive box.
+                      <Show
+                        when={safeExternalHref(attachment.url)}
+                        fallback={
+                          <div
+                            class={css({
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              height: "100%",
+                              bg: "bg.subtle",
+                              fontSize: "sm",
+                            })}
+                          >
+                            {attachment.description || "attachment"}
+                          </div>
+                        }
                       >
-                        {attachment.description || "attachment"}
-                      </a>
+                        {(href) => (
+                          <a
+                            href={href()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class={css({
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              height: "100%",
+                              bg: "bg.subtle",
+                              color: "accent.default",
+                              fontSize: "sm",
+                              textDecoration: "underline",
+                            })}
+                          >
+                            {attachment.description || "attachment"}
+                          </a>
+                        )}
+                      </Show>
                     }
                   >
                     <Match when={attachment.type === "image"}>
