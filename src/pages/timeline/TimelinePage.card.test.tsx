@@ -272,8 +272,8 @@ test("tapping an image opens the overlay; closing pops history", async () => {
   await userEvent.click(
     await findByRole("button", { name: "overlay fixture" }),
   );
-  // The overlay renders through a Portal onto document.body, outside the
-  // render container — query via screen.
+  // Query via screen: the overlay is a native <dialog>, whose implicit ARIA
+  // role is "dialog" once shown (no explicit role attribute needed).
   const dialog = await screen.findByRole("dialog");
   expect(dialog).toBeInTheDocument();
 
