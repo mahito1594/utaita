@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
   const entry = target ? { target, changeOrigin: true } : undefined;
   return {
     plugins: [solid()],
+    build: {
+      license: { fileName: "THIRD_PARTY_LICENSES.md" },
+    },
     ...(entry
       ? {
           server: {
