@@ -41,10 +41,13 @@ real-DOM fragment pipeline (the Phanpy shape, plus the sanitize step Phanpy
 omits):
 
 1. `DOMPurify.sanitize(html, { RETURN_DOM_FRAGMENT: true, FORBID_TAGS: [
-   "img", "picture", "video", "audio", "iframe", "form", "input", "style" ] })`
-   — default allowlist, forbidding only media/embedding tags. Body-authored
-   images are disallowed because the emoji `<img>` elements are inserted by
-   us *after* sanitization.
+   "img", "picture", "video", "audio", "source", "track", "iframe", "form",
+   "input", "style" ], FORBID_ATTR: ["style"] })` — default allowlist,
+   forbidding only media/embedding tags plus the `style` attribute (which
+   survives the html profile and could otherwise overlay the viewport, e.g.
+   `style="position:fixed;inset:0"`; found in review 2026-07-18).
+   Body-authored images are disallowed because the emoji `<img>` elements
+   are inserted by us *after* sanitization.
 2. Walk the fragment (TreeWalker): replace `:shortcode:` in text nodes
    (skipping `code`/`pre`) with emoji `<img>` elements from `status.emojis`,
    strip `span.quote-inline` when a quote card is rendered (ADR-0007), and
