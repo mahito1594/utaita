@@ -42,4 +42,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm check:deps
+      - run: pnpm check:licenses
       - run: pnpm build
