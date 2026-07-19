@@ -410,10 +410,202 @@ test("once a tail loadOlder returns fewer than the page limit, the sentinel stop
 
   // A stray re-fire (IO firing again while the row is technically still
   // visible) must not repeat the request now that the store knows it's
-  // exhausted — `shouldTriggerLoadOlder` re-checks `exhausted` fresh on
-  // every call, independent of whether the sentinel is still mounted.
+  // exhausted — `requestOlderAtTail` re-reads `store.exhausted()` fresh
+  // on every fire, independent of whether the sentinel is still mounted.
   observer?.fireVisible();
   expect(await findByText(/all caught up/i)).toBeInTheDocument();
+  expect(olderRequestCount).toBe(1);
+});
+
+test("renders an empty-success row when the timeline responds with no statuses", async () => {
+  // A brand-new account (or one following nobody yet): the fetch succeeds
+  // but returns an empty array, so no segment is ever created. Without an
+  // explicit empty row the panel body would just show a blank strip.
+  server.use(http.get("*/api/v1/timelines/home", () => HttpResponse.json([])));
+  const { findByText } = renderTimeline();
+
+  expect(await findByText(/no posts yet/i)).toBeInTheDocument();
+});
+
+test("a successful refresh with new posts announces the count via the live region", async () => {
+  // The live region carries the outcome of a *manual* refresh only; focus
+  // stays on the refresh button. Screen readers pick up the change from
+  // this permanently-mounted region, not from a role-switch or a focus
+  // move.
+  server.use(
+    http.get("*/api/v1/timelines/home", ({ request }) => {
+      const sinceId = new URL(request.url).searchParams.get("since_id");
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json([
+        newerStatus("110000000000000003", "Brand new"),
+        newerStatus("110000000000000004", "Also new"),
+      ]);
+    }),
+  );
+  const { findByText, findByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+
+  expect(await findByText("2 new posts loaded")).toBeInTheDocument();
+});
+
+test("a refresh with nothing new announces 'No new posts' via the live region", async () => {
+  server.use(
+    http.get("*/api/v1/timelines/home", ({ request }) => {
+      const sinceId = new URL(request.url).searchParams.get("since_id");
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json([]);
+    }),
+  );
+  const { findByText, findByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+
+  expect(await findByText("No new posts")).toBeInTheDocument();
+});
+
+test("a sentinel fetch queues instead of being dropped while a gap fill is in flight", async () => {
+  // Two older-fetches want to run at once: the gap fill (for the new head
+  // segment after a full-page refresh) and the sentinel-triggered tail
+  // fetch (for the old segment below the gap). Pre-fix, the store's
+  // single-in-flight guard silently dropped the second — reaching the
+  // tail again required an IntersectionObserver re-fire that only comes
+  // from a scroll, which won't happen if the user is already parked at
+  // the bottom. Post-fix, the second is queued and drains after the first
+  // resolves.
+  let releaseGapFill: (() => void) | undefined;
+  const gapFillGate = new Promise<void>((resolve) => {
+    releaseGapFill = resolve;
+  });
+  const olderStatus = newerStatus("109999999999999999", "Older via queue");
+  const fullPageTailId = fullPage.at(-1)?.id;
+
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const url = new URL(request.url);
+      const sinceId = url.searchParams.get("since_id");
+      const maxId = url.searchParams.get("max_id");
+      if (maxId === fullPageTailId) {
+        await gapFillGate;
+        return HttpResponse.json([statuses[0] as Status]);
+      }
+      if (maxId !== null) {
+        expect(maxId).toBe(statuses[1]?.id);
+        return HttpResponse.json([olderStatus]);
+      }
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json(fullPage);
+    }),
+  );
+
+  const { findByText, findByRole, queryByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+  expect(await findByText("Full page item 0")).toBeInTheDocument();
+
+  // Kick off the gap fill; it blocks on the gate.
+  await userEvent.click(
+    await findByRole("button", { name: "Load missed posts" }),
+  );
+
+  // Sentinel fires while the gap fill is in flight. Pre-fix, this call
+  // was dropped by the single-anchor guard and the tail fetch stalled
+  // until the user scrolled the sentinel back out and in.
+  FakeIntersectionObserver.instances.at(-1)?.fireVisible();
+
+  releaseGapFill?.();
+
+  // The queued sentinel fetch runs after the gap fill merges the two
+  // segments — the merger's tail (old S1's tail) is still the anchor id
+  // captured at queue time, so the response lands correctly.
+  expect(await findByText("Older via queue")).toBeInTheDocument();
+  expect(
+    queryByRole("button", { name: /load missed posts/i }),
+  ).not.toBeInTheDocument();
+});
+
+test("a queued fetch that succeeds does not clear the preceding anchor's failure", async () => {
+  // The store keeps failures per anchor: a later successful fetch drains
+  // the queue but must not wipe the earlier anchor's error, or the user
+  // loses the Retry affordance on the row that actually failed.
+  const olderStatus = newerStatus(
+    "109999999999999999",
+    "Older after queued success",
+  );
+  const fullPageTailId = fullPage.at(-1)?.id;
+
+  server.use(
+    http.get("*/api/v1/timelines/home", ({ request }) => {
+      const url = new URL(request.url);
+      const sinceId = url.searchParams.get("since_id");
+      const maxId = url.searchParams.get("max_id");
+      if (maxId === fullPageTailId) {
+        return HttpResponse.error();
+      }
+      if (maxId !== null) {
+        expect(maxId).toBe(statuses[1]?.id);
+        return HttpResponse.json([olderStatus]);
+      }
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json(fullPage);
+    }),
+  );
+
+  const { findByText, findByRole, findAllByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+  expect(await findByText("Full page item 0")).toBeInTheDocument();
+
+  // Gap fill fails first, then the sentinel drains after it and succeeds.
+  await userEvent.click(
+    await findByRole("button", { name: "Load missed posts" }),
+  );
+  FakeIntersectionObserver.instances.at(-1)?.fireVisible();
+
+  // The queued sentinel fetch succeeds and appends its older item...
+  expect(await findByText("Older after queued success")).toBeInTheDocument();
+  // ...but the gap row's own failure must still be visible with its own
+  // Retry affordance, not silently wiped by the succeeding successor.
+  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  const retryButtons = await findAllByRole("button", { name: "Retry" });
+  expect(retryButtons.length).toBeGreaterThan(0);
+});
+
+test("a re-fire of the sentinel while its fetch is in flight does not stack duplicate requests", async () => {
+  // The store dedups by anchor id, so a re-fire targeting the same tail
+  // segment must collapse into the single in-flight request rather than
+  // queueing a second one.
+  let releaseOlderFetch: (() => void) | undefined;
+  const olderFetchGate = new Promise<void>((resolve) => {
+    releaseOlderFetch = resolve;
+  });
+  let olderRequestCount = 0;
+  const olderStatus = newerStatus("109999999999999999", "Older after dedup");
+
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const maxId = new URL(request.url).searchParams.get("max_id");
+      if (maxId === null) return HttpResponse.json(statuses);
+      olderRequestCount += 1;
+      await olderFetchGate;
+      return HttpResponse.json([olderStatus]);
+    }),
+  );
+
+  const { findByText } = renderTimeline();
+  expect(await findByText("Second fixture status")).toBeInTheDocument();
+
+  const observer = FakeIntersectionObserver.instances.at(-1);
+  observer?.fireVisible();
+  observer?.fireVisible();
+  observer?.fireVisible();
+
+  releaseOlderFetch?.();
+  expect(await findByText("Older after dedup")).toBeInTheDocument();
   expect(olderRequestCount).toBe(1);
 });
 
