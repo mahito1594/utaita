@@ -2,7 +2,7 @@
 // Card-behavior tests through the timeline page (ADR-0009: observable
 // behavior at page level; the pipeline internals are covered in
 // entities/status/content.test.ts under jsdom).
-import { MemoryRouter, query, Route } from "@solidjs/router";
+import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
@@ -38,7 +38,6 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
   cleanup();
-  query.clear();
 });
 afterAll(() => server.close());
 
