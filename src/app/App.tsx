@@ -2,7 +2,6 @@ import { Route, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css } from "../../styled-system/css";
 import { ProfilePage } from "../pages/profile/ProfilePage";
-import { getHomeTimeline } from "../pages/timeline/queries";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
 import { LoginScreen } from "./LoginScreen";
 import { OAuthCallback } from "./OAuthCallback";
@@ -99,12 +98,7 @@ const App = () => (
   <Router root={Layout}>
     <Route path={REDIRECT_PATH} component={OAuthCallback} />
     <Route component={AuthGate}>
-      {/* preload skipped while logged out: it could only cache a 401 */}
-      <Route
-        path="/"
-        component={TimelinePage}
-        preload={() => (authenticated() ? getHomeTimeline() : undefined)}
-      />
+      <Route path="/" component={TimelinePage} />
       {/* /@:acct is not expressible in solid-router (a segment is dynamic
           only when it starts with ":"), hence /users/ — see profilePath */}
       <Route path="/users/:acct" component={ProfilePage} />
