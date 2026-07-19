@@ -28,8 +28,12 @@ const errorBox = css({
 // everyday weather on mobile. This is the full-page rendering for the
 // initial load only — the store still has no content to fall back to.
 const TimelineError = (props: { error: ApiError; onRetry: () => void }) => {
-  // Non-reactive switch on purpose: the page's <Show> recreates this
-  // component whenever the fetch result changes.
+  // Non-reactive switch on purpose — but only sound because the page's
+  // <Show keyed> recreates this component whenever the error *value*
+  // changes. A non-keyed <Show> re-renders children only on falsy↔truthy
+  // flips (Solid's condition memo compares `!a === !b`), which left a
+  // network error's Retry on screen after a retry came back 403
+  // (dual-review finding).
   switch (props.error.kind) {
     case "http":
       // Akkoma's unauthenticated answer differs per endpoint: home responds
@@ -204,6 +208,11 @@ const Sentinel = (props: {
   loading: boolean;
   error: ApiError | undefined;
   onVisible: () => void;
+  // Distinct from `onVisible`: the visibility path is gated (exhausted /
+  // busy / failed — see `requestOlderAtTail`), while the Retry button is
+  // the user explicitly overriding a failure, so it goes straight to the
+  // store.
+  onRetry: () => void;
 }) => {
   let target: HTMLDivElement | undefined;
 
@@ -219,7 +228,7 @@ const Sentinel = (props: {
   return (
     <div ref={target} class={sentinelRow}>
       <Show when={props.error}>
-        {(error) => <OlderError error={error()} onRetry={props.onVisible} />}
+        {(error) => <OlderError error={error()} onRetry={props.onRetry} />}
       </Show>
       <Show when={!props.error && props.loading}>
         <p role="status" class={css({ color: "text.muted", fontSize: "sm" })}>
@@ -406,19 +415,18 @@ export const TimelinePage = () => {
     queueMicrotask(() => setRefreshAnnouncement(message));
   };
   const runRefreshWithAnnouncement = async (): Promise<void> => {
-    const before = store
-      .segments()
-      .reduce((sum, segment) => sum + segment.statuses.length, 0);
-    await store.refresh();
-    if (store.error() !== undefined) return;
-    const after = store
-      .segments()
-      .reduce((sum, segment) => sum + segment.statuses.length, 0);
-    const delta = after - before;
+    // The applied count comes from the store itself, not a before/after
+    // total diff here: an older-fetch completing while the refresh was in
+    // flight would land in a total diff and get announced as "new posts"
+    // (dual-review finding). `undefined` means nothing was applied — the
+    // fetch failed (RefreshError/TimelineError carry that) or another
+    // refresh was already in flight — so there is no outcome to announce.
+    const applied = await store.refresh();
+    if (applied === undefined) return;
     announceRefreshOutcome(
-      delta === 0
+      applied === 0
         ? "No new posts"
-        : `${delta} new post${delta === 1 ? "" : "s"} loaded`,
+        : `${applied} new post${applied === 1 ? "" : "s"} loaded`,
     );
   };
 
@@ -461,9 +469,20 @@ export const TimelinePage = () => {
   // (`pendingOlderAnchors.includes(anchorId)`) also absorbs re-fires, so
   // this gate is UX-level ("don't spin the sentinel when we know there's
   // nothing left") rather than a correctness backstop.
+  //
+  // The failure gate keeps an IntersectionObserver re-fire (any scroll
+  // jiggle while the error row is on screen) from silently clearing the
+  // failure and re-requesting on its own — once a Retry affordance is
+  // shown, retrying is the user's call, via the Sentinel's `onRetry`
+  // (dual-review finding).
   const requestOlderAtTail = () => {
     const segmentIndex = lastSegmentIndex();
-    if (store.exhausted() || store.loadingOlder(segmentIndex)) return;
+    if (
+      store.exhausted() ||
+      store.loadingOlder(segmentIndex) ||
+      store.loadOlderError(segmentIndex) !== undefined
+    )
+      return;
     void store.loadOlder(segmentIndex);
   };
 
@@ -501,10 +520,10 @@ export const TimelinePage = () => {
           </p>
         </Show>
 
-        <Show when={statuses().length === 0 && store.error()}>
+        <Show when={statuses().length === 0 && store.error()} keyed>
           {(error) => (
             <TimelineError
-              error={error()}
+              error={error}
               onRetry={() => void runRefreshWithAnnouncement()}
             />
           )}
@@ -563,6 +582,7 @@ export const TimelinePage = () => {
               loading={store.loadingOlder(lastSegmentIndex())}
               error={store.loadOlderError(lastSegmentIndex())}
               onVisible={requestOlderAtTail}
+              onRetry={() => void store.loadOlder(lastSegmentIndex())}
             />
           </Show>
         </Show>

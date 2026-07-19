@@ -31,7 +31,12 @@ const replaceAt = (
  * last status as `max_id`). If the page's IDs reach into the following
  * segment, the two segments merge into one — this is how a gap closes,
  * whether the caller is walking infinite-scroll pages (no following segment
- * yet) or filling a known gap (a following segment already exists).
+ * yet) or filling a known gap (a following segment already exists). A page
+ * can also outrun the segment it merges into (a short following segment from
+ * an early load, or one 40-item page spanning several small segments): the
+ * leftover keeps cascading into each following segment until it no longer
+ * overlaps, so no fetched status is dropped and no deeper segment ends up
+ * duplicated in the merged run.
  */
 export const appendOlder = (
   segments: readonly Segment[],
@@ -42,35 +47,29 @@ export const appendOlder = (
   const target = segments[i];
   if (target === undefined) return [...segments];
 
-  const known = new Set(target.statuses.map(idOf));
-  const fresh = dedupeAgainst(page, known);
-
-  const next = segments[i + 1];
-  if (next === undefined) {
-    return replaceAt(segments, i, {
-      statuses: [...target.statuses, ...fresh],
-    });
+  const merged = [...target.statuses];
+  let fresh = dedupeAgainst(page, new Set(target.statuses.map(idOf)));
+  // Index of the first following segment the (remaining) page does not
+  // reach into; everything in segments[i+1 .. j-1] collapses into `merged`.
+  let j = i + 1;
+  while (j < segments.length) {
+    const next = segments[j];
+    if (next === undefined) break;
+    const nextIds = new Set(next.statuses.map(idOf));
+    const overlapIndex = fresh.findIndex((status) => nextIds.has(idOf(status)));
+    if (overlapIndex === -1) break;
+    // The page reached statuses already present in this segment: the runs
+    // are one continuous whole, so the boundary (the gap) disappears. What
+    // remains of the page past this segment's own statuses cascades into
+    // the next boundary check.
+    merged.push(...fresh.slice(0, overlapIndex), ...next.statuses);
+    fresh = fresh
+      .slice(overlapIndex)
+      .filter((status) => !nextIds.has(idOf(status)));
+    j += 1;
   }
-
-  const nextIds = new Set(next.statuses.map(idOf));
-  const overlapIndex = fresh.findIndex((status) => nextIds.has(idOf(status)));
-  if (overlapIndex === -1) {
-    return replaceAt(segments, i, {
-      statuses: [...target.statuses, ...fresh],
-    });
-  }
-
-  // The page reached statuses already present in the next segment: the two
-  // segments describe one continuous run, so they collapse into one and the
-  // gap boundary between them disappears.
-  const merged: Segment = {
-    statuses: [
-      ...target.statuses,
-      ...fresh.slice(0, overlapIndex),
-      ...next.statuses,
-    ],
-  };
-  return [...segments.slice(0, i), merged, ...segments.slice(i + 2)];
+  merged.push(...fresh);
+  return [...segments.slice(0, i), { statuses: merged }, ...segments.slice(j)];
 };
 
 /**
