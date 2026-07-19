@@ -1,10 +1,16 @@
 import RotateCw from "lucide-solid/icons/rotate-cw";
-import { createMemo, For, onCleanup, onMount, Show } from "solid-js";
+import {
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { gapBoundariesByTailId } from "./gap-lookup";
-import { shouldTriggerLoadOlder } from "./sentinel-trigger";
 import { createTimelineStore } from "./timeline-store";
 
 const errorBox = css({
@@ -189,10 +195,11 @@ const sentinelRow = css({
 });
 
 // Thin shim over IntersectionObserver (plan doc): visibility alone decides
-// to call `props.onVisible`; the exhausted/in-flight/error guards all live
-// in the store and `shouldTriggerLoadOlder`, not here. happy-dom's
-// IntersectionObserver never actually calls back — page tests substitute a
-// fake that captures this callback for manual invocation instead.
+// to call `props.onVisible`; the exhausted/in-flight/error guards live in
+// the store's `exhausted`/`loadingOlder` accessors and the caller's
+// `requestOlderAtTail` gate, not here. happy-dom's IntersectionObserver
+// never actually calls back — page tests substitute a fake that captures
+// this callback for manual invocation instead.
 const Sentinel = (props: {
   loading: boolean;
   error: ApiError | undefined;
@@ -360,8 +367,61 @@ const caughtUpRow = css({
   overflowAnchor: "none",
 });
 
+// SR-only announcement channel for the manual refresh outcome. Focus stays
+// on the refresh button (users hitting Enter twice in a row shouldn't lose
+// their place); the count of newly-loaded posts, or "no new posts", is
+// spoken through this permanent aria-live region instead of by moving
+// focus. Refresh *failures* stay on `RefreshError` (role="alert"), so this
+// channel only carries the success/empty-success outcomes.
+const visuallyHidden = css({
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: "0",
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  borderWidth: "0",
+});
+
 export const TimelinePage = () => {
   const store = createTimelineStore();
+  const [refreshAnnouncement, setRefreshAnnouncement] = createSignal("");
+
+  // Wraps `store.refresh()` to count net new statuses and hand the outcome
+  // to the SR-only live region. Only the manual paths (bar button + retry
+  // after an initial-load failure) go through this — the initial onMount
+  // load doesn't announce because there is nothing to compare against yet
+  // and no user action triggered it.
+  //
+  // The clear-then-microtask-set pattern is the a11y workaround for
+  // consecutive identical announcements: Solid's default signal equality
+  // suppresses re-sets of the same string, so a second "No new posts" in
+  // a row would leave the DOM text unchanged and screen readers would not
+  // re-announce. Clearing first, then setting on the next microtask,
+  // forces the DOM text to actually transition.
+  const announceRefreshOutcome = (message: string): void => {
+    setRefreshAnnouncement("");
+    queueMicrotask(() => setRefreshAnnouncement(message));
+  };
+  const runRefreshWithAnnouncement = async (): Promise<void> => {
+    const before = store
+      .segments()
+      .reduce((sum, segment) => sum + segment.statuses.length, 0);
+    await store.refresh();
+    if (store.error() !== undefined) return;
+    const after = store
+      .segments()
+      .reduce((sum, segment) => sum + segment.statuses.length, 0);
+    const delta = after - before;
+    announceRefreshOutcome(
+      delta === 0
+        ? "No new posts"
+        : `${delta} new post${delta === 1 ? "" : "s"} loaded`,
+    );
+  };
+
   onMount(() => {
     void store.refresh();
   });
@@ -397,17 +457,14 @@ export const TimelinePage = () => {
   // The sentinel only ever targets the tail segment, so `exhausted` (a
   // tail-only verdict) is a valid gate here; a gap marker's `loadOlder(i)`
   // targets an arbitrary earlier segment and must not be blocked by it, so
-  // it calls the store directly instead (below).
+  // it calls the store directly instead (below). The store's own dedup
+  // (`pendingOlderAnchors.includes(anchorId)`) also absorbs re-fires, so
+  // this gate is UX-level ("don't spin the sentinel when we know there's
+  // nothing left") rather than a correctness backstop.
   const requestOlderAtTail = () => {
     const segmentIndex = lastSegmentIndex();
-    if (
-      shouldTriggerLoadOlder({
-        exhausted: store.exhausted(),
-        loading: store.loadingOlder(segmentIndex),
-      })
-    ) {
-      void store.loadOlder(segmentIndex);
-    }
+    if (store.exhausted() || store.loadingOlder(segmentIndex)) return;
+    void store.loadOlder(segmentIndex);
   };
 
   return (
@@ -419,7 +476,7 @@ export const TimelinePage = () => {
           aria-label="Refresh"
           aria-busy={store.loading() ? "true" : undefined}
           disabled={store.loading()}
-          onClick={() => void store.refresh()}
+          onClick={() => void runRefreshWithAnnouncement()}
           class={refreshButton}
         >
           <RotateCw
@@ -431,6 +488,13 @@ export const TimelinePage = () => {
       </div>
 
       <div class={panelBody}>
+        {/* SR-only channel for manual-refresh outcomes; see `visuallyHidden`
+            above. Kept permanently mounted so that updating its text
+            actually announces (a newly-mounted live region does not). */}
+        <p role="status" aria-live="polite" class={visuallyHidden}>
+          {refreshAnnouncement()}
+        </p>
+
         <Show when={statuses().length === 0 && store.loading()}>
           <p role="status" class={css({ color: "text.muted" })}>
             Loading…
@@ -441,13 +505,29 @@ export const TimelinePage = () => {
           {(error) => (
             <TimelineError
               error={error()}
-              onRetry={() => void store.refresh()}
+              onRetry={() => void runRefreshWithAnnouncement()}
             />
           )}
         </Show>
 
         <Show when={statuses().length > 0 && store.error()}>
           {(error) => <RefreshError error={error()} />}
+        </Show>
+
+        {/* Empty-success state: the fetch settled without content and
+            without an error. Distinct from the loading state above and
+            from the sentinel/caught-up rows below, both of which require
+            at least one segment. */}
+        <Show
+          when={
+            store.segments().length === 0 &&
+            !store.loading() &&
+            store.error() === undefined
+          }
+        >
+          <p role="status" class={css({ color: "text.muted" })}>
+            No posts yet.
+          </p>
         </Show>
 
         <For each={statuses()}>
