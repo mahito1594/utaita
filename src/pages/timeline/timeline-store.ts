@@ -28,13 +28,19 @@ export type TimelineStore = {
   // the UI's point of view.
   loadingOlder: (segmentIndex: number) => boolean;
   loadOlderError: (segmentIndex: number) => ApiError | undefined;
-  // True once a fetch targeting the *tail* segment (checked against the
-  // segment list as it stood when the response came back, not when the
-  // request went out) has come back shorter than the page limit: nothing
-  // older exists below it. Sticky — the timeline only ever grows from the
+  // True once a short (below page-limit) older-fetch proves nothing older
+  // exists: judged against the post-merge segment list as the response is
+  // applied (not when the request went out), so a gap fill that collapses
+  // into the tail segment counts too. Sticky — the timeline only ever grows from the
   // front, so this never has reason to flip back to false.
   exhausted: Accessor<boolean>;
-  refresh: () => Promise<void>;
+  // Resolves with the number of statuses this refresh actually applied
+  // (post-dedup), or undefined when nothing was applied — the fetch failed
+  // (see `error`) or another refresh was already in flight. The count comes
+  // from the store rather than a caller-side total diff so that an
+  // older-fetch completing concurrently is never blamed on the refresh
+  // (the announcement layer reads this).
+  refresh: () => Promise<number | undefined>;
   loadOlder: (segmentIndex: number) => Promise<void>;
 };
 
@@ -76,10 +82,24 @@ export const createTimelineStore = (): TimelineStore => {
   >([]);
   const [exhausted, setExhausted] = createSignal(false);
 
+  // Reentry guard for `refresh`. Deliberately not the `loading` signal:
+  // `loading` starts true before the mount-time call on purpose (see above),
+  // so it can't tell "in flight" apart from "not started yet". Without this
+  // guard, the initial-error Retry could race two param-less fetches — the
+  // slower response would then merge as though its page were newer than the
+  // freshly-adopted head, prepending older statuses and breaking the
+  // newest-first invariant (dual-review finding).
+  let refreshInFlight = false;
+
+  const countStatuses = (segs: readonly Segment[]): number =>
+    segs.reduce((sum, segment) => sum + segment.statuses.length, 0);
+
   // Forward fetch, reused for both the very first load and manual refresh:
   // an empty store has no head to filter with `since_id`, so it degrades to
   // the param-less initial request (ADR-0004 amendment, "Segment model").
-  const refresh = async (): Promise<void> => {
+  const refresh = async (): Promise<number | undefined> => {
+    if (refreshInFlight) return undefined;
+    refreshInFlight = true;
     const headId = segments()[0]?.statuses[0]?.id;
     setLoading(true);
     const result =
@@ -91,17 +111,24 @@ export const createTimelineStore = (): TimelineStore => {
             }),
           );
     setLoading(false);
+    refreshInFlight = false;
 
     if (!result.ok) {
       setError(result.error);
-      return;
+      return undefined;
     }
     setError(undefined);
     // Gap uncertainty only makes sense relative to an existing head; the
     // empty-store case always adopts the page outright regardless of size.
     const mayHaveGap =
       headId !== undefined && result.value.length === PAGE_LIMIT;
-    setSegments((current) => applyRefresh(current, result.value, mayHaveGap));
+    // No awaits between reading `current` and `setSegments`, so the delta
+    // is exactly this refresh's contribution — a concurrently-completing
+    // older-fetch settles at some other microtask, never in between.
+    const current = segments();
+    const updated = applyRefresh(current, result.value, mayHaveGap);
+    setSegments(updated);
+    return countStatuses(updated) - countStatuses(current);
   };
 
   // Actual older-fetch: one anchor's page, applied to segments. Called only
@@ -128,21 +155,37 @@ export const createTimelineStore = (): TimelineStore => {
 
     // Re-resolve the target by anchor id rather than trusting the index
     // captured before the request: a `refresh` completing mid-flight can
-    // have unshifted a new head segment, shifting every later index.
+    // have unshifted a new head segment, shifting every later index. The
+    // lookup is by *membership*, not tail identity: a preceding queued
+    // cascade-merge can have carried its segment's tail past this anchor
+    // (keeping page items beyond the old tail), leaving the anchor interior
+    // to the merged segment. The response is still a contiguous run below
+    // the anchor, so handing it to `appendOlder` stays correct — its dedupe
+    // strips whatever the merge already brought in and appends the rest.
+    // A tail-identity lookup instead dropped such a page outright, and the
+    // sentinel stalled until the next IntersectionObserver fire
+    // (round-2 dual-review finding).
     const latest = segments();
-    const idx = latest.findIndex(
-      (segment) => segment.statuses.at(-1)?.id === anchorId,
+    const idx = latest.findIndex((segment) =>
+      segment.statuses.some((status) => status.id === anchorId),
     );
-    // The anchor segment is gone — e.g. a preceding queued gap-fill for a
-    // newer segment already reached this one and merged it away. The page
-    // is stale; dropping it is correct (a future scroll or click reissues
-    // the fetch against whatever segment exists now).
+    // The anchor status is in no segment at all. Statuses are never removed
+    // from the store, so this shouldn't happen — kept as a safety net so a
+    // surprise drops one page instead of corrupting a segment.
     if (idx === -1) return;
 
-    if (idx === latest.length - 1 && result.value.length < PAGE_LIMIT) {
+    const updated = appendOlder(latest, idx, result.value);
+    // A short page from `max_id=anchor` proves the server holds less than a
+    // page below the anchor — everything older is now known. That verdict
+    // is about the *post-merge* shape: judged pre-merge, a short gap fill
+    // that reaches the tail segment and collapses into it would leave
+    // `exhausted` unset and cost the sentinel one provably-empty extra
+    // fetch (dual-review finding). The merged run keeps index `idx`, so
+    // "the anchor's run is the tail" is `idx === updated.length - 1`.
+    if (idx === updated.length - 1 && result.value.length < PAGE_LIMIT) {
       setExhausted(true);
     }
-    setSegments((prev) => appendOlder(prev, idx, result.value));
+    setSegments(updated);
   };
 
   // Drains the queue one anchor at a time until empty. Runs at most once

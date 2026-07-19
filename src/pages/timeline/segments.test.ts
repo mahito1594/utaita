@@ -75,6 +75,66 @@ describe("appendOlder", () => {
     ]);
   });
 
+  test("keeps the part of the page that extends past the next segment's tail", () => {
+    // The gap-fill page overshoots: it reaches the next segment AND carries
+    // older statuses beyond its tail (routine when the next segment is
+    // short, e.g. a small initial load). Pre-fix, everything after the
+    // first overlap was silently dropped and had to be re-fetched.
+    const segments = [segment("s10", "s09"), segment("s05", "s04")];
+    const result = appendOlder(segments, 0, [
+      status("s08"),
+      status("s07"),
+      status("s06"),
+      status("s05"),
+      status("s04"),
+      status("s03"),
+      status("s02"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(ids(result[0]?.statuses ?? [])).toEqual([
+      "s10",
+      "s09",
+      "s08",
+      "s07",
+      "s06",
+      "s05",
+      "s04",
+      "s03",
+      "s02",
+    ]);
+  });
+
+  test("one page spanning several small segments merges them all without duplicates", () => {
+    const segments = [
+      segment("s10", "s09"),
+      segment("s06", "s05"),
+      segment("s03", "s02"),
+    ];
+    const result = appendOlder(segments, 0, [
+      status("s08"),
+      status("s07"),
+      status("s06"),
+      status("s05"),
+      status("s04"),
+      status("s03"),
+      status("s02"),
+      status("s01"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(ids(result[0]?.statuses ?? [])).toEqual([
+      "s10",
+      "s09",
+      "s08",
+      "s07",
+      "s06",
+      "s05",
+      "s04",
+      "s03",
+      "s02",
+      "s01",
+    ]);
+  });
+
   test("closing one gap among several leaves the other segments untouched", () => {
     const segments = [
       segment("s30", "s29"),

@@ -667,3 +667,245 @@ test("a loadOlder in flight lands on its own segment even if a concurrent refres
   expect(secondFixtureIndex).toBeGreaterThan(fullPageIndex);
   expect(olderStatusIndex).toBeGreaterThan(secondFixtureIndex);
 });
+
+test("retry clicks while a retry is already in flight collapse into one request", async () => {
+  // The store's reentry guard, not the Retry button, is what prevents two
+  // param-less fetches from racing: the slower response would otherwise be
+  // merged as though its page were newer than the freshly-adopted head,
+  // prepending older statuses (newest-first break — dual-review finding).
+  let releaseRetry: (() => void) | undefined;
+  const retryGate = new Promise<void>((resolve) => {
+    releaseRetry = resolve;
+  });
+  let requestCount = 0;
+  server.use(
+    http.get("*/api/v1/timelines/home", async () => {
+      requestCount += 1;
+      if (requestCount === 1) return HttpResponse.error();
+      await retryGate;
+      return HttpResponse.json(statuses);
+    }),
+  );
+  const { findByText, findByRole } = renderTimeline();
+
+  const retry = await findByRole("button", { name: "Retry" });
+  await userEvent.click(retry);
+  await userEvent.click(retry);
+
+  releaseRetry?.();
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  // Initial load + exactly one retry — the second click was absorbed.
+  expect(requestCount).toBe(2);
+});
+
+test("a retry that fails differently swaps the error rendering (network → sign-in)", async () => {
+  // `<Show keyed>` must recreate TimelineError when the error value
+  // changes: non-keyed, the truthy→truthy transition kept the stale
+  // "Connection failed" + Retry on screen after the retry came back 403
+  // (dual-review finding).
+  let requestCount = 0;
+  server.use(
+    http.get("*/api/v1/timelines/home", () => {
+      requestCount += 1;
+      if (requestCount === 1) return HttpResponse.error();
+      return HttpResponse.json(
+        { error: "Invalid credentials." },
+        { status: 403 },
+      );
+    }),
+  );
+  const { findByText, findByRole, queryByText } = renderTimeline();
+
+  expect(await findByText(/connection failed/i)).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("button", { name: "Retry" }));
+
+  expect(await findByText(/sign-in required/i)).toBeInTheDocument();
+  expect(queryByText(/connection failed/i)).not.toBeInTheDocument();
+});
+
+test("a short gap fill that reaches the tail segment proves exhaustion without an extra fetch", async () => {
+  // Everything below the gap-fill anchor comes back in one short page that
+  // merges into the (tail) old-head segment: the store must conclude
+  // exhausted from the post-merge shape. Judged pre-merge (the old code),
+  // the gap segment wasn't the tail at request time, so the sentinel
+  // stayed mounted and burned one provably-empty extra request
+  // (dual-review finding).
+  let olderRequestCount = 0;
+  server.use(
+    http.get("*/api/v1/timelines/home", ({ request }) => {
+      const url = new URL(request.url);
+      const sinceId = url.searchParams.get("since_id");
+      const maxId = url.searchParams.get("max_id");
+      if (maxId !== null) {
+        olderRequestCount += 1;
+        expect(maxId).toBe(fullPage.at(-1)?.id);
+        // Short page (2 < 40) that reaches into the old head segment: the
+        // full history below the anchor.
+        return HttpResponse.json(statuses);
+      }
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json(fullPage);
+    }),
+  );
+  const { findByText, findByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+  expect(await findByText("Full page item 0")).toBeInTheDocument();
+
+  await userEvent.click(
+    await findByRole("button", { name: "Load missed posts" }),
+  );
+
+  expect(await findByText(/all caught up/i)).toBeInTheDocument();
+  expect(olderRequestCount).toBe(1);
+});
+
+test("a sentinel re-fire while its failure is displayed does not auto-retry", async () => {
+  // Once the failure row (with its Retry button) is on screen, an
+  // IntersectionObserver re-fire from a scroll jiggle must not clear the
+  // error and re-request on its own — retrying is the user's explicit
+  // action (dual-review finding).
+  let olderRequestCount = 0;
+  server.use(
+    http.get("*/api/v1/timelines/home", ({ request }) => {
+      const maxId = new URL(request.url).searchParams.get("max_id");
+      if (maxId === null) return HttpResponse.json(statuses);
+      olderRequestCount += 1;
+      return HttpResponse.error();
+    }),
+  );
+  const { findByText } = renderTimeline();
+
+  expect(await findByText("Second fixture status")).toBeInTheDocument();
+
+  const observer = FakeIntersectionObserver.instances.at(-1);
+  observer?.fireVisible();
+  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+
+  observer?.fireVisible();
+  // Still just the one request, and the failure row is still there —
+  // recovery belongs to the Retry button (covered by the retry test above).
+  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(olderRequestCount).toBe(1);
+});
+
+test("a queued fetch still lands when a preceding cascade merge carries the tail past its anchor", async () => {
+  // The cascade merge (round-1 fix) can extend the merged segment's tail
+  // *past* a queued fetch's anchor: the gap-fill page reaches the old
+  // segment AND carries statuses older than its tail, so the anchor — the
+  // old tail — ends up interior to the merged segment. The queued fetch's
+  // response must then still be applied via membership lookup; resolving
+  // the anchor by tail identity instead dropped the fetched page, and the
+  // timeline stalled until the next IntersectionObserver fire
+  // (round-2 dual-review finding).
+  let releaseGapFill: (() => void) | undefined;
+  const gapFillGate = new Promise<void>((resolve) => {
+    releaseGapFill = resolve;
+  });
+  const carriedPast = newerStatus(
+    "109999999999999999",
+    "Carried past the old tail",
+  );
+  const landedAfter = newerStatus(
+    "109999999999999998",
+    "Landed after the merge",
+  );
+  const fullPageTailId = fullPage.at(-1)?.id;
+
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const url = new URL(request.url);
+      const sinceId = url.searchParams.get("since_id");
+      const maxId = url.searchParams.get("max_id");
+      if (maxId === fullPageTailId) {
+        await gapFillGate;
+        // Reaches the old segment ([statuses]) and keeps going past its
+        // tail: the cascade merge appends `carriedPast`, moving the merged
+        // segment's tail beyond the queued anchor below.
+        return HttpResponse.json([...statuses, carriedPast]);
+      }
+      if (maxId !== null) {
+        // The queued sentinel fetch, anchored at the old tail (now interior
+        // to the merged segment). Overlaps what the merge already brought
+        // in, then continues older.
+        expect(maxId).toBe(statuses[1]?.id);
+        return HttpResponse.json([carriedPast, landedAfter]);
+      }
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json(fullPage);
+    }),
+  );
+
+  const { findByText, findByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+  expect(await findByText("Full page item 0")).toBeInTheDocument();
+
+  // Gap fill goes out first and hangs; the sentinel queues behind it,
+  // anchored at the old segment's tail.
+  await userEvent.click(
+    await findByRole("button", { name: "Load missed posts" }),
+  );
+  FakeIntersectionObserver.instances.at(-1)?.fireVisible();
+
+  releaseGapFill?.();
+
+  // The queued fetch's page must be applied — deduped against what the
+  // merge already carried in, with the genuinely-new status appended.
+  expect(await findByText("Carried past the old tail")).toBeInTheDocument();
+  expect(await findByText("Landed after the merge")).toBeInTheDocument();
+});
+
+test("the refresh announcement counts only the refresh's own statuses, not a concurrently-landing older page", async () => {
+  // An older page settling while the refresh is in flight must not inflate
+  // "N new posts loaded" — the count comes from the store's own applied
+  // delta, not a page-side total diff (dual-review finding).
+  let releaseOlder: (() => void) | undefined;
+  const olderGate = new Promise<void>((resolve) => {
+    releaseOlder = resolve;
+  });
+  let releaseRefresh: (() => void) | undefined;
+  const refreshGate = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const olderStatus = newerStatus("109999999999999999", "Older fixture status");
+
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const url = new URL(request.url);
+      const sinceId = url.searchParams.get("since_id");
+      const maxId = url.searchParams.get("max_id");
+      if (maxId !== null) {
+        await olderGate;
+        return HttpResponse.json([olderStatus]);
+      }
+      if (sinceId !== null) {
+        await refreshGate;
+        return HttpResponse.json([
+          newerStatus("110000000000000003", "Brand new"),
+        ]);
+      }
+      return HttpResponse.json(statuses);
+    }),
+  );
+  const { findByText, findByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+
+  // Tail fetch goes out first and hangs; the manual refresh starts while
+  // it is in flight and hangs on its own gate.
+  FakeIntersectionObserver.instances.at(-1)?.fireVisible();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+
+  // The older page lands *during* the refresh...
+  releaseOlder?.();
+  expect(await findByText("Older fixture status")).toBeInTheDocument();
+
+  // ...and the refresh then settles with exactly one new status.
+  releaseRefresh?.();
+  expect(await findByText("Brand new")).toBeInTheDocument();
+  expect(await findByText("1 new post loaded")).toBeInTheDocument();
+});
