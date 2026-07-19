@@ -8,6 +8,15 @@ export type EmojiSegment =
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const toShortcodeUrlMap = (emojis: readonly Emoji[]): Map<string, string> => {
+  const byShortcode = new Map<string, string>();
+  for (const emoji of emojis) {
+    if (emoji.shortcode && emoji.url)
+      byShortcode.set(emoji.shortcode, emoji.url);
+  }
+  return byShortcode;
+};
+
 /**
  * Split text into literal-text and custom-emoji segments. Only shortcodes
  * present in `emojis` (with a usable url) match; unknown `:words:` stay text,
@@ -19,11 +28,7 @@ export const segmentByShortcode = (
   text: string,
   emojis: readonly Emoji[],
 ): EmojiSegment[] => {
-  const byShortcode = new Map<string, string>();
-  for (const emoji of emojis) {
-    if (emoji.shortcode && emoji.url)
-      byShortcode.set(emoji.shortcode, emoji.url);
-  }
+  const byShortcode = toShortcodeUrlMap(emojis);
   if (text === "" || byShortcode.size === 0) {
     return text === "" ? [] : [{ kind: "text", text }];
   }
