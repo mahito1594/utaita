@@ -2,16 +2,19 @@ import { Route, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css } from "../../styled-system/css";
 import { ProfilePage } from "../pages/profile/ProfilePage";
-import { getHomeTimeline } from "../pages/timeline/queries";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
 import { LoginScreen } from "./LoginScreen";
 import { OAuthCallback } from "./OAuthCallback";
 import { REDIRECT_PATH } from "./oauth";
 import { authenticated, logout } from "./session";
 
-// Single centered column on every viewport (app-shell wireframe decision);
-// shared by header and main so their edges align.
-const column = { maxWidth: "600px", mx: "auto", px: "4" } as const;
+// Single centered column, capped only from `md` up (app-shell wireframe
+// decision); shared by header and main so their edges align. Below `md` the
+// column is full viewport width — this is the invariant the timeline's
+// panel/bar treatment keys off of (TimelinePage.tsx): the flush, full-bleed
+// bar is only correct exactly while the column is uncapped, so both key off
+// the same `md` condition instead of syncing a width literal across files.
+const column = { maxWidth: { md: "600px" }, mx: "auto", px: "4" } as const;
 
 // The app's one ErrorBoundary. API failures never land here — they travel as
 // Result values down to the page that rendered them (ADR-0008); anything
@@ -99,12 +102,7 @@ const App = () => (
   <Router root={Layout}>
     <Route path={REDIRECT_PATH} component={OAuthCallback} />
     <Route component={AuthGate}>
-      {/* preload skipped while logged out: it could only cache a 401 */}
-      <Route
-        path="/"
-        component={TimelinePage}
-        preload={() => (authenticated() ? getHomeTimeline() : undefined)}
-      />
+      <Route path="/" component={TimelinePage} />
       {/* /@:acct is not expressible in solid-router (a segment is dynamic
           only when it starts with ":"), hence /users/ — see profilePath */}
       <Route path="/users/:acct" component={ProfilePage} />

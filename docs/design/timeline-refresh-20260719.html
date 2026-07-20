@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timeline refresh button wireframe — 2026-07-19</title>
+<style>
+:root{--bg:#f5f5f4;--surface:#fff;--line:#c8c6c0;--line-strong:#8a8880;--text:#2c2c2a;--muted:#77756e;--accent:#185fa5;--skeleton:#e4e2dc}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--surface:#2a2a28;--line:#4a4a46;--line-strong:#6e6c66;--text:#e8e6e0;--muted:#a5a39c;--accent:#85b7eb;--skeleton:#3a3a36}}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;line-height:1.5}
+h1{font-size:20px;font-weight:600}
+h2{font-size:15px;font-weight:600;margin:24px 0 8px}
+.caption{font-size:12px;color:var(--muted)}
+.frames{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+.reserved{border-style:dashed!important;color:var(--muted)}
+.skel{background:var(--skeleton);border-radius:4px}
+ul{font-size:13px}
+li{margin-bottom:4px}
+.phone{width:290px;height:560px;background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.tabrow{display:flex;border-bottom:1px solid var(--line);font-size:12px;text-align:center}
+.tab{flex:1;padding:10px 0;color:var(--muted)}
+.tab.active{color:var(--text);font-weight:600;border-bottom:2px solid var(--accent)}
+.cards{flex:1;padding:10px;display:flex;flex-direction:column;gap:8px}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px;flex:1}
+.bottomnav{display:flex;border-top:1px solid var(--line);padding:10px 0;font-size:11px;text-align:center;color:var(--muted)}
+.fab{position:absolute;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface);font-size:20px}
+.fab.solid{border:1.5px solid var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>Timeline refresh button</h1>
+<p class="caption">2026-07-19 · Phase 1 session 3 (home timeline infinite scroll + manual refresh).
+Constraint discovered against app-shell-20260705.html: the bottom-right FAB slot is already
+reserved for Compose (Phase 2), so a refresh FAB cannot simply take it.</p>
+
+<div class="frames">
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px"><strong>A — FAB stacked above the Compose slot</strong><br>refresh lives at bottom-right, Compose (Phase 2) keeps its reserved spot below</figcaption>
+<div class="phone">
+  <nav class="tabrow">
+    <div class="tab active">Home</div><div class="tab">Local</div><div class="tab">Bubble</div><div class="tab">Fedi</div>
+  </nav>
+  <main class="cards">
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:80%"></div></div>
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:65%"></div></div>
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:70%"></div></div>
+  </main>
+  <div class="fab solid" style="right:14px;bottom:124px">⟳</div>
+  <div class="fab reserved" style="right:14px;bottom:64px;border:1.5px dashed var(--line-strong)">＋</div>
+  <nav class="bottomnav">
+    <div style="flex:1;color:var(--text);font-weight:600">Timeline</div><div style="flex:1">Notif</div>
+    <div class="reserved" style="flex:1;border:none">Search</div><div style="flex:1">Profile</div>
+  </nav>
+</div>
+</figure>
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px"><strong>B — refresh at the right end of the switcher row</strong><br>top of the column, next to the timeline tabs; scrolls away is avoided by making the row sticky</figcaption>
+<div class="phone">
+  <nav class="tabrow">
+    <div class="tab active">Home</div><div class="tab">Local</div><div class="tab">Bubble</div><div class="tab">Fedi</div>
+    <div style="width:40px;display:flex;align-items:center;justify-content:center;color:var(--accent);border-left:1px solid var(--line)">⟳</div>
+  </nav>
+  <main class="cards">
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:80%"></div></div>
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:65%"></div></div>
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:70%"></div></div>
+  </main>
+  <div class="fab reserved" style="right:14px;bottom:64px;border:1.5px dashed var(--line-strong)">＋</div>
+  <nav class="bottomnav">
+    <div style="flex:1;color:var(--text);font-weight:600">Timeline</div><div style="flex:1">Notif</div>
+    <div class="reserved" style="flex:1;border:none">Search</div><div style="flex:1">Profile</div>
+  </nav>
+</div>
+</figure>
+
+<figure style="margin:0">
+<figcaption class="caption" style="margin-bottom:8px"><strong>C — FAB at bottom-left</strong><br>refresh mirrors the Compose slot on the opposite corner</figcaption>
+<div class="phone">
+  <nav class="tabrow">
+    <div class="tab active">Home</div><div class="tab">Local</div><div class="tab">Bubble</div><div class="tab">Fedi</div>
+  </nav>
+  <main class="cards">
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:80%"></div></div>
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:65%"></div></div>
+    <div class="card"><div class="skel" style="height:6px;margin-bottom:4px"></div><div class="skel" style="height:6px;width:70%"></div></div>
+  </main>
+  <div class="fab solid" style="left:14px;bottom:64px">⟳</div>
+  <div class="fab reserved" style="right:14px;bottom:64px;border:1.5px dashed var(--line-strong)">＋</div>
+  <nav class="bottomnav">
+    <div style="flex:1;color:var(--text);font-weight:600">Timeline</div><div style="flex:1">Notif</div>
+    <div class="reserved" style="flex:1;border:none">Search</div><div style="flex:1">Profile</div>
+  </nav>
+</div>
+</figure>
+
+</div>
+
+<h2>Trade-offs</h2>
+<ul>
+<li><strong>A (stacked above Compose)</strong>: thumb-zone reach, always visible. Phase 2 brings a two-FAB
+stack at bottom-right — acceptable if refresh stays a small secondary FAB, but the corner gets busy
+and covers more card content.</li>
+<li><strong>B (switcher row, sticky)</strong>: no overlay over content, natural place also shared by the
+future timeline switch (this row is where home/local/bubble/fedi live — one control strip). Needs the
+row sticky to stay pressable mid-scroll; top-of-screen reach is worse one-handed, though refresh after
+AFK typically happens when picking the phone up, not mid-scroll.</li>
+<li><strong>C (bottom-left FAB)</strong>: always reachable and never collides with Compose, but the weak
+corner for right-handed thumbs and covers card content on the line-start side where text begins.</li>
+</ul>
+
+<h2>Decision (2026-07-19)</h2>
+<ul>
+<li><strong>B chosen.</strong> The sticky control strip at the top of the column hosts the refresh
+button at its right end; the timeline switcher tabs will join the same strip in their own story.
+Reasoning: no FAB collision with the reserved Compose slot, no content overlay, and refresh-after-AFK
+happens at phone pick-up rather than mid-scroll, so the top-reach penalty is small in practice.
+Until the switcher story lands, the strip carries only the refresh control (right-aligned).</li>
+<li><strong>Reaffirmed after a dogfooding challenge (same day).</strong> A refined bottom-right FAB
+(option A revival) was argued on frequency-vs-reach ergonomics and explicitly declined; the
+single-control-home principle and content-occlusion cost won. Visual spec settled with it: the strip
+gets a quiet "Home" label at its left edge (text.brand — the future switcher tabs' opening position),
+and refresh is a 40px ghost icon button at the right end using an inline SVG arrow (never a Unicode
+glyph — font-dependent, renders as emoji on Android), spinning while a refresh is in flight
+(static and dimmed under prefers-reduced-motion).</li>
+<li><strong>Panel enclosure (same day, dogfooding — supersedes two interim treatments).</strong>
+Flush-under-the-header read as a broken second header on desktop (the interim shell header is
+viewport-wide, the strip column-wide); a detached card-style strip then read as an unrelated card —
+nothing showed the bar and the timeline belong together (akkoma-fe's flush "ホームタイムライン"
+bar-on-list was the reference that named the problem). Settled: the timeline is one bordered,
+rounded panel whose top edge is the bar (Home label + refresh; the switcher tabs slot into this
+same bar later — this is the app-shell desktop wireframe's own drawing). Containment carries the
+relationship. On mobile (column = viewport width) the panel drops its border/radius and the bar
+degrades to the flush full-width strip, which matches the header width there. The bar stays sticky;
+no overflow clipping on the panel, since that would re-scope the sticky bar away from the
+viewport.</li>
+<li><strong>Flush ⟺ uncapped, keyed to one breakpoint.</strong> The flush treatment is correct
+exactly while the column is full-width, so the column's 600px cap and the flush→panel switch are
+both keyed to the standard <code>md</code> breakpoint (the column is uncapped below md). A custom
+600px breakpoint synced to the cap was tried and rejected: the invariant then rests on a numeric
+match across files, and Panda emits breakpoints in rem while the cap is px, so enlarged root font
+sizes silently re-open a broken band. Cost accepted: between 600px and md the column runs full
+width, so body lines exceed the ~600px reading width on that band of viewports.</li>
+</ul>
+
+<h2>Notes</h2>
+<ul>
+<li>New statuses prepend above the current reading position (browser scroll anchoring keeps the
+viewport still), so after pressing refresh the user scrolls <em>up</em> to read — the button itself
+does not need to sit where the new content appears.</li>
+<li>Streaming (Phase 4) will revisit this control as an auto/manual toggle; whichever spot is chosen
+here becomes that toggle's home.</li>
+</ul>
+</body>
+</html>

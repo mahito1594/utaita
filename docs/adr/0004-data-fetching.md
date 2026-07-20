@@ -55,6 +55,42 @@ hand-rolled loading signal, may fit better. Re-decide the mechanism at
 Phase 1 kickoff, in front of the real requirements (scroll retention,
 CW toggling without scroll jumps, prepending new statuses).
 
+## Amendment (2026-07-19): the mechanism, re-decided at Phase 1 session 3
+
+The Note's homework is done; the home timeline is implemented
+(`src/pages/timeline/`) on the following mechanism, which supersedes the
+"createResource plus a Solid store" sentence in the Decision:
+
+- **No `createResource`.** Plain async functions feed Solid signals, with
+  hand-rolled loading flags. As the Note predicted: with errors flowing as
+  Result values to components (ADR-0008), createResource's throw-based
+  Suspense integration buys nothing — and a retrofit escape hatch exists
+  (createResource's `storage` option) if that ever changes.
+- **Segment model.** The timeline is an array of contiguous status
+  segments, newest-first; a gap is not separate state but a segment
+  boundary. Infinite scroll extends the last segment's tail via `max_id`;
+  manual refresh fetches forward with `since_id=<head id>` (a full
+  40-item clamp means a possible gap → push a new head segment); gap fill
+  reuses the same `max_id` tail-extension until IDs overlap and segments
+  merge. Merge/overlap/dedup logic is pure functions (`segments.ts`),
+  tested thickly without DOM or MSW (ADR-0009).
+- **Component-scoped store, no route `preload`.** The store is created in
+  the page component and loads on mount; login/logout always pass through
+  navigation, so no module singleton is needed. Refetch-on-return is
+  accepted (the scroll-retention story is iceboxed).
+- **Scroll position is delegated to browser scroll anchoring.** No
+  correction code. The obligation this creates: card DOM must stay stable
+  across store updates (flat status-level rendering keyed by stable
+  references, `overflow-anchor: none` on non-card rows) so a card — not a
+  chrome row — is always the anchor candidate. WebKit has not shipped
+  scroll anchoring in stable Safari (Technical Preview only — caniuse
+  `css-overflow-anchor`, checked 2026-07), so prepends may still shift the
+  viewport there; accepted rather than compensated in code.
+
+The rest of the Decision stands: no solid-query, `query()` for entity
+fetches, rule-of-three before extracting a shared timeline primitive, and
+the Phase 2 exit line.
+
 ## References
 
 - https://docs.solidjs.com/solid-router/reference/data-apis/query
