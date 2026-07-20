@@ -9,37 +9,47 @@ const PAGE_LIMIT = 40;
 
 export type TimelineStore = {
   segments: Accessor<readonly Segment[]>;
-  // True while a forward fetch (initial load or manual refresh — same
-  // request shape, see `refresh` below) is in flight.
+  /**
+   * True while a forward fetch (initial load or manual refresh — same
+   * request shape, see `refresh` below) is in flight.
+   */
   loading: Accessor<boolean>;
-  // Last forward-fetch failure. While `segments` is empty this is the
-  // initial-load error (full-page rendering); once there is content, a
-  // later failure here is a refresh failure and must not clear it
-  // (non-destructive per ADR-0004 amendment).
+  /**
+   * Last forward-fetch failure. While `segments` is empty this is the
+   * initial-load error (full-page rendering); once there is content, a
+   * later failure here is a refresh failure and must not clear it
+   * (non-destructive per ADR-0004 amendment).
+   */
   error: Accessor<ApiError | undefined>;
-  // Both `loadingOlder`/`loadOlderError` take a UI-facing segment index but
-  // resolve it against the *current* segment list on every call (see
-  // `anchorOf` below) — so they keep tracking the right row even if a
-  // concurrent `refresh` has shifted indices while a fetch is in flight.
-  //
-  // `loadingOlder` reflects both the anchor currently being fetched AND any
-  // queued behind it (see `pendingOlderAnchors`): the store serialises
-  // older-fetches, so a segment whose fetch is queued is still "busy" from
-  // the UI's point of view.
+  /**
+   * Both `loadingOlder`/`loadOlderError` take a UI-facing segment index but
+   * resolve it against the *current* segment list on every call (see
+   * `anchorOf` below) — so they keep tracking the right row even if a
+   * concurrent `refresh` has shifted indices while a fetch is in flight.
+   *
+   * `loadingOlder` reflects both the anchor currently being fetched AND any
+   * queued behind it (see `pendingOlderAnchors`): the store serialises
+   * older-fetches, so a segment whose fetch is queued is still "busy" from
+   * the UI's point of view.
+   */
   loadingOlder: (segmentIndex: number) => boolean;
   loadOlderError: (segmentIndex: number) => ApiError | undefined;
-  // True once a short (below page-limit) older-fetch proves nothing older
-  // exists: judged against the post-merge segment list as the response is
-  // applied (not when the request went out), so a gap fill that collapses
-  // into the tail segment counts too. Sticky — the timeline only ever grows from the
-  // front, so this never has reason to flip back to false.
+  /**
+   * True once a short (below page-limit) older-fetch proves nothing older
+   * exists: judged against the post-merge segment list as the response is
+   * applied (not when the request went out), so a gap fill that collapses
+   * into the tail segment counts too. Sticky — the timeline only ever
+   * grows from the front, so this never has reason to flip back to false.
+   */
   exhausted: Accessor<boolean>;
-  // Resolves with the number of statuses this refresh actually applied
-  // (post-dedup), or undefined when nothing was applied — the fetch failed
-  // (see `error`) or another refresh was already in flight. The count comes
-  // from the store rather than a caller-side total diff so that an
-  // older-fetch completing concurrently is never blamed on the refresh
-  // (the announcement layer reads this).
+  /**
+   * Resolves with the number of statuses this refresh actually applied
+   * (post-dedup), or undefined when nothing was applied — the fetch failed
+   * (see `error`) or another refresh was already in flight. The count
+   * comes from the store rather than a caller-side total diff so that an
+   * older-fetch completing concurrently is never blamed on the refresh
+   * (the announcement layer reads this).
+   */
   refresh: () => Promise<number | undefined>;
   loadOlder: (segmentIndex: number) => Promise<void>;
 };
@@ -88,7 +98,7 @@ export const createTimelineStore = (): TimelineStore => {
   // guard, the initial-error Retry could race two param-less fetches — the
   // slower response would then merge as though its page were newer than the
   // freshly-adopted head, prepending older statuses and breaking the
-  // newest-first invariant (dual-review finding).
+  // newest-first invariant.
   let refreshInFlight = false;
 
   const countStatuses = (segs: readonly Segment[]): number =>
@@ -163,8 +173,7 @@ export const createTimelineStore = (): TimelineStore => {
     // the anchor, so handing it to `appendOlder` stays correct — its dedupe
     // strips whatever the merge already brought in and appends the rest.
     // A tail-identity lookup instead dropped such a page outright, and the
-    // sentinel stalled until the next IntersectionObserver fire
-    // (round-2 dual-review finding).
+    // sentinel stalled until the next IntersectionObserver fire.
     const latest = segments();
     const idx = latest.findIndex((segment) =>
       segment.statuses.some((status) => status.id === anchorId),
@@ -180,7 +189,7 @@ export const createTimelineStore = (): TimelineStore => {
     // is about the *post-merge* shape: judged pre-merge, a short gap fill
     // that reaches the tail segment and collapses into it would leave
     // `exhausted` unset and cost the sentinel one provably-empty extra
-    // fetch (dual-review finding). The merged run keeps index `idx`, so
+    // fetch. The merged run keeps index `idx`, so
     // "the anchor's run is the tail" is `idx === updated.length - 1`.
     if (idx === updated.length - 1 && result.value.length < PAGE_LIMIT) {
       setExhausted(true);

@@ -5,7 +5,7 @@ type Status = components["schemas"]["Status"];
 // The store is a list of segments, newest segment first, each holding a
 // contiguous run of statuses (also newest-first). A boundary between two
 // segments *is* the gap — there is no separate gap type to keep in sync
-// (see plan doc, "セグメントモデル").
+// (ADR-0004 amendment).
 export type Segment = {
   readonly statuses: readonly Status[];
 };
