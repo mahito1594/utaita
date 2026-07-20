@@ -82,7 +82,10 @@ The Note's homework is done; the home timeline is implemented
   correction code. The obligation this creates: card DOM must stay stable
   across store updates (flat status-level rendering keyed by stable
   references, `overflow-anchor: none` on non-card rows) so a card — not a
-  chrome row — is always the anchor candidate.
+  chrome row — is always the anchor candidate. WebKit has not shipped
+  scroll anchoring in stable Safari (Technical Preview only — caniuse
+  `css-overflow-anchor`, checked 2026-07), so prepends may still shift the
+  viewport there; accepted rather than compensated in code.
 
 The rest of the Decision stands: no solid-query, `query()` for entity
 fetches, rule-of-three before extracting a shared timeline primitive, and
