@@ -11,6 +11,9 @@ import { TimelinePage } from "./TimelinePage";
 // happy-dom's IntersectionObserver constructs but never actually calls back
 // (see TimelinePage.tsx's Sentinel) — this fake stands in for the global so
 // scroll-trigger tests can invoke the captured callback by hand instead.
+// jsdom does not implement IntersectionObserver at all (jsdom/jsdom#2032,
+// open), so switching test environments would not remove the need for this
+// fake.
 class FakeIntersectionObserver {
   static instances: FakeIntersectionObserver[] = [];
   callback: IntersectionObserverCallback;
@@ -63,7 +66,8 @@ const statuses: Status[] = [
 ];
 
 // A fixture status whose id sorts newer than everything in `statuses` above
-// (flake IDs are lexicographically comparable — plan doc).
+// (flake IDs are lexicographically comparable — docs/PLAN.ja.md, Akkoma
+// pitfalls).
 const newerStatus = (id: string, content: string): Status => ({
   id,
   content: `<p>${content}</p>`,
@@ -76,8 +80,8 @@ const newerStatus = (id: string, content: string): Status => ({
 });
 
 // A full 40-item page: exactly at the server's clamp, which is how the
-// store decides a refresh result "may have a gap" behind it (plan doc,
-// "API 実測結果"). Newest-first (descending ids), like every real page and
+// store decides a refresh result "may have a gap" behind it (ADR-0004
+// amendment). Newest-first (descending ids), like every real page and
 // the segment model's invariant — Unit 3's gap tests reuse this fixture, and
 // an ascending page would mask ordering bugs in appendOlder/applyRefresh.
 const fullPage: Status[] = Array.from({ length: 40 }, (_, i) => {
@@ -185,12 +189,12 @@ test("refresh prepends newer statuses ahead of the existing ones", async () => {
 
 test("a refresh prepend keeps existing cards' DOM identity intact (scroll-anchor proxy)", async () => {
   // happy-dom has no layout, so scroll anchoring itself can't be observed
-  // here (plan doc, dogfooding fix); DOM identity survives *because* an
-  // unchanged Status object reference (segments.ts keeps refs stable
-  // through applyRefresh) keeps its own DOM node in the flat `<For>` — the
-  // old nested-per-segment `<For>` instead rebuilt this card's subtree
-  // whenever `applyRefresh` produced a new segment wrapper, which is the
-  // scroll-jump bug this asserts against.
+  // here (ADR-0004 amendment); DOM identity survives
+  // *because* an unchanged Status object reference (segments.ts keeps refs
+  // stable through applyRefresh) keeps its own DOM node in the flat `<For>`
+  // — the old nested-per-segment `<For>` instead rebuilt this card's
+  // subtree whenever `applyRefresh` produced a new segment wrapper, which
+  // is the scroll-jump bug this asserts against.
   server.use(
     http.get("*/api/v1/timelines/home", ({ request }) => {
       const sinceId = new URL(request.url).searchParams.get("since_id");
@@ -263,7 +267,8 @@ test("a refresh failure surfaces a notice without blanking existing content", as
 
 test("a scroll-triggered sentinel loads and appends an older page", async () => {
   // Lexicographically older than every id in `statuses` (flake IDs sort by
-  // id — plan doc), consistent with the fixtures' descending-id invariant.
+  // id — docs/PLAN.ja.md, Akkoma pitfalls), consistent with the fixtures'
+  // descending-id invariant.
   const olderStatus = newerStatus("109999999999999999", "Older fixture status");
   server.use(
     http.get("*/api/v1/timelines/home", ({ request }) => {
@@ -279,7 +284,7 @@ test("a scroll-triggered sentinel loads and appends an older page", async () => 
 
   // happy-dom's IntersectionObserver never fires on its own; the fake
   // installed above lets the test simulate the sentinel scrolling into view
-  // directly, per plan doc.
+  // directly.
   const observer = FakeIntersectionObserver.instances.at(-1);
   expect(observer).toBeDefined();
   observer?.fireVisible();
@@ -293,7 +298,7 @@ test("a tail append keeps existing cards' DOM identity intact (scroll-anchor pro
   // Same reasoning as the refresh-prepend identity test above, but for the
   // sentinel path: the tail append is exactly the case that used to slide
   // the viewport (the sentinel row was the only stable anchor candidate
-  // once `appendOlder` replaced the segment wrapper — plan doc).
+  // once `appendOlder` replaced the segment wrapper — ADR-0004 amendment).
   const olderStatus = newerStatus("109999999999999999", "Older fixture status");
   server.use(
     http.get("*/api/v1/timelines/home", ({ request }) => {
@@ -672,7 +677,7 @@ test("retry clicks while a retry is already in flight collapse into one request"
   // The store's reentry guard, not the Retry button, is what prevents two
   // param-less fetches from racing: the slower response would otherwise be
   // merged as though its page were newer than the freshly-adopted head,
-  // prepending older statuses (newest-first break — dual-review finding).
+  // prepending older statuses (a newest-first break).
   let releaseRetry: (() => void) | undefined;
   const retryGate = new Promise<void>((resolve) => {
     releaseRetry = resolve;
@@ -701,8 +706,7 @@ test("retry clicks while a retry is already in flight collapse into one request"
 test("a retry that fails differently swaps the error rendering (network → sign-in)", async () => {
   // `<Show keyed>` must recreate TimelineError when the error value
   // changes: non-keyed, the truthy→truthy transition kept the stale
-  // "Connection failed" + Retry on screen after the retry came back 403
-  // (dual-review finding).
+  // "Connection failed" + Retry on screen after the retry came back 403.
   let requestCount = 0;
   server.use(
     http.get("*/api/v1/timelines/home", () => {
@@ -729,8 +733,7 @@ test("a short gap fill that reaches the tail segment proves exhaustion without a
   // merges into the (tail) old-head segment: the store must conclude
   // exhausted from the post-merge shape. Judged pre-merge (the old code),
   // the gap segment wasn't the tail at request time, so the sentinel
-  // stayed mounted and burned one provably-empty extra request
-  // (dual-review finding).
+  // stayed mounted and burned one provably-empty extra request.
   let olderRequestCount = 0;
   server.use(
     http.get("*/api/v1/timelines/home", ({ request }) => {
@@ -766,7 +769,7 @@ test("a sentinel re-fire while its failure is displayed does not auto-retry", as
   // Once the failure row (with its Retry button) is on screen, an
   // IntersectionObserver re-fire from a scroll jiggle must not clear the
   // error and re-request on its own — retrying is the user's explicit
-  // action (dual-review finding).
+  // action.
   let olderRequestCount = 0;
   server.use(
     http.get("*/api/v1/timelines/home", ({ request }) => {
@@ -798,8 +801,7 @@ test("a queued fetch still lands when a preceding cascade merge carries the tail
   // old tail — ends up interior to the merged segment. The queued fetch's
   // response must then still be applied via membership lookup; resolving
   // the anchor by tail identity instead dropped the fetched page, and the
-  // timeline stalled until the next IntersectionObserver fire
-  // (round-2 dual-review finding).
+  // timeline stalled until the next IntersectionObserver fire.
   let releaseGapFill: (() => void) | undefined;
   const gapFillGate = new Promise<void>((resolve) => {
     releaseGapFill = resolve;
@@ -862,7 +864,7 @@ test("a queued fetch still lands when a preceding cascade merge carries the tail
 test("the refresh announcement counts only the refresh's own statuses, not a concurrently-landing older page", async () => {
   // An older page settling while the refresh is in flight must not inflate
   // "N new posts loaded" — the count comes from the store's own applied
-  // delta, not a page-side total diff (dual-review finding).
+  // delta, not a page-side total diff.
   let releaseOlder: (() => void) | undefined;
   const olderGate = new Promise<void>((resolve) => {
     releaseOlder = resolve;

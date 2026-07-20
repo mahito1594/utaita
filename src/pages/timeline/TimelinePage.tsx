@@ -32,8 +32,7 @@ const TimelineError = (props: { error: ApiError; onRetry: () => void }) => {
   // <Show keyed> recreates this component whenever the error *value*
   // changes. A non-keyed <Show> re-renders children only on falsy↔truthy
   // flips (Solid's condition memo compares `!a === !b`), which left a
-  // network error's Retry on screen after a retry came back 403
-  // (dual-review finding).
+  // network error's Retry on screen after a retry came back 403.
   switch (props.error.kind) {
     case "http":
       // Akkoma's unauthenticated answer differs per endpoint: home responds
@@ -139,10 +138,10 @@ const gapRow = css({
   display: "flex",
   justifyContent: "center",
   py: "2",
-  // Never a scroll-anchor candidate (plan doc, "スクロール位置が末尾ロード後
-  // に最下端へ飛ぶ"): this row is created/destroyed as gaps open and close,
-  // so anchoring to it would slide the viewport. Anchoring should always
-  // land on a card, whose DOM the flat `<For>` below keeps stable.
+  // Never a scroll-anchor candidate (ADR-0004 amendment): this row is
+  // created/destroyed as gaps open and close, so anchoring to it would
+  // slide the viewport. Anchoring should always land on a card, whose DOM
+  // the flat `<For>` below keeps stable.
   overflowAnchor: "none",
 });
 
@@ -198,8 +197,8 @@ const sentinelRow = css({
   overflowAnchor: "none",
 });
 
-// Thin shim over IntersectionObserver (plan doc): visibility alone decides
-// to call `props.onVisible`; the exhausted/in-flight/error guards live in
+// Thin shim over IntersectionObserver: visibility alone decides to call
+// `props.onVisible`; the exhausted/in-flight/error guards live in
 // the store's `exhausted`/`loadingOlder` accessors and the caller's
 // `requestOlderAtTail` gate, not here. happy-dom's IntersectionObserver
 // never actually calls back — page tests substitute a fake that captures
@@ -239,27 +238,27 @@ const Sentinel = (props: {
   );
 };
 
-// Panel enclosure (docs/design/timeline-refresh-20260719.html, decision doc
-// — supersedes the flush-strip and detached-strip interim treatments): a
+// Panel enclosure (wireframe: docs/design/timeline-refresh-20260719.html —
+// supersedes the flush-strip and detached-strip interim treatments): a
 // flush strip under the header read as a broken second header on desktop
 // (the header is viewport-wide, the strip column-wide); a detached
 // card-style strip then read as an unrelated card. Containment — one
 // bordered, rounded panel whose top edge is the bar — is what shows the bar
 // and the list belong together. CRITICAL: never `overflow: hidden` here —
 // clipping the panel would re-scope the bar's `position: sticky` away from
-// the viewport (decision doc).
+// the viewport.
 const panel = css({
-  // Base (mobile, decision doc): the column already spans the viewport
-  // width, so the panel stays invisible — no border/radius/padding — and
-  // the bar alone carries the flush full-bleed treatment below, pixel
-  // -identical to the pre-panel design.
+  // Base (mobile): the column already spans the viewport width, so the
+  // panel stays invisible — no border/radius/padding — and the bar alone
+  // carries the flush full-bleed treatment below, pixel-identical to the
+  // pre-panel design.
   //
   // `md`, matching App.tsx's `column.maxWidth: { md: "600px" }`: the column
   // is only capped from `md` up, so "flush, full-bleed bar" and "column is
   // uncapped" are the same condition by construction — no viewport width
-  // can produce a capped-but-still-flush band (dogfooding fix; a bespoke
-  // 600px breakpoint synced by comment across two files was tried and
-  // dropped in favor of this structural invariant).
+  // can produce a capped-but-still-flush band (a bespoke 600px breakpoint
+  // synced by comment across two files was tried and dropped in favor of
+  // this structural invariant).
   md: {
     borderWidth: "1px",
     borderColor: "border.default",
@@ -288,9 +287,9 @@ const panelBody = css({
   },
 });
 
-// The panel's top edge (decision doc): today it only carries the manual
-// refresh control, but is the future home of the timeline switcher tabs
-// too — kept as its own row rather than folded into the refresh button.
+// The panel's top edge: today it only carries the manual refresh control,
+// but is the future home of the timeline switcher tabs too — kept as its
+// own row rather than folded into the refresh button.
 const bar = css({
   position: "sticky",
   top: "0",
@@ -316,8 +315,8 @@ const bar = css({
   mx: "-4",
   mt: "-4",
   borderBottomWidth: "1px",
-  // `md`+ (decision doc; see `panel` for why `md` is the right condition):
-  // no more escaping to do — the panel now carries the border. The bar just
+  // `md`+ (see `panel` for why `md` is the right condition): no more
+  // escaping to do — the panel now carries the border. The bar just
   // sits flush against the panel's own top edge, with a matching top radius
   // standing in for the `overflow: hidden` clip we deliberately don't use
   // (CRITICAL, see `panel`).
@@ -329,14 +328,14 @@ const bar = css({
 });
 
 // Names the current timeline and pre-figures the future switcher tabs'
-// opening position (decision doc) — static text, no state.
+// opening position (wireframe) — static text, no state.
 const homeLabel = css({
   color: "text.brand",
   fontWeight: "semibold",
   fontSize: "sm",
 });
 
-// 40px ghost icon button (decision doc): borderless, transparent until
+// 40px ghost icon button (wireframe): borderless, transparent until
 // hovered, so it reads as part of the strip rather than a separate control.
 // `aria-label` carries the accessible name so it stays "Refresh" regardless
 // of the icon shown.
@@ -357,7 +356,7 @@ const refreshButton = css({
 // Rotates while a refresh is in flight; Panda's built-in `spin` keyframe
 // (bundled by the default preset-panda preset, confirmed in
 // styled-system/tokens) covers it. `_motionReduce` swaps the spin for a
-// static, dimmed icon instead of leaving it running (decision doc).
+// static, dimmed icon instead of leaving it running (wireframe).
 const refreshIconSpinning = css({
   animation: "spin",
   _motionReduce: {
@@ -417,8 +416,8 @@ export const TimelinePage = () => {
   const runRefreshWithAnnouncement = async (): Promise<void> => {
     // The applied count comes from the store itself, not a before/after
     // total diff here: an older-fetch completing while the refresh was in
-    // flight would land in a total diff and get announced as "new posts"
-    // (dual-review finding). `undefined` means nothing was applied — the
+    // flight would land in a total diff and get announced as "new posts".
+    // `undefined` means nothing was applied — the
     // fetch failed (RefreshError/TimelineError carry that) or another
     // refresh was already in flight — so there is no outcome to announce.
     const applied = await store.refresh();
@@ -440,8 +439,7 @@ export const TimelinePage = () => {
   // `appendOlder`/`applyRefresh` that replaces a *segment* wrapper no longer
   // recreates the cards inside it — the previous nested `<For each={
   // segments}>` did, which destroyed the browser's scroll-anchor candidates
-  // and made the viewport jump on every tail load (plan doc, "スクロール位置
-  // が末尾ロード後に最下端へ飛ぶ").
+  // and made the viewport jump on every tail load (ADR-0004 amendment).
   const statuses = () =>
     store.segments().flatMap((segment) => segment.statuses);
   const lastSegmentIndex = () => store.segments().length - 1;
@@ -473,8 +471,7 @@ export const TimelinePage = () => {
   // The failure gate keeps an IntersectionObserver re-fire (any scroll
   // jiggle while the error row is on screen) from silently clearing the
   // failure and re-requesting on its own — once a Retry affordance is
-  // shown, retrying is the user's call, via the Sentinel's `onRetry`
-  // (dual-review finding).
+  // shown, retrying is the user's call, via the Sentinel's `onRetry`.
   const requestOlderAtTail = () => {
     const segmentIndex = lastSegmentIndex();
     if (
@@ -553,9 +550,10 @@ export const TimelinePage = () => {
           {(status) => (
             <>
               <StatusCard status={status} />
-              {/* A segment boundary *is* a gap (segment model, plan doc);
-                  `gapAfter` only matches the tail id of a non-last segment —
-                  the last segment's boundary is the sentinel below instead. */}
+              {/* A segment boundary *is* a gap (segment model — segments.ts,
+                  ADR-0004 amendment); `gapAfter` only matches the tail id of
+                  a non-last segment — the last segment's boundary is the
+                  sentinel below instead. */}
               <Show when={gapAfter(status.id)}>
                 {(gap) => (
                   <GapMarker

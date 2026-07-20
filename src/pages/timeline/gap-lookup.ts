@@ -5,8 +5,8 @@ import type { Segment } from "./segments";
 // single flat status list instead of giving each segment its own `<For>`
 // (which would recreate every card's DOM whenever `appendOlder` replaces
 // the segment object, destroying the browser's scroll-anchor candidates —
-// plan doc, "スクロール位置が末尾ロード後に最下端へ飛ぶ"). The last segment
-// has no gap below it — that boundary is the sentinel, not a marker.
+// ADR-0004 amendment). The last segment has no gap below it — that
+// boundary is the sentinel, not a marker.
 export const gapBoundariesByTailId = (
   segments: readonly Segment[],
 ): ReadonlyMap<string, number> => {
