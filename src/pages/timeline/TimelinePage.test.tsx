@@ -1043,3 +1043,107 @@ test("the refresh announcement counts only the refresh's own statuses, not a con
   expect(await findByText("Brand new")).toBeInTheDocument();
   expect(await findByText("1 new post loaded")).toBeInTheDocument();
 });
+
+test("a gap fill failure keeps the same persistent button focused across a retry cycle", async () => {
+  // Contract: the gap marker is one persistent <button> across idle,
+  // loading, and error — a click's dispatch must not swap it out for a
+  // different element, or focus falls to <body> (HTML's element-removal
+  // behavior, distinct from the disabled-attribute focus-fixup rule the
+  // refresh button test guards against).
+  let releaseGapFill: (() => void) | undefined;
+  let gapFillGate = new Promise<void>((resolve) => {
+    releaseGapFill = resolve;
+  });
+  let gapFillCount = 0;
+  const fullPageTailId = fullPage.at(-1)?.id;
+
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const url = new URL(request.url);
+      const sinceId = url.searchParams.get("since_id");
+      const maxId = url.searchParams.get("max_id");
+      if (maxId === fullPageTailId) {
+        gapFillCount += 1;
+        await gapFillGate;
+        return HttpResponse.error();
+      }
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json(fullPage);
+    }),
+  );
+
+  const { findByText, findByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+  expect(await findByText("Full page item 0")).toBeInTheDocument();
+
+  const gapButton = await findByRole("button", { name: "Load missed posts" });
+  await userEvent.click(gapButton);
+  releaseGapFill?.();
+
+  // The persistent button — same element, now relabeled — keeps focus once
+  // the failure lands.
+  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(gapButton).toHaveTextContent("Retry");
+  expect(document.activeElement).toBe(gapButton);
+
+  // Retry: gated in flight, still the same element, still focused.
+  gapFillGate = new Promise<void>((resolve) => {
+    releaseGapFill = resolve;
+  });
+  await userEvent.click(gapButton);
+  expect(document.activeElement).toBe(gapButton);
+
+  // A second failure: still the same element, still focused.
+  releaseGapFill?.();
+  await waitFor(() => expect(gapFillCount).toBe(2));
+  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(document.activeElement).toBe(gapButton);
+});
+
+test("a sentinel retry keeps the same button focused in flight, and a successful retry clears the error row", async () => {
+  // Contract: the sentinel's Retry button stays mounted through a retry
+  // cycle even though the store clears the segment's failure synchronously
+  // as the click dispatches (timeline-store.ts's `fetchOlderFor`) — without
+  // that, the error row (and its button) would momentarily unmount and
+  // focus would fall to <body> mid-click.
+  let releaseRetry: (() => void) | undefined;
+  let retryGateEntered = false;
+  let olderRequestCount = 0;
+  const recoveredStatus = newerStatus(
+    "109999999999999999",
+    "Recovered after retry",
+  );
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const maxId = new URL(request.url).searchParams.get("max_id");
+      if (maxId === null) return HttpResponse.json(statuses);
+      olderRequestCount += 1;
+      if (olderRequestCount === 1) return HttpResponse.error();
+      retryGateEntered = true;
+      await new Promise<void>((resolve) => {
+        releaseRetry = resolve;
+      });
+      return HttpResponse.json([recoveredStatus]);
+    }),
+  );
+
+  const { findByText, findByRole, queryByText } = renderTimeline();
+
+  expect(await findByText("Second fixture status")).toBeInTheDocument();
+  FakeIntersectionObserver.instances.at(-1)?.fireVisible();
+  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+
+  const retryButton = await findByRole("button", { name: "Retry" });
+  await userEvent.click(retryButton);
+
+  await waitFor(() => expect(retryGateEntered).toBe(true));
+  expect(document.activeElement).toBe(retryButton);
+
+  releaseRetry?.();
+  expect(await findByText("Recovered after retry")).toBeInTheDocument();
+  // A successful retry unmounts the error row (content arrived) — no focus
+  // assertion for this path, only that the failure is actually gone.
+  expect(queryByText(/couldn't load more/i)).not.toBeInTheDocument();
+});
