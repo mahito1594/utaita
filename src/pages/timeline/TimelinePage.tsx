@@ -12,6 +12,7 @@ import {
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { StatusCard } from "../../entities/status/StatusCard";
+import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
 import { createTimelineStore } from "./timeline-store";
 
@@ -56,17 +57,7 @@ const TimelineError = (props: { error: ApiError; onRetry: () => void }) => {
           Connection failed — check your network.{" "}
           <button
             type="button"
-            class={css({
-              px: "3",
-              py: "1",
-              fontSize: "sm",
-              borderWidth: "1px",
-              borderColor: "error.default",
-              borderRadius: "md",
-              bg: "bg.surface",
-              cursor: "pointer",
-              _hover: { bg: "bg.subtle" },
-            })}
+            class={outlineButton({ tone: "error" })}
             onClick={props.onRetry}
           >
             Retry
@@ -117,22 +108,10 @@ const inlineErrorRow = css({
   py: "2",
 });
 
-// Shared by the gap marker and the sentinel's persistent buttons: `_disabled`
-// already matches `[aria-disabled=true]` in this project's Panda preset (see
-// the refresh button's own busy styling), so the one selector covers both
-// the click guard's semantic state and the retry-in-flight look.
-const olderRetryButton = css({
-  px: "3",
-  py: "1",
-  fontSize: "sm",
-  borderWidth: "1px",
-  borderColor: "border.default",
-  borderRadius: "md",
-  bg: "bg.surface",
-  cursor: "pointer",
-  _hover: { bg: "bg.subtle" },
-  _disabled: { color: "text.muted", cursor: "default" },
-});
+// Shared by the gap marker and the sentinel's persistent buttons; the
+// recipe's `_disabled` styling covers both the click guard's semantic state
+// and the retry-in-flight look (see the refresh button's own busy styling).
+const olderRetryButton = outlineButton({ tone: "neutral" });
 
 const gapRow = css({
   display: "flex",

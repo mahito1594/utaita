@@ -1,8 +1,9 @@
 import { Route, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
-import { css } from "../../styled-system/css";
+import { css, cx } from "../../styled-system/css";
 import { ProfilePage } from "../pages/profile/ProfilePage";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
+import { outlineButton } from "../ui/outline-button";
 import { LoginScreen } from "./LoginScreen";
 import { OAuthCallback } from "./OAuthCallback";
 import { REDIRECT_PATH } from "./oauth";
@@ -50,18 +51,10 @@ const Layout = (props: ParentProps) => (
           <button
             type="button"
             onClick={() => void logout()}
-            class={css({
-              px: "3",
-              py: "1",
-              fontSize: "sm",
-              color: "text.muted",
-              borderWidth: "1px",
-              borderColor: "border.default",
-              borderRadius: "md",
-              bg: "bg.surface",
-              cursor: "pointer",
-              _hover: { bg: "bg.subtle" },
-            })}
+            class={cx(
+              outlineButton({ tone: "neutral" }),
+              css({ color: "text.muted" }),
+            )}
           >
             Log out
           </button>
