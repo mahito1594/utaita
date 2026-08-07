@@ -880,6 +880,89 @@ test("a queued fetch still lands when a preceding cascade merge carries the tail
   expect(await findByText("Landed after the merge")).toBeInTheDocument();
 });
 
+test("a queued fetch's failure surfaces on the right row after a preceding cascade merge carries the tail past its anchor, and retrying anchors at the merged segment's new tail", async () => {
+  // The gap fill is deliberately a full (`PAGE_LIMIT`-length) page: a
+  // short page reaching the tail segment would also prove exhaustion,
+  // swapping the sentinel row — and the failure under test — for the
+  // caught-up state.
+  let releaseGapFill: (() => void) | undefined;
+  const gapFillGate = new Promise<void>((resolve) => {
+    releaseGapFill = resolve;
+  });
+  // 38 statuses continuing below `statuses[1]` (the old tail), padding the
+  // gap-fill response out to a full page; the last element becomes the
+  // merged segment's new tail.
+  const gapFillTail: Status[] = Array.from({ length: 38 }, (_, i) => {
+    const suffix = 37 - i;
+    return newerStatus(
+      `10999999999999${String(suffix).padStart(4, "0")}`,
+      `Gap fill item ${suffix}`,
+    );
+  });
+  const carriedPast = gapFillTail.at(-1);
+  const landedAfterRetry = newerStatus(
+    "109999999999980000",
+    "Landed after retry",
+  );
+  const fullPageTailId = fullPage.at(-1)?.id;
+  let queuedFetchCount = 0;
+
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const url = new URL(request.url);
+      const sinceId = url.searchParams.get("since_id");
+      const maxId = url.searchParams.get("max_id");
+      if (maxId === fullPageTailId) {
+        await gapFillGate;
+        // Reaches the old segment ([statuses]) and keeps going past its
+        // tail: the cascade merge appends `gapFillTail`, moving the merged
+        // segment's tail beyond the queued anchor (`statuses[1]`) below.
+        return HttpResponse.json([...statuses, ...gapFillTail]);
+      }
+      if (maxId === statuses[1]?.id) {
+        // The queued sentinel fetch, anchored at the old tail (now interior
+        // to the merged segment). It fails outright.
+        queuedFetchCount += 1;
+        return HttpResponse.error();
+      }
+      if (maxId === carriedPast?.id) {
+        // A retry re-anchors at the merged segment's *current* tail — the
+        // status the cascade merge carried past the original (now stale)
+        // anchor — not the id the failure was originally recorded against.
+        return HttpResponse.json([landedAfterRetry]);
+      }
+      if (sinceId === null) return HttpResponse.json(statuses);
+      return HttpResponse.json(fullPage);
+    }),
+  );
+
+  const { findByText, findByRole, queryByText } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+  expect(await findByText("Full page item 0")).toBeInTheDocument();
+
+  // Gap fill goes out first and hangs; the sentinel queues behind it,
+  // anchored at the old segment's tail.
+  await userEvent.click(
+    await findByRole("button", { name: "Load missed posts" }),
+  );
+  FakeIntersectionObserver.instances.at(-1)?.fireVisible();
+
+  releaseGapFill?.();
+
+  // The merge closes the gap (one segment left), so the failure — recorded
+  // against an anchor now interior to that segment — must still surface on
+  // its only remaining row: the sentinel.
+  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(queuedFetchCount).toBe(1);
+
+  await userEvent.click(await findByRole("button", { name: "Retry" }));
+
+  expect(await findByText("Landed after retry")).toBeInTheDocument();
+  expect(queryByText(/couldn't load more/i)).not.toBeInTheDocument();
+});
+
 test("the refresh announcement counts only the refresh's own statuses, not a concurrently-landing older page", async () => {
   // An older page settling while the refresh is in flight must not inflate
   // "N new posts loaded" — the count comes from the store's own applied
