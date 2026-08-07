@@ -88,6 +88,10 @@ const RefreshError = (props: { error: ApiError }) => (
       borderRadius: "md",
       p: "2",
       fontSize: "sm",
+      // Never a scroll-anchor candidate (ADR-0004 amendment): this row appears
+      // above existing cards and vanishes on a successful refresh — anchoring to
+      // it would slide the viewport.
+      overflowAnchor: "none",
     })}
   >
     {props.error.kind === "network"
