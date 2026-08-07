@@ -41,10 +41,12 @@ class FakeIntersectionObserver {
 
 // Hand-written, anonymized fixtures typed against the generated schema — the
 // type system vouches for their shape, and no real instance data enters the
-// repo (ADR-0002 amendment).
+// repo (ADR-0002 amendment). Newest-first (descending ids), like every real
+// page — flake IDs are lexicographically comparable, and a newer status
+// carries a larger id (docs/PLAN.ja.md, Akkoma pitfalls).
 const statuses: Status[] = [
   {
-    id: "110000000000000001",
+    id: "110000000000000002",
     content: "<p>Hello from fixture one</p>",
     created_at: "2026-07-05T12:00:00.000Z",
     account: {
@@ -54,7 +56,7 @@ const statuses: Status[] = [
     },
   },
   {
-    id: "110000000000000002",
+    id: "110000000000000001",
     content: "<p>Second fixture status</p>",
     created_at: "2026-07-05T11:00:00.000Z",
     account: {
@@ -121,11 +123,18 @@ test("renders fetched statuses as cards", async () => {
   server.use(
     http.get("*/api/v1/timelines/home", () => HttpResponse.json(statuses)),
   );
-  const { findByText } = renderTimeline();
+  const { findByText, container } = renderTimeline();
 
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
   expect(await findByText("Second fixture status")).toBeInTheDocument();
   expect(await findByText("Alice Example")).toBeInTheDocument();
+
+  // Cards render in the page's own (newest-first) order, not insertion or
+  // alphabetical order.
+  const text = container.textContent ?? "";
+  expect(text.indexOf("Hello from fixture one")).toBeLessThan(
+    text.indexOf("Second fixture status"),
+  );
 });
 
 test("renders a sign-in prompt when the timeline answers 401", async () => {
@@ -442,17 +451,27 @@ test("a successful refresh with new posts announces the count via the live regio
       const sinceId = new URL(request.url).searchParams.get("since_id");
       if (sinceId === null) return HttpResponse.json(statuses);
       return HttpResponse.json([
-        newerStatus("110000000000000003", "Brand new"),
-        newerStatus("110000000000000004", "Also new"),
+        newerStatus("110000000000000004", "Brand new"),
+        newerStatus("110000000000000003", "Also new"),
       ]);
     }),
   );
-  const { findByText, findByRole } = renderTimeline();
+  const { findByText, findByRole, container } = renderTimeline();
 
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
   await userEvent.click(await findByRole("button", { name: "Refresh" }));
 
   expect(await findByText("2 new posts loaded")).toBeInTheDocument();
+
+  // Cards render newest-first: the two prepended statuses ahead of the
+  // pre-existing ones, in the page's own descending-id order.
+  const text = container.textContent ?? "";
+  const brandNewIndex = text.indexOf("Brand new");
+  const alsoNewIndex = text.indexOf("Also new");
+  const helloIndex = text.indexOf("Hello from fixture one");
+  expect(brandNewIndex).toBeGreaterThanOrEqual(0);
+  expect(alsoNewIndex).toBeGreaterThan(brandNewIndex);
+  expect(helloIndex).toBeGreaterThan(alsoNewIndex);
 });
 
 test("a refresh with nothing new announces 'No new posts' via the live region", async () => {
