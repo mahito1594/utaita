@@ -53,6 +53,7 @@ The "why" behind existing ADRs; apply these when weighing new choices:
 
 - `pnpm dev` — dev server; `pnpm build` — typecheck + production build
 - `pnpm check` / `pnpm check:fix` — Biome lint + format
+- `pnpm check:deps` — dependency-cruiser (module-graph layer boundaries)
 - `pnpm typecheck` — TypeScript only
 - `pnpm test` / `pnpm test:watch` — Vitest (401 noise in the output is a known
   by-product of failure-path tests; `Tests N passed` + exit 0 means green)

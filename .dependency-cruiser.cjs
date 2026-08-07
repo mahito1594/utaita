@@ -1,7 +1,10 @@
 // Enforces the one-way layer direction from ADR-0010 (app → pages →
-// entities → api) and ADR-0012. Biome cannot do this job: its import rules
-// glob-match the literal import specifier, so a relative `../status/...`
-// between sibling entities is invisible to it.
+// entities → {api, ui}) and ADR-0012. api and ui are both leaves with no
+// dependents of their own, so entities may import ui (a shared UI
+// primitive) the same way it imports api; only the two leaves must not
+// import each other or anything above them. Biome cannot do this job: its
+// import rules glob-match the literal import specifier, so a relative
+// `../status/...` between sibling entities is invisible to it.
 // Also enforces dependency hygiene: production code must only import
 // declared production dependencies (not-to-dev-dep below).
 
@@ -10,10 +13,21 @@ module.exports = {
   forbidden: [
     {
       name: "api-stays-leaf",
-      comment: "src/api is the bottom layer; it must not know its consumers.",
+      comment:
+        "src/api is a bottom layer; it must not know its consumers, nor " +
+        "reach sideways into the other bottom layer.",
       severity: "error",
       from: { path: "^src/api/" },
-      to: { path: "^src/(entities|pages|app)/" },
+      to: { path: "^src/(entities|pages|app|ui)/" },
+    },
+    {
+      name: "ui-stays-leaf",
+      comment:
+        "src/ui is a bottom layer; it must not know its consumers, nor " +
+        "reach sideways into the other bottom layer.",
+      severity: "error",
+      from: { path: "^src/ui/" },
+      to: { path: "^src/(entities|pages|app|api)/" },
     },
     {
       name: "entities-do-not-reach-up",
