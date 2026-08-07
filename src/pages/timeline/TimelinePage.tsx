@@ -1,8 +1,10 @@
 import RotateCw from "lucide-solid/icons/rotate-cw";
 import {
+  createEffect,
   createMemo,
   createSignal,
   For,
+  on,
   onCleanup,
   onMount,
   Show,
@@ -111,41 +113,11 @@ const inlineErrorRow = css({
   py: "2",
 });
 
-const OlderError = (props: { error: ApiError; onRetry: () => void }) => (
-  <p role="alert" class={inlineErrorRow}>
-    {olderErrorMessage(props.error)}
-    <button
-      type="button"
-      onClick={props.onRetry}
-      class={css({
-        px: "3",
-        py: "1",
-        fontSize: "sm",
-        borderWidth: "1px",
-        borderColor: "error.default",
-        borderRadius: "md",
-        bg: "bg.surface",
-        cursor: "pointer",
-        _hover: { bg: "bg.subtle" },
-      })}
-    >
-      Retry
-    </button>
-  </p>
-);
-
-const gapRow = css({
-  display: "flex",
-  justifyContent: "center",
-  py: "2",
-  // Never a scroll-anchor candidate (ADR-0004 amendment): this row is
-  // created/destroyed as gaps open and close, so anchoring to it would
-  // slide the viewport. Anchoring should always land on a card, whose DOM
-  // the flat `<For>` below keeps stable.
-  overflowAnchor: "none",
-});
-
-const gapButton = css({
+// Shared by the gap marker and the sentinel's persistent buttons: `_disabled`
+// already matches `[aria-disabled=true]` in this project's Panda preset (see
+// the refresh button's own busy styling), so the one selector covers both
+// the click guard's semantic state and the retry-in-flight look.
+const olderRetryButton = css({
   px: "3",
   py: "1",
   fontSize: "sm",
@@ -158,34 +130,67 @@ const gapButton = css({
   _disabled: { color: "text.muted", cursor: "default" },
 });
 
+const gapRow = css({
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: "2",
+  py: "2",
+  // Never a scroll-anchor candidate (ADR-0004 amendment): this row is
+  // created/destroyed as gaps open and close, so anchoring to it would
+  // slide the viewport. Anchoring should always land on a card, whose DOM
+  // the flat `<For>` below keeps stable.
+  overflowAnchor: "none",
+});
+
 // Sits at a segment boundary (a gap by definition, per the store's segment
 // model — no separate gap type). Clicking it fills the gap by extending the
 // *newer* segment's tail (`loadOlder(segmentIndex)`); once the fetch reaches
 // the older segment, `appendOlder` merges the two and this row's segment
 // boundary — and so this row itself — disappears.
+//
+// One persistent `<button>` across idle/loading/error, not a `<Show>`
+// swapping elements: the store clears a failure synchronously as a Retry
+// click dispatches, so an element swap would remove the clicked button and
+// drop keyboard focus to `<body>`. `aria-disabled` + no-op guard is the
+// same pattern as the refresh button.
 const GapMarker = (props: {
   loading: boolean;
   error: ApiError | undefined;
   onFill: () => void;
-}) => (
-  <div class={gapRow}>
-    <Show
-      when={props.error}
-      fallback={
-        <button
-          type="button"
-          class={gapButton}
-          disabled={props.loading}
-          onClick={props.onFill}
-        >
-          {props.loading ? "Loading missed posts…" : "Load missed posts"}
-        </button>
-      }
-    >
-      {(error) => <OlderError error={error()} onRetry={props.onFill} />}
-    </Show>
-  </div>
-);
+}) => {
+  const handleClick = () => {
+    if (props.loading) return;
+    props.onFill();
+  };
+
+  return (
+    <div class={gapRow}>
+      <Show when={props.error}>
+        {(error) => (
+          <span
+            role="alert"
+            class={css({ color: "error.default", fontSize: "sm" })}
+          >
+            {olderErrorMessage(error())}
+          </span>
+        )}
+      </Show>
+      <button
+        type="button"
+        class={olderRetryButton}
+        aria-disabled={props.loading ? "true" : undefined}
+        onClick={handleClick}
+      >
+        {props.error !== undefined
+          ? "Retry"
+          : props.loading
+            ? "Loading missed posts…"
+            : "Load missed posts"}
+      </button>
+    </div>
+  );
+};
 
 const sentinelRow = css({
   display: "flex",
@@ -215,6 +220,34 @@ const Sentinel = (props: {
 }) => {
   let target: HTMLDivElement | undefined;
 
+  // Keeps the error row (and its Retry button) mounted through a retry
+  // cycle. `props.error` goes briefly undefined the instant Retry
+  // dispatches — `fetchOlderFor` clears the segment's failure synchronously,
+  // before the fetch even starts (timeline-store.ts) — so gating the row on
+  // `props.error` alone would swap it out for the plain "Loading more…" row
+  // mid-click and drop focus to `<body>`. `retrying` bridges that gap.
+  const [retrying, setRetrying] = createSignal(false);
+
+  // `defer: true`: only `loading`'s own transitions clear `retrying`, not
+  // the effect's first run — without it, the mount-time baseline (`loading`
+  // already settled to whatever it was) would immediately clear a
+  // `retrying` the click just set.
+  createEffect(
+    on(
+      () => props.loading,
+      (loading) => {
+        if (!loading) setRetrying(false);
+      },
+      { defer: true },
+    ),
+  );
+
+  const handleRetryClick = () => {
+    if (props.loading) return;
+    setRetrying(true);
+    props.onRetry();
+  };
+
   onMount(() => {
     if (target === undefined) return;
     const observer = new IntersectionObserver((entries) => {
@@ -226,10 +259,25 @@ const Sentinel = (props: {
 
   return (
     <div ref={target} class={sentinelRow}>
-      <Show when={props.error}>
-        {(error) => <OlderError error={error()} onRetry={props.onRetry} />}
+      <Show when={props.error !== undefined || retrying()}>
+        <p
+          role={props.error === undefined ? undefined : "alert"}
+          class={inlineErrorRow}
+        >
+          <Show when={props.error}>
+            {(error) => olderErrorMessage(error())}
+          </Show>
+          <button
+            type="button"
+            class={olderRetryButton}
+            aria-disabled={props.loading ? "true" : undefined}
+            onClick={handleRetryClick}
+          >
+            {props.loading ? "Retrying…" : "Retry"}
+          </button>
+        </p>
       </Show>
-      <Show when={!props.error && props.loading}>
+      <Show when={props.error === undefined && !retrying() && props.loading}>
         <p role="status" class={css({ color: "text.muted", fontSize: "sm" })}>
           Loading more…
         </p>
