@@ -1,4 +1,4 @@
-import { type Accessor, createSignal } from "solid-js";
+import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type ApiError, client, toResult } from "../../api/client";
 import { appendOlder, applyRefresh, type Segment } from "./segments";
 
@@ -22,10 +22,16 @@ export type TimelineStore = {
    */
   error: Accessor<ApiError | undefined>;
   /**
-   * Both `loadingOlder`/`loadOlderError` take a UI-facing segment index but
-   * resolve it against the *current* segment list on every call (see
-   * `anchorOf` below) — so they keep tracking the right row even if a
-   * concurrent `refresh` has shifted indices while a fetch is in flight.
+   * Both `loadingOlder`/`loadOlderError` take a UI-facing segment index and
+   * resolve it against the *current* segment list on every call — by
+   * membership (is a pending/failed anchor id one of this segment's own
+   * statuses), not by comparing to the segment's tail id. A cascade merge
+   * (see `appendOlder`) can carry a segment's tail past an anchor queued
+   * behind it, leaving that anchor interior to the merged segment; a
+   * tail-identity comparison would then lose track of it, showing neither a
+   * spinner nor an error on any row. Membership keeps tracking the right
+   * row through such a merge, and also across a concurrent `refresh`
+   * shifting every segment's index.
    *
    * `loadingOlder` reflects both the anchor currently being fetched AND any
    * queued behind it (see `pendingOlderAnchors`): the store serialises
@@ -145,10 +151,25 @@ export const createTimelineStore = (): TimelineStore => {
   // from `drainOlderQueue`, never directly, so serialisation is a property
   // of the queue (single in-flight) rather than a per-call guard.
   const fetchOlderFor = async (anchorId: string): Promise<void> => {
-    // Only this anchor's own stale failure is cleared. Other anchors that
-    // failed while queued behind us must keep their error visible so the
-    // user can still retry them from their own row.
-    setLoadOlderFailures((prev) => prev.filter((f) => f.anchorId !== anchorId));
+    // Cleared by segment membership, not exact anchor id: a cascade merge
+    // can leave a previously failed anchor interior to this segment, and
+    // the membership-based accessors would then surface that stale failure
+    // forever, even after this retry succeeds. Failures on other segments
+    // stay visible so their own rows can still offer Retry. Exact-id clear
+    // is the fallback when the anchor is in no segment.
+    const containingSegment = segments().find((segment) =>
+      segment.statuses.some((status) => status.id === anchorId),
+    );
+    setLoadOlderFailures((prev) =>
+      containingSegment === undefined
+        ? prev.filter((f) => f.anchorId !== anchorId)
+        : prev.filter(
+            (f) =>
+              !containingSegment.statuses.some(
+                (status) => status.id === f.anchorId,
+              ),
+          ),
+    );
     const result = await toResult(
       client.GET("/api/v1/timelines/home", {
         params: { query: { max_id: anchorId, limit: PAGE_LIMIT } },
@@ -232,26 +253,40 @@ export const createTimelineStore = (): TimelineStore => {
     await drainOlderQueue();
   };
 
-  // `segmentIndex` here is a UI-facing position, not an anchor id; the
-  // accessors re-derive "is this row's segment currently pending" from the
-  // *current* `segments()` so they keep pointing at the right row even if
-  // a concurrent refresh has shifted indices meanwhile.
-  const anchorOf = (segmentIndex: number): string | undefined =>
-    segments()[segmentIndex]?.statuses.at(-1)?.id;
+  // Per-segment busy/error, resolved by membership (see the JSDoc on
+  // `loadingOlder`/`loadOlderError` above) and memoized as a single pass
+  // over `segments()` per recompute — so a render that queries every row
+  // costs O(total statuses), not O(segments × statuses).
+  const pendingAnchorIds = createMemo(() => new Set(pendingOlderAnchors()));
+  const failureByAnchorId = createMemo(
+    () => new Map(loadOlderFailures().map((f) => [f.anchorId, f.error])),
+  );
+  const busyPerSegment = createMemo(() =>
+    segments().map((segment) =>
+      segment.statuses.some(
+        (status) =>
+          status.id !== undefined && pendingAnchorIds().has(status.id),
+      ),
+    ),
+  );
+  const errorPerSegment = createMemo(() => {
+    const failures = failureByAnchorId();
+    return segments().map((segment) => {
+      for (const status of segment.statuses) {
+        const found =
+          status.id === undefined ? undefined : failures.get(status.id);
+        if (found !== undefined) return found;
+      }
+      return undefined;
+    });
+  });
 
   return {
     segments,
     loading,
     error,
-    loadingOlder: (segmentIndex) => {
-      const anchor = anchorOf(segmentIndex);
-      return anchor !== undefined && pendingOlderAnchors().includes(anchor);
-    },
-    loadOlderError: (segmentIndex) => {
-      const anchor = anchorOf(segmentIndex);
-      if (anchor === undefined) return undefined;
-      return loadOlderFailures().find((f) => f.anchorId === anchor)?.error;
-    },
+    loadingOlder: (segmentIndex) => busyPerSegment()[segmentIndex] ?? false,
+    loadOlderError: (segmentIndex) => errorPerSegment()[segmentIndex],
     exhausted,
     refresh,
     loadOlder,
