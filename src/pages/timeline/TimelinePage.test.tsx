@@ -490,6 +490,36 @@ test("a refresh with nothing new announces 'No new posts' via the live region", 
   expect(await findByText("No new posts")).toBeInTheDocument();
 });
 
+test("clicking Refresh keeps focus on the button while the request is in flight and after it settles", async () => {
+  // Contract: TimelinePage.tsx's refresh button never loses focus across a
+  // manual refresh (see the comment above `visuallyHidden` there) — the
+  // outcome is announced through the live region instead of a focus move.
+  let releaseRefresh: (() => void) | undefined;
+  const refreshGate = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const sinceId = new URL(request.url).searchParams.get("since_id");
+      if (sinceId === null) return HttpResponse.json(statuses);
+      await refreshGate;
+      return HttpResponse.json([]);
+    }),
+  );
+  const { findByText, findByRole } = renderTimeline();
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  const refreshButton = await findByRole("button", { name: "Refresh" });
+  await userEvent.click(refreshButton);
+
+  // Still in flight — the gate hasn't been released yet.
+  expect(document.activeElement).toBe(refreshButton);
+
+  releaseRefresh?.();
+  expect(await findByText("No new posts")).toBeInTheDocument();
+  expect(document.activeElement).toBe(refreshButton);
+});
+
 test("a sentinel fetch queues instead of being dropped while a gap fill is in flight", async () => {
   // Two older-fetches want to run at once: the gap fill (for the new head
   // segment after a full-page refresh) and the sentinel-triggered tail
