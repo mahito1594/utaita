@@ -483,6 +483,18 @@ export const TimelinePage = () => {
     void store.loadOlder(segmentIndex);
   };
 
+  // `aria-disabled`, not the `disabled` attribute: the HTML focus-fixup
+  // rule forcibly blurs a focused element to `<body>` the instant it
+  // becomes disabled, which would fire mid-click here (`refresh` sets
+  // `loading` before its first await) and break the focus-retention
+  // contract stated above `visuallyHidden`. The store's `refreshInFlight`
+  // already absorbs re-entrant clicks; this guard exists so the semantic
+  // state (aria-disabled) and the actual behavior (click is a no-op) agree.
+  const handleRefreshClick = () => {
+    if (store.loading()) return;
+    void runRefreshWithAnnouncement();
+  };
+
   return (
     <div class={panel}>
       <div class={bar}>
@@ -491,8 +503,8 @@ export const TimelinePage = () => {
           type="button"
           aria-label="Refresh"
           aria-busy={store.loading() ? "true" : undefined}
-          disabled={store.loading()}
-          onClick={() => void runRefreshWithAnnouncement()}
+          aria-disabled={store.loading() ? "true" : undefined}
+          onClick={handleRefreshClick}
           class={refreshButton}
         >
           <RotateCw
