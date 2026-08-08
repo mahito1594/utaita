@@ -1,3 +1,4 @@
+import { A } from "@solidjs/router";
 import RotateCw from "lucide-solid/icons/rotate-cw";
 import {
   createEffect,
@@ -15,7 +16,13 @@ import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
 import { createTimelineStore } from "./timeline-store";
-import { home } from "./timelines";
+import {
+  bubble,
+  federated,
+  home,
+  local,
+  type TimelineDefinition,
+} from "./timelines";
 
 const errorBox = css({
   bg: "error.subtle",
@@ -319,9 +326,9 @@ const panelBody = css({
   },
 });
 
-// The panel's top edge: today it only carries the manual refresh control,
-// but is the future home of the timeline switcher tabs too — kept as its
-// own row rather than folded into the refresh button.
+// The panel's top edge: carries the timeline switcher tabs and the manual
+// refresh control side by side — kept as its own row rather than folded
+// into the refresh button.
 const bar = css({
   position: "sticky",
   top: "0",
@@ -359,12 +366,29 @@ const bar = css({
   },
 });
 
-// Names the current timeline and pre-figures the future switcher tabs'
-// opening position (wireframe) — static text, no state.
-const homeLabel = css({
-  color: "text.brand",
+// `minWidth: 0` overrides the flex item default (`auto`), which would
+// otherwise keep this row at its content width and defeat `overflowX:
+// auto` below — the row needs to be allowed to shrink before it can
+// scroll instead of overflow the bar at narrow widths.
+const timelineNav = css({
+  display: "flex",
+  gap: "3",
+  minWidth: "0",
+  overflowX: "auto",
+});
+
+// Router-driven active styling (`aria-current="page"`, set by `<A>` itself
+// on an exact path match) rather than a second, hand-maintained active
+// state — the plain link color is the inactive look, matching the old
+// static label's weight/size.
+const timelineNavLink = css({
+  color: "text.muted",
   fontWeight: "semibold",
   fontSize: "sm",
+  whiteSpace: "nowrap",
+  "&[aria-current=page]": {
+    color: "text.brand",
+  },
 });
 
 // 40px ghost icon button (wireframe): borderless, transparent until
@@ -425,8 +449,8 @@ const visuallyHidden = css({
   borderWidth: "0",
 });
 
-export const TimelinePage = () => {
-  const store = createTimelineStore(home.fetchPage);
+export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
+  const store = createTimelineStore(props.timeline.fetchPage);
   const [refreshAnnouncement, setRefreshAnnouncement] = createSignal("");
 
   // Wraps `store.refresh()` to count net new statuses and hand the outcome
@@ -530,7 +554,20 @@ export const TimelinePage = () => {
   return (
     <div class={panel}>
       <div class={bar}>
-        <span class={homeLabel}>Home</span>
+        <nav class={timelineNav}>
+          <A href={home.path} end class={timelineNavLink}>
+            {home.label}
+          </A>
+          <A href={local.path} end class={timelineNavLink}>
+            {local.label}
+          </A>
+          <A href={bubble.path} end class={timelineNavLink}>
+            {bubble.label}
+          </A>
+          <A href={federated.path} end class={timelineNavLink}>
+            {federated.label}
+          </A>
+        </nav>
         <button
           type="button"
           aria-label="Refresh"
