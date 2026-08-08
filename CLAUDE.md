@@ -4,9 +4,8 @@
 
 A modern web frontend for Akkoma, distributed as static files and served by
 the instance itself from `$instance_static/frontends/<name>/<ref>`. The API is
-always same-origin; there is no instance-picker UI. Stack: SolidJS +
-@solidjs/router, Vite, Panda CSS, Biome, pnpm. API types are generated from
-the instance-served OpenAPI spec and consumed via openapi-fetch.
+always same-origin; there is no instance-picker UI. API types are generated
+from the instance-served OpenAPI spec and consumed via openapi-fetch.
 
 ## Where things are documented
 
@@ -51,10 +50,9 @@ The "why" behind existing ADRs; apply these when weighing new choices:
 
 ## Commands
 
-- `pnpm dev` — dev server; `pnpm build` — typecheck + production build
-- `pnpm check` / `pnpm check:fix` — Biome lint + format
+Only the ones with a gotcha; the rest are ordinary `package.json` scripts.
+
 - `pnpm check:deps` — dependency-cruiser (module-graph layer boundaries)
-- `pnpm typecheck` — TypeScript only
 - `pnpm test` / `pnpm test:watch` — Vitest (401 noise in the output is a known
   by-product of failure-path tests; `Tests N passed` + exit 0 means green)
 
