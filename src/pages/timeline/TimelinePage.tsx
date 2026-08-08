@@ -1,5 +1,3 @@
-import { A } from "@solidjs/router";
-import RotateCw from "lucide-solid/icons/rotate-cw";
 import {
   createEffect,
   createMemo,
@@ -15,14 +13,9 @@ import type { ApiError } from "../../api/client";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
+import { publishTimelineControls } from "./TimelineShell";
 import { createTimelineStore } from "./timeline-store";
-import {
-  bubble,
-  federated,
-  home,
-  local,
-  type TimelineDefinition,
-} from "./timelines";
+import type { TimelineDefinition } from "./timelines";
 
 const errorBox = css({
   bg: "error.subtle",
@@ -118,7 +111,8 @@ const inlineErrorRow = css({
 
 // Shared by the gap marker and the sentinel's persistent buttons; the
 // recipe's `_disabled` styling covers both the click guard's semantic state
-// and the retry-in-flight look (see the refresh button's own busy styling).
+// and the retry-in-flight look (the same `aria-disabled` keying as the bar's
+// refresh button in TimelineShell.tsx).
 const olderRetryButton = outlineButton({ tone: "neutral" });
 
 const gapRow = css({
@@ -144,7 +138,7 @@ const gapRow = css({
 // swapping elements: the store clears a failure synchronously as a Retry
 // click dispatches, so an element swap would remove the clicked button and
 // drop keyboard focus to `<body>`. `aria-disabled` + no-op guard is the
-// same pattern as the refresh button.
+// same pattern as the refresh button in TimelineShell.tsx.
 const GapMarker = (props: {
   loading: boolean;
   error: ApiError | undefined;
@@ -277,150 +271,6 @@ const Sentinel = (props: {
   );
 };
 
-// Panel enclosure (wireframe: docs/design/timeline-refresh-20260719.html —
-// supersedes the flush-strip and detached-strip interim treatments): a
-// flush strip under the header read as a broken second header on desktop
-// (the header is viewport-wide, the strip column-wide); a detached
-// card-style strip then read as an unrelated card. Containment — one
-// bordered, rounded panel whose top edge is the bar — is what shows the bar
-// and the list belong together. CRITICAL: never `overflow: hidden` here —
-// clipping the panel would re-scope the bar's `position: sticky` away from
-// the viewport.
-const panel = css({
-  // Base (mobile): the column already spans the viewport width, so the
-  // panel stays invisible — no border/radius/padding — and the bar alone
-  // carries the flush full-bleed treatment below, pixel-identical to the
-  // pre-panel design.
-  //
-  // `md`, matching App.tsx's `column.maxWidth: { md: "600px" }`: the column
-  // is only capped from `md` up, so "flush, full-bleed bar" and "column is
-  // uncapped" are the same condition by construction — no viewport width
-  // can produce a capped-but-still-flush band (a bespoke 600px breakpoint
-  // synced by comment across two files was tried and dropped in favor of
-  // this structural invariant).
-  md: {
-    borderWidth: "1px",
-    borderColor: "border.default",
-    // One step above the cards' `lg` (errorBox, StatusCard), matching the
-    // comp's 12px — the panel is a container, not a card itself.
-    borderRadius: "xl",
-  },
-});
-
-// Body of the panel: the existing column gap between rows, plus the
-// panel's own inset once the panel has a border to inset from. `pt` is
-// unconditional so the bar→first-card gap always matches the inter-card
-// gap ("3"), now that they're siblings with no shared flex `gap` between
-// them (the panel restructure moved the bar outside this flex column).
-// `md` sets `px`/`pb` rather than `p`, not `pt`, so it never collides with
-// the base `pt` on the same property (cascade-order-dependent) — the
-// effective padding is still 12px on all sides once `md` applies.
-const panelBody = css({
-  display: "flex",
-  flexDirection: "column",
-  gap: "3",
-  pt: "3",
-  md: {
-    px: "3",
-    pb: "3",
-  },
-});
-
-// The panel's top edge: carries the timeline switcher tabs and the manual
-// refresh control side by side — kept as its own row rather than folded
-// into the refresh button.
-const bar = css({
-  position: "sticky",
-  top: "0",
-  bg: "bg.surface",
-  borderColor: "border.default",
-  // No z-index scale in this project's tokens (only colors are governed by
-  // the semantic-token rule) — a raw value just keeps the sticky bar above
-  // card internals (MediaGrid, PollView) that create their own stacking
-  // context.
-  zIndex: "1",
-  // Never a scroll-anchor candidate: see gapRow/sentinelRow — the bar is
-  // sticky, not part of the scrolling content, and must not be chosen over
-  // a card.
-  overflowAnchor: "none",
-  px: "4",
-  py: "2",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  // Base (mobile): the panel above is invisible, so these negative margins
-  // still have to reach past `main`'s own px-4/py-4 (App.tsx) themselves —
-  // the bar's edges meet the header's flush, matching its width there.
-  mx: "-4",
-  mt: "-4",
-  borderBottomWidth: "1px",
-  // `md`+ (see `panel` for why `md` is the right condition): no more
-  // escaping to do — the panel now carries the border. The bar just
-  // sits flush against the panel's own top edge, with a matching top radius
-  // standing in for the `overflow: hidden` clip we deliberately don't use
-  // (CRITICAL, see `panel`).
-  md: {
-    mx: "0",
-    mt: "0",
-    borderTopRadius: "xl",
-  },
-});
-
-// `minWidth: 0` overrides the flex item default (`auto`), which would
-// otherwise keep this row at its content width and defeat `overflowX:
-// auto` below — the row needs to be allowed to shrink before it can
-// scroll instead of overflow the bar at narrow widths.
-const timelineNav = css({
-  display: "flex",
-  gap: "3",
-  minWidth: "0",
-  overflowX: "auto",
-});
-
-// Router-driven active styling (`aria-current="page"`, set by `<A>` itself
-// on an exact path match) rather than a second, hand-maintained active
-// state — the plain link color is the inactive look, matching the old
-// static label's weight/size.
-const timelineNavLink = css({
-  color: "text.muted",
-  fontWeight: "semibold",
-  fontSize: "sm",
-  whiteSpace: "nowrap",
-  "&[aria-current=page]": {
-    color: "text.brand",
-  },
-});
-
-// 40px ghost icon button (wireframe): borderless, transparent until
-// hovered, so it reads as part of the strip rather than a separate control.
-// `aria-label` carries the accessible name so it stays "Refresh" regardless
-// of the icon shown.
-const refreshButton = css({
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "10",
-  height: "10",
-  borderRadius: "md",
-  bg: "transparent",
-  color: "accent.default",
-  cursor: "pointer",
-  _hover: { bg: "bg.subtle" },
-  _disabled: { color: "text.muted", cursor: "default" },
-});
-
-// Rotates while a refresh is in flight; Panda's built-in `spin` keyframe
-// (bundled by the default preset-panda preset, confirmed in
-// styled-system/tokens) covers it. `_motionReduce` swaps the spin for a
-// static, dimmed icon instead of leaving it running (wireframe).
-const refreshIconSpinning = css({
-  animation: "spin",
-  _motionReduce: {
-    animation: "none",
-    opacity: "0.5",
-  },
-});
-
 const caughtUpRow = css({
   color: "text.muted",
   fontSize: "sm",
@@ -432,9 +282,9 @@ const caughtUpRow = css({
 });
 
 // SR-only announcement channel for the manual refresh outcome. Focus stays
-// on the refresh button (users hitting Enter twice in a row shouldn't lose
-// their place); the count of newly-loaded posts, or "no new posts", is
-// spoken through this permanent aria-live region instead of by moving
+// on the shell's refresh button (users hitting Enter twice in a row
+// shouldn't lose their place); the count of newly-loaded posts, or "no new
+// posts", is spoken through this aria-live region instead of by moving
 // focus. Refresh *failures* stay on `RefreshError` (role="alert"), so this
 // channel only carries the success/empty-success outcomes.
 const visuallyHidden = css({
@@ -484,6 +334,14 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
         : `${applied} new post${applied === 1 ? "" : "s"} loaded`,
     );
   };
+
+  // The bar's refresh control belongs to TimelineShell, which outlives this
+  // page across a tab switch — this hands it the store it should be driving
+  // for as long as this page is the one mounted.
+  publishTimelineControls({
+    loading: store.loading,
+    refresh: () => void runRefreshWithAnnouncement(),
+  });
 
   onMount(() => {
     void store.refresh();
@@ -539,133 +397,88 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
     void store.loadOlder(segmentIndex);
   };
 
-  // `aria-disabled`, not the `disabled` attribute: the HTML focus-fixup
-  // rule forcibly blurs a focused element to `<body>` the instant it
-  // becomes disabled, which would fire mid-click here (`refresh` sets
-  // `loading` before its first await) and break the focus-retention
-  // contract stated above `visuallyHidden`. The store's `refreshInFlight`
-  // already absorbs re-entrant clicks; this guard exists so the semantic
-  // state (aria-disabled) and the actual behavior (click is a no-op) agree.
-  const handleRefreshClick = () => {
-    if (store.loading()) return;
-    void runRefreshWithAnnouncement();
-  };
-
   return (
-    <div class={panel}>
-      <div class={bar}>
-        <nav class={timelineNav}>
-          <A href={home.path} end class={timelineNavLink}>
-            {home.label}
-          </A>
-          <A href={local.path} end class={timelineNavLink}>
-            {local.label}
-          </A>
-          <A href={bubble.path} end class={timelineNavLink}>
-            {bubble.label}
-          </A>
-          <A href={federated.path} end class={timelineNavLink}>
-            {federated.label}
-          </A>
-        </nav>
-        <button
-          type="button"
-          aria-label="Refresh"
-          aria-busy={store.loading() ? "true" : undefined}
-          aria-disabled={store.loading() ? "true" : undefined}
-          onClick={handleRefreshClick}
-          class={refreshButton}
-        >
-          <RotateCw
-            size={20}
-            aria-hidden="true"
-            {...(store.loading() ? { class: refreshIconSpinning } : {})}
-          />
-        </button>
-      </div>
-
-      <div class={panelBody}>
-        {/* SR-only channel for manual-refresh outcomes; see `visuallyHidden`
+    <>
+      {/* SR-only channel for manual-refresh outcomes; see `visuallyHidden`
             above. Kept permanently mounted so that updating its text
             actually announces (a newly-mounted live region does not). */}
-        <p role="status" aria-live="polite" class={visuallyHidden}>
-          {refreshAnnouncement()}
+      <p role="status" aria-live="polite" class={visuallyHidden}>
+        {refreshAnnouncement()}
+      </p>
+
+      <Show when={statuses().length === 0 && store.loading()}>
+        <p role="status" class={css({ color: "text.muted" })}>
+          Loading…
         </p>
+      </Show>
 
-        <Show when={statuses().length === 0 && store.loading()}>
-          <p role="status" class={css({ color: "text.muted" })}>
-            Loading…
-          </p>
-        </Show>
+      <Show when={statuses().length === 0 && store.error()} keyed>
+        {(error) => (
+          <TimelineError
+            error={error}
+            onRetry={() => void runRefreshWithAnnouncement()}
+          />
+        )}
+      </Show>
 
-        <Show when={statuses().length === 0 && store.error()} keyed>
-          {(error) => (
-            <TimelineError
-              error={error}
-              onRetry={() => void runRefreshWithAnnouncement()}
-            />
-          )}
-        </Show>
+      <Show when={statuses().length > 0 && store.error()}>
+        {(error) => <RefreshError error={error()} />}
+      </Show>
 
-        <Show when={statuses().length > 0 && store.error()}>
-          {(error) => <RefreshError error={error()} />}
-        </Show>
-
-        {/* Empty-success state: the fetch settled without content and
+      {/* Empty-success state: the fetch settled without content and
             without an error. Distinct from the loading state above and
             from the sentinel/caught-up rows below, both of which require
             at least one segment. */}
-        <Show
-          when={
-            store.segments().length === 0 &&
-            !store.loading() &&
-            store.error() === undefined
-          }
-        >
-          <p role="status" class={css({ color: "text.muted" })}>
-            No posts yet.
-          </p>
-        </Show>
+      <Show
+        when={
+          store.segments().length === 0 &&
+          !store.loading() &&
+          store.error() === undefined
+        }
+      >
+        <p role="status" class={css({ color: "text.muted" })}>
+          No posts yet.
+        </p>
+      </Show>
 
-        <For each={statuses()}>
-          {(status) => (
-            <>
-              <StatusCard status={status} />
-              {/* A segment boundary *is* a gap (segment model — segments.ts,
+      <For each={statuses()}>
+        {(status) => (
+          <>
+            <StatusCard status={status} />
+            {/* A segment boundary *is* a gap (segment model — segments.ts,
                   ADR-0004 amendment); `gapAfter` only matches the tail id of
                   a non-last segment — the last segment's boundary is the
                   sentinel below instead. */}
-              <Show when={gapAfter(status.id)}>
-                {(gap) => (
-                  <GapMarker
-                    loading={store.loadingOlder(gap().index)}
-                    error={store.loadOlderError(gap().index)}
-                    onFill={() => void store.loadOlder(gap().index)}
-                  />
-                )}
-              </Show>
-            </>
-          )}
-        </For>
+            <Show when={gapAfter(status.id)}>
+              {(gap) => (
+                <GapMarker
+                  loading={store.loadingOlder(gap().index)}
+                  error={store.loadOlderError(gap().index)}
+                  onFill={() => void store.loadOlder(gap().index)}
+                />
+              )}
+            </Show>
+          </>
+        )}
+      </For>
 
-        <Show when={store.segments().length > 0}>
-          <Show
-            when={!store.exhausted()}
-            fallback={
-              <p role="status" class={caughtUpRow}>
-                You're all caught up.
-              </p>
-            }
-          >
-            <Sentinel
-              loading={store.loadingOlder(lastSegmentIndex())}
-              error={store.loadOlderError(lastSegmentIndex())}
-              onVisible={requestOlderAtTail}
-              onRetry={() => void store.loadOlder(lastSegmentIndex())}
-            />
-          </Show>
+      <Show when={store.segments().length > 0}>
+        <Show
+          when={!store.exhausted()}
+          fallback={
+            <p role="status" class={caughtUpRow}>
+              You're all caught up.
+            </p>
+          }
+        >
+          <Sentinel
+            loading={store.loadingOlder(lastSegmentIndex())}
+            error={store.loadOlderError(lastSegmentIndex())}
+            onVisible={requestOlderAtTail}
+            onRetry={() => void store.loadOlder(lastSegmentIndex())}
+          />
         </Show>
-      </div>
-    </div>
+      </Show>
+    </>
   );
 };
