@@ -7,6 +7,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
 import { TimelinePage } from "./TimelinePage";
+import { home } from "./timelines";
 
 // happy-dom's IntersectionObserver constructs but never actually calls back
 // (see TimelinePage.tsx's Sentinel) — this fake stands in for the global so
@@ -115,7 +116,7 @@ afterAll(() => {
 const renderTimeline = () =>
   render(() => (
     <MemoryRouter>
-      <Route path="/" component={TimelinePage} />
+      <Route path="/" component={() => <TimelinePage timeline={home} />} />
     </MemoryRouter>
   ));
 

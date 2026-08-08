@@ -3,6 +3,7 @@ import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { ProfilePage } from "../pages/profile/ProfilePage";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
+import { bubble, federated, home, local } from "../pages/timeline/timelines";
 import { outlineButton } from "../ui/outline-button";
 import { LoginScreen } from "./LoginScreen";
 import { OAuthCallback } from "./OAuthCallback";
@@ -91,11 +92,23 @@ const AuthGate = (props: ParentProps) => (
   </Show>
 );
 
+// One `<Route>` entry per timeline rather than a single dynamic-segment
+// route: a distinct path is what makes solid-router remount `TimelinePage`
+// (and so create a fresh store) on every tab switch — a `:timeline` param
+// route would instead keep the same instance alive across a param change.
+const HomeTimelinePage = () => <TimelinePage timeline={home} />;
+const LocalTimelinePage = () => <TimelinePage timeline={local} />;
+const BubbleTimelinePage = () => <TimelinePage timeline={bubble} />;
+const FederatedTimelinePage = () => <TimelinePage timeline={federated} />;
+
 const App = () => (
   <Router root={Layout}>
     <Route path={REDIRECT_PATH} component={OAuthCallback} />
     <Route component={AuthGate}>
-      <Route path="/" component={TimelinePage} />
+      <Route path="/" component={HomeTimelinePage} />
+      <Route path="/local" component={LocalTimelinePage} />
+      <Route path="/bubble" component={BubbleTimelinePage} />
+      <Route path="/federated" component={FederatedTimelinePage} />
       {/* /@:acct is not expressible in solid-router (a segment is dynamic
           only when it starts with ":"), hence /users/ — see profilePath */}
       <Route path="/users/:acct" component={ProfilePage} />
