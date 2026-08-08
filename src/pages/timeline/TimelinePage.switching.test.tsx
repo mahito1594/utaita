@@ -2,8 +2,9 @@
 // Switching behavior across the four timelines (Unit 1's per-timeline
 // fetchers exercised at the page level, per ADR-0009): which endpoint/query
 // each tab hits, that a tab click remounts to a fresh store rather than
-// reusing the previous timeline's content, and that the active tab is
-// marked via `aria-current`.
+// reusing the previous timeline's content, that the active tab is marked
+// via `aria-current`, and that the tab keeps keyboard focus across the
+// switch it triggered.
 import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, render } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
@@ -12,6 +13,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
 import { TimelinePage } from "./TimelinePage";
+import { TimelineShell } from "./TimelineShell";
 import { bubble, federated, home, local } from "./timelines";
 
 const statusOn = (endpoint: string, id: string): Status => ({
@@ -39,25 +41,31 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-// Mirrors App.tsx's route table (one `<Route>` per timeline, each a thin
-// wrapper passing its own definition) — the same structure that guarantees
-// a tab switch remounts `TimelinePage` rather than reusing its instance.
+// Mirrors App.tsx's route table (one `<Route>` per timeline under a shared
+// shell route, each leaf a thin wrapper passing its own definition) — the
+// same structure that guarantees a tab switch remounts `TimelinePage` while
+// leaving the shell's tabs mounted.
 const renderApp = () =>
   render(() => (
     <MemoryRouter>
-      <Route path="/" component={() => <TimelinePage timeline={home} />} />
-      <Route
-        path="/local"
-        component={() => <TimelinePage timeline={local} />}
-      />
-      <Route
-        path="/bubble"
-        component={() => <TimelinePage timeline={bubble} />}
-      />
-      <Route
-        path="/federated"
-        component={() => <TimelinePage timeline={federated} />}
-      />
+      <Route component={TimelineShell}>
+        <Route
+          path={home.path}
+          component={() => <TimelinePage timeline={home} />}
+        />
+        <Route
+          path={local.path}
+          component={() => <TimelinePage timeline={local} />}
+        />
+        <Route
+          path={bubble.path}
+          component={() => <TimelinePage timeline={bubble} />}
+        />
+        <Route
+          path={federated.path}
+          component={() => <TimelinePage timeline={federated} />}
+        />
+      </Route>
     </MemoryRouter>
   ));
 
@@ -147,4 +155,62 @@ test("the active tab carries aria-current=page and it moves to the tab navigated
   expect(await findByRole("link", { name: "Home" })).not.toHaveAttribute(
     "aria-current",
   );
+});
+
+test("the activated tab keeps keyboard focus across the switch, and stays the same element", async () => {
+  // Contract: the switcher lives in TimelineShell, whose route definition is
+  // shared by all four leaves, so the nav survives the remount of the page
+  // below it. Rendered inside the page instead, activating a tab would
+  // destroy the very `<a>` that has focus and drop it to <body> — leaving a
+  // keyboard user to tab from the top of the document again on every switch.
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([homeStatus])),
+    http.get("*/api/v1/timelines/public", () =>
+      HttpResponse.json([localStatus]),
+    ),
+  );
+  const { findByText, findByRole } = renderApp();
+
+  expect(await findByText("home post")).toBeInTheDocument();
+
+  const localTab = await findByRole("link", { name: "Local" });
+  await userEvent.click(localTab);
+
+  expect(await findByText("local post")).toBeInTheDocument();
+  expect(document.activeElement).toBe(localTab);
+  // The same element, not a replacement that merely looks alike — a
+  // recreated nav would fail the focus assertion but this makes the reason
+  // explicit.
+  expect(await findByRole("link", { name: "Local" })).toBe(localTab);
+});
+
+test("the bar's Refresh drives the timeline switched to, not the one it was first mounted with", async () => {
+  // The shell's button outlives the page it acts on, so which store it
+  // drives is decided by what the mounted page published — the one contract
+  // that a plain `setControls(undefined)` withdrawal would break silently
+  // under a create-then-dispose ordering, leaving Refresh a no-op on every
+  // timeline except the one first landed on.
+  const newerLocalStatus = statusOn("newer local", "110000000000000009");
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([homeStatus])),
+    http.get("*/api/v1/timelines/public", ({ request }) => {
+      const url = new URL(request.url);
+      expect(url.searchParams.get("local")).toBe("true");
+      return url.searchParams.get("since_id") === localStatus.id
+        ? HttpResponse.json([newerLocalStatus])
+        : HttpResponse.json([localStatus]);
+    }),
+  );
+  const { findByText, findByRole } = renderApp();
+
+  expect(await findByText("home post")).toBeInTheDocument();
+  await userEvent.click(await findByRole("link", { name: "Local" }));
+  expect(await findByText("local post")).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+
+  // The forward fetch went to Local's endpoint anchored at Local's head, and
+  // its outcome reached the announcement channel of the page now mounted.
+  expect(await findByText("newer local post")).toBeInTheDocument();
+  expect(await findByText("1 new post loaded")).toBeInTheDocument();
 });

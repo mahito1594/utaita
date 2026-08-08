@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
 import { ProfilePage } from "../profile/ProfilePage";
 import { TimelinePage } from "./TimelinePage";
+import { TimelineShell } from "./TimelineShell";
 import { home } from "./timelines";
 
 const mentionStatus: Status = {
@@ -45,7 +46,9 @@ afterAll(() => server.close());
 const renderApp = () =>
   render(() => (
     <MemoryRouter>
-      <Route path="/" component={() => <TimelinePage timeline={home} />} />
+      <Route component={TimelineShell}>
+        <Route path="/" component={() => <TimelinePage timeline={home} />} />
+      </Route>
       <Route path="/users/:acct" component={ProfilePage} />
     </MemoryRouter>
   ));

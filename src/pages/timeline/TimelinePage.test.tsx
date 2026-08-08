@@ -7,6 +7,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
 import { TimelinePage } from "./TimelinePage";
+import { TimelineShell } from "./TimelineShell";
 import { home } from "./timelines";
 
 // happy-dom's IntersectionObserver constructs but never actually calls back
@@ -113,10 +114,15 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
+// Mirrors App.tsx's route table: the shell (bar, switcher tabs, refresh
+// button) is a layout route wrapping the timeline leaves, so the refresh
+// control these tests drive is reached the same way the app reaches it.
 const renderTimeline = () =>
   render(() => (
     <MemoryRouter>
-      <Route path="/" component={() => <TimelinePage timeline={home} />} />
+      <Route component={TimelineShell}>
+        <Route path="/" component={() => <TimelinePage timeline={home} />} />
+      </Route>
     </MemoryRouter>
   ));
 
@@ -492,9 +498,9 @@ test("a refresh with nothing new announces 'No new posts' via the live region", 
 });
 
 test("clicking Refresh keeps focus on the button while the request is in flight and after it settles", async () => {
-  // Contract: TimelinePage.tsx's refresh button never loses focus across a
-  // manual refresh (see the comment above `visuallyHidden` there) — the
-  // outcome is announced through the live region instead of a focus move.
+  // Contract: TimelineShell.tsx's refresh button never loses focus across a
+  // manual refresh — the outcome is announced through TimelinePage's live
+  // region instead of a focus move.
   let releaseRefresh: (() => void) | undefined;
   const refreshGate = new Promise<void>((resolve) => {
     releaseRefresh = resolve;
