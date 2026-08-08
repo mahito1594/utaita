@@ -5,6 +5,7 @@ import Lock from "lucide-solid/icons/lock";
 import LockOpen from "lucide-solid/icons/lock-open";
 import Mail from "lucide-solid/icons/mail";
 import Repeat2 from "lucide-solid/icons/repeat-2";
+import Reply from "lucide-solid/icons/reply";
 import { createSignal, createUniqueId, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { css } from "../../../styled-system/css";
@@ -191,9 +192,19 @@ export const StatusCard = (props: { status: Status }) => {
         </div>
       </header>
       <Show when={subject().in_reply_to_id != null}>
-        <div class={css({ fontSize: "xs", color: "text.muted" })}>
-          <span aria-hidden="true">↰</span> replying to{" "}
-          {replyTo() !== null ? `@${replyTo()}` : "a post"}
+        <div
+          class={css({
+            fontSize: "xs",
+            color: "text.muted",
+            display: "flex",
+            gap: "1",
+            alignItems: "center",
+          })}
+        >
+          <Reply size={14} aria-hidden="true" />
+          <span>
+            replying to {replyTo() !== null ? `@${replyTo()}` : "a post"}
+          </span>
         </div>
       </Show>
       <Show when={spoiler() !== ""}>
