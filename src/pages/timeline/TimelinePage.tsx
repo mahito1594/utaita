@@ -15,6 +15,7 @@ import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
 import { createTimelineStore } from "./timeline-store";
+import { home } from "./timelines";
 
 const errorBox = css({
   bg: "error.subtle",
@@ -425,7 +426,7 @@ const visuallyHidden = css({
 });
 
 export const TimelinePage = () => {
-  const store = createTimelineStore();
+  const store = createTimelineStore(home.fetchPage);
   const [refreshAnnouncement, setRefreshAnnouncement] = createSignal("");
 
   // Wraps `store.refresh()` to count net new statuses and hand the outcome
