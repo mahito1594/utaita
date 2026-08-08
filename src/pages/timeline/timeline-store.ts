@@ -1,8 +1,9 @@
 import { type Accessor, createMemo, createSignal } from "solid-js";
-import { type ApiError, client, toResult } from "../../api/client";
+import type { ApiError } from "../../api/client";
 import { appendOlder, applyRefresh, type Segment } from "./segments";
+import type { FetchTimelinePage } from "./timelines";
 
-// Home timeline's page size is clamped to 40 server-side (measured against
+// Every timeline's page size is clamped to 40 server-side (measured against
 // the reference instance, see ADR-0004 amendment); a page that comes back
 // exactly this long cannot rule out more statuses beyond it.
 const PAGE_LIMIT = 40;
@@ -66,7 +67,13 @@ export type TimelineStore = {
 // (created inside TimelinePage, not a module singleton, per ADR-0004
 // amendment) so a login/logout page transition simply discards and
 // recreates it.
-export const createTimelineStore = (): TimelineStore => {
+//
+// `fetchPage` is injected rather than hardcoded to one endpoint: the store's
+// paging logic (segments, gap detection, queued older-fetches) is the same
+// regardless of which timeline's page the caller supplies (timelines.ts).
+export const createTimelineStore = (
+  fetchPage: FetchTimelinePage,
+): TimelineStore => {
   const [segments, setSegments] = createSignal<readonly Segment[]>([]);
   // Starts true: the store is created by a component that always calls
   // `refresh()` on mount, and starting false would flash the empty-success
@@ -120,12 +127,8 @@ export const createTimelineStore = (): TimelineStore => {
     setLoading(true);
     const result =
       headId === undefined
-        ? await toResult(client.GET("/api/v1/timelines/home"))
-        : await toResult(
-            client.GET("/api/v1/timelines/home", {
-              params: { query: { since_id: headId, limit: PAGE_LIMIT } },
-            }),
-          );
+        ? await fetchPage({})
+        : await fetchPage({ since_id: headId, limit: PAGE_LIMIT });
     setLoading(false);
     refreshInFlight = false;
 
@@ -170,11 +173,7 @@ export const createTimelineStore = (): TimelineStore => {
               ),
           ),
     );
-    const result = await toResult(
-      client.GET("/api/v1/timelines/home", {
-        params: { query: { max_id: anchorId, limit: PAGE_LIMIT } },
-      }),
-    );
+    const result = await fetchPage({ max_id: anchorId, limit: PAGE_LIMIT });
 
     if (!result.ok) {
       setLoadOlderFailures((prev) => [
