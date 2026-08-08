@@ -6,11 +6,13 @@ import { css } from "../../../styled-system/css";
 // and must verify whether /api/v1/accounts/:id accepts a nickname in the id
 // slot (Pleroma heritage, unmeasured).
 export const ProfilePage = () => {
-  const params = useParams();
+  // Untyped useParams is an index signature — bracket access then trips
+  // useLiteralKeys, dot access noPropertyAccessFromIndexSignature.
+  const params = useParams<{ acct: string }>();
   return (
     <section>
       <h2 class={css({ fontSize: "lg", fontWeight: "semibold" })}>
-        @{params["acct"]}
+        @{params.acct}
       </h2>
       <p class={css({ color: "text.muted", mt: "2" })}>
         Profiles are not implemented yet.
