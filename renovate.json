@@ -1,6 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "group:allNonMajor",
+    "customManagers:biomeVersions"
+  ],
+  "timezone": "Asia/Tokyo",
+  "schedule": ["every weekend"],
+  "automergeStrategy": "rebase",
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true
+    }
   ]
 }
