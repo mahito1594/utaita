@@ -8,11 +8,24 @@ import type { FetchTimelinePage } from "./timelines";
 // exactly this long cannot rule out more statuses beyond it.
 const PAGE_LIMIT = 40;
 
+/**
+ * Content a store can resume from instead of fetching its first page: the
+ * accumulated segments and the `exhausted` verdict they were left with.
+ * Held by reference (never serialised) — `Status` object identity is what
+ * keeps the rendered cards, and with them the browser's scroll anchors,
+ * stable across the resume.
+ */
+export type TimelineSnapshot = {
+  readonly segments: readonly Segment[];
+  readonly exhausted: boolean;
+};
+
 export type TimelineStore = {
   segments: Accessor<readonly Segment[]>;
   /**
-   * True while a forward fetch (initial load or manual refresh — same
-   * request shape, see `refresh` below) is in flight.
+   * True while a forward fetch (initial load or manual refresh — `refresh`
+   * serves both) is in flight, and, for a store that has to fetch its first
+   * page, from creation until `loadInitial` starts that fetch.
    */
   loading: Accessor<boolean>;
   /**
@@ -47,6 +60,8 @@ export type TimelineStore = {
    * applied (not when the request went out), so a gap fill that collapses
    * into the tail segment counts too. Sticky — the timeline only ever
    * grows from the front, so this never has reason to flip back to false.
+   * A store resuming from a snapshot inherits the verdict that snapshot
+   * carried.
    */
   exhausted: Accessor<boolean>;
   /**
@@ -58,6 +73,14 @@ export type TimelineStore = {
    * (the announcement layer reads this).
    */
   refresh: () => Promise<number | undefined>;
+  /**
+   * Mount-time entry point: fetches the first page, or does nothing when
+   * the store was created from a snapshot. Callers mount it
+   * unconditionally — whether the first load is still owed is the store's
+   * own state, and a caller-side "is this store new" flag would eventually
+   * disagree with it and leave the page loading forever.
+   */
+  loadInitial: () => Promise<void>;
   loadOlder: (segmentIndex: number) => Promise<void>;
 };
 
@@ -73,12 +96,15 @@ export type TimelineStore = {
 // regardless of which timeline's page the caller supplies (timelines.ts).
 export const createTimelineStore = (
   fetchPage: FetchTimelinePage,
+  initial?: TimelineSnapshot,
 ): TimelineStore => {
-  const [segments, setSegments] = createSignal<readonly Segment[]>([]);
-  // Starts true: the store is created by a component that always calls
-  // `refresh()` on mount, and starting false would flash the empty-success
-  // row for a frame before the mount effect flips it.
-  const [loading, setLoading] = createSignal(true);
+  const [segments, setSegments] = createSignal<readonly Segment[]>(
+    initial?.segments ?? [],
+  );
+  // Starting false without a snapshot would flash the empty-success row until
+  // the mount effect fires; starting true with one would strand the page on
+  // "Loading…", since a resumed store has content and no fetch coming.
+  const [loading, setLoading] = createSignal(initial === undefined);
   const [error, setError] = createSignal<ApiError>();
   // FIFO of anchor ids (target segment's tail id, not its index — see the
   // index-shift race handling below): head = currently in flight, rest =
@@ -103,16 +129,21 @@ export const createTimelineStore = (
   const [loadOlderFailures, setLoadOlderFailures] = createSignal<
     readonly { anchorId: string; error: ApiError }[]
   >([]);
-  const [exhausted, setExhausted] = createSignal(false);
+  const [exhausted, setExhausted] = createSignal(initial?.exhausted ?? false);
 
   // Reentry guard for `refresh`. Deliberately not the `loading` signal:
-  // `loading` starts true before the mount-time call on purpose (see above),
-  // so it can't tell "in flight" apart from "not started yet". Without this
-  // guard, the initial-error Retry could race two param-less fetches — the
-  // slower response would then merge as though its page were newer than the
-  // freshly-adopted head, prepending older statuses and breaking the
-  // newest-first invariant.
+  // `loading` is true before the mount-time call on purpose whenever the
+  // first page still has to be fetched, so it can't tell "in flight" apart
+  // from "not started yet". Without this guard, the initial-error Retry
+  // could race two param-less fetches — the slower response would then
+  // merge as though its page were newer than the freshly-adopted head,
+  // prepending older statuses and breaking the newest-first invariant.
   let refreshInFlight = false;
+
+  // Whether the very first forward fetch is still owed. Only `loadInitial`
+  // reads it; a manual `refresh` is an explicit user action and runs
+  // regardless.
+  let initialLoadOwed = initial === undefined;
 
   const countStatuses = (segs: readonly Segment[]): number =>
     segs.reduce((sum, segment) => sum + segment.statuses.length, 0);
@@ -148,6 +179,17 @@ export const createTimelineStore = (
     const updated = applyRefresh(current, result.value, mayHaveGap);
     setSegments(updated);
     return countStatuses(updated) - countStatuses(current);
+  };
+
+  // A resumed store skips this on purpose: `refresh` prepends what arrived
+  // since, pushing the retained content down and moving the very reading
+  // position the resume exists to preserve. The flag flips before the await,
+  // so a second call can never start a second first-load; a failed one is
+  // retried through the error path's Retry.
+  const loadInitial = async (): Promise<void> => {
+    if (!initialLoadOwed) return;
+    initialLoadOwed = false;
+    await refresh();
   };
 
   // Actual older-fetch: one anchor's page, applied to segments. Called only
@@ -288,6 +330,7 @@ export const createTimelineStore = (
     loadOlderError: (segmentIndex) => errorPerSegment()[segmentIndex],
     exhausted,
     refresh,
+    loadInitial,
     loadOlder,
   };
 };
