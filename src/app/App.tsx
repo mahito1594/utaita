@@ -2,6 +2,8 @@ import { Route, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { ProfilePage } from "../pages/profile/ProfilePage";
+import { ThreadPage } from "../pages/thread/ThreadPage";
+import { preloadThread } from "../pages/thread/thread-query";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
 import { TimelineRetention } from "../pages/timeline/TimelineRetention";
 import { TimelineShell } from "../pages/timeline/TimelineShell";
@@ -144,6 +146,14 @@ const App = () => (
         {/* /@:acct is not expressible in solid-router (a segment is dynamic
             only when it starts with ":"), hence /users/ — see profilePath */}
         <Route path="/users/:acct" component={ProfilePage} />
+        {/* The URL shape is statusPath's (src/entities/status/url.ts). Unlike
+            the timelines, this route fetches through the router's own data
+            layer, so the preload is what starts the requests (ADR-0004). */}
+        <Route
+          path="/statuses/:id"
+          component={ThreadPage}
+          preload={preloadThread}
+        />
       </Route>
     </Route>
   </Router>

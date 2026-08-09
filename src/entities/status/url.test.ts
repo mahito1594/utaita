@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { safeExternalHref } from "./url";
+import { safeExternalHref, statusPath } from "./url";
 
 describe("safeExternalHref", () => {
   test("passes through http and https URLs unchanged", () => {
@@ -29,5 +29,15 @@ describe("safeExternalHref", () => {
   test("rejects undefined and null", () => {
     expect(safeExternalHref(undefined)).toBeNull();
     expect(safeExternalHref(null)).toBeNull();
+  });
+});
+
+describe("statusPath", () => {
+  test("builds the thread route for a status id", () => {
+    // Must stay in step with the /statuses/:id route (src/app/App.tsx); flake
+    // ids are plain alphanumerics, so nothing here needs escaping.
+    expect(statusPath("110000000000000001")).toBe(
+      "/statuses/110000000000000001",
+    );
   });
 });
