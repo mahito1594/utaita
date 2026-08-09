@@ -23,3 +23,8 @@ export const safeExternalHref = (
     ? url
     : null;
 };
+
+// Single source of the thread URL shape, alongside `profilePath` (mention.ts):
+// a status opened in-app is its conversation, so the route that draws the
+// thread is the status's own permalink.
+export const statusPath = (id: string): string => `/statuses/${id}`;
