@@ -344,7 +344,7 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
   });
 
   onMount(() => {
-    void store.refresh();
+    void store.loadInitial();
   });
 
   // Flattened for both the "is there anything to show yet" checks and the
