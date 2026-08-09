@@ -1,9 +1,13 @@
-import { Route, Router } from "@solidjs/router";
+import { Route, type RoutePreloadFunc, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
+import { statusPath } from "../entities/status/url";
 import { ProfilePage } from "../pages/profile/ProfilePage";
 import { ThreadPage } from "../pages/thread/ThreadPage";
-import { preloadThread } from "../pages/thread/thread-query";
+import {
+  preloadThread,
+  type ThreadArrival,
+} from "../pages/thread/thread-query";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
 import { TimelineRetention } from "../pages/timeline/TimelineRetention";
 import { TimelineShell } from "../pages/timeline/TimelineShell";
@@ -12,7 +16,18 @@ import { outlineButton } from "../ui/outline-button";
 import { LoginScreen } from "./LoginScreen";
 import { OAuthCallback } from "./OAuthCallback";
 import { REDIRECT_PATH } from "./oauth";
-import { authenticated, logout } from "./session";
+import { authenticated, logout, takeSignInLanding } from "./session";
+
+// The session half of the thread's arrival, composed here because `src/pages`
+// must not import `src/app` (.dependency-cruiser.cjs): a thread the sign-in
+// returned to has no entry of this app behind it (session.ts).
+const preloadThreadRoute: RoutePreloadFunc<ThreadArrival> = (args) => {
+  const arrival = preloadThread(args);
+  const { id } = args.params;
+  return id !== undefined && takeSignInLanding(statusPath(id))
+    ? { canGoBack: false }
+    : arrival;
+};
 
 // Single centered column, capped only from `md` up (app-shell wireframe
 // decision); shared by header and main so their edges align. Below `md` the
@@ -150,7 +165,7 @@ const App = () => (
         <Route
           path="/statuses/:id"
           component={ThreadPage}
-          preload={preloadThread}
+          preload={preloadThreadRoute}
         />
       </Route>
     </Route>

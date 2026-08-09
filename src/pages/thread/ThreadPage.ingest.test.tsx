@@ -128,8 +128,7 @@ const Chrome = (props: ParentProps) => (
 );
 
 /** Renders straight at the thread URL, the way a shared link opens it. */
-const renderThread = () => {
-  const history = createMemoryHistory();
+const renderThread = (history = createMemoryHistory()) => {
   history.set({ value: statusPath(SUBJECT_ID), replace: true });
   return render(() => (
     <MemoryRouter history={history} root={Chrome}>
@@ -239,6 +238,164 @@ test("holds the opened post where the reader left it when an ancestor lands abov
   ).toBeInTheDocument();
 
   await waitFor(() => expect(scrollBy).toHaveBeenCalledWith(0, 160));
+});
+
+test("keeps the conversation on screen when the reload after an ingest fails", async () => {
+  // The parent arrived, then the refetch died: the reader must not lose the
+  // rows they were reading as the consequence of a successful action.
+  let failReload = false;
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", ({ request }) => {
+      contextRequests.push(new URL(request.url));
+      if (failReload) return HttpResponse.error();
+      const context: ThreadContext = ingested
+        ? { ancestors: [parent], descendants: [] }
+        : { ancestors: [], descendants: [] };
+      return HttpResponse.json(context);
+    }),
+    http.get("*/api/v1/statuses/:id", () => {
+      if (failReload) return HttpResponse.error();
+      return HttpResponse.json(ingested ? linkedSubject : orphanSubject);
+    }),
+    searchHandler(resolved, () => {
+      ingested = true;
+      failReload = true;
+    }),
+  );
+  const { findByRole, findByText } = renderThread();
+
+  await userEvent.click(
+    await findByRole("button", { name: "Fetch new remote resource" }),
+  );
+
+  expect(await findByRole("alert")).toHaveTextContent(/refresh failed/i);
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  failReload = false;
+  await userEvent.click(await findByRole("button", { name: "Retry" }));
+
+  expect(
+    await findByText("The post from the other instance"),
+  ).toBeInTheDocument();
+});
+
+test("does not hold the reader to where they were before a failed reload", async () => {
+  // The offset is measured for the rebuild the ingest was about; a reload that
+  // failed brings none, and the reader keeps scrolling while the failure sits.
+  const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+  let failReload = false;
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", () => {
+      if (failReload) return HttpResponse.error();
+      return HttpResponse.json(
+        ingested
+          ? { ancestors: [parent], descendants: [] }
+          : { ancestors: [], descendants: [] },
+      );
+    }),
+    http.get("*/api/v1/statuses/:id", () => {
+      if (failReload) return HttpResponse.error();
+      return HttpResponse.json(ingested ? linkedSubject : orphanSubject);
+    }),
+    searchHandler(resolved, () => {
+      ingested = true;
+      failReload = true;
+    }),
+  );
+  const { findByRole, findByText } = renderThread();
+
+  await userEvent.click(
+    await findByRole("button", { name: "Fetch new remote resource" }),
+  );
+  expect(await findByRole("alert")).toHaveTextContent(/refresh failed/i);
+
+  // The reader goes on reading while the failure sits there.
+  viewportTop = 400;
+  failReload = false;
+  await userEvent.click(await findByRole("button", { name: "Retry" }));
+
+  expect(
+    await findByText("The post from the other instance"),
+  ).toBeInTheDocument();
+  await settle();
+  expect(scrollBy).not.toHaveBeenCalled();
+});
+
+test("revalidates the thread the fetch started in, not the one the reader moved to", async () => {
+  // The resolve takes seconds, and `:id` can move while it runs — the reload
+  // it triggers belongs to the thread the button was pressed in.
+  const replyPost: Status = {
+    id: "110000000000000003",
+    content: "<p>A reply to the opened post</p>",
+    created_at: "2026-08-01T12:02:00.000Z",
+    in_reply_to_id: SUBJECT_ID,
+    account,
+  };
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  server.use(
+    http.get<{ id: string }>(
+      "*/api/v1/statuses/:id/context",
+      ({ params, request }) => {
+        contextRequests.push(new URL(request.url));
+        if (params.id === SUBJECT_ID) {
+          return HttpResponse.json({
+            ancestors: ingested ? [parent] : [],
+            descendants: [replyPost],
+          });
+        }
+        return HttpResponse.json({
+          ancestors: [ingested ? linkedSubject : orphanSubject],
+          descendants: [],
+        });
+      },
+    ),
+    http.get<{ id: string }>("*/api/v1/statuses/:id", ({ params }) =>
+      HttpResponse.json(
+        params.id === SUBJECT_ID
+          ? ingested
+            ? linkedSubject
+            : orphanSubject
+          : replyPost,
+      ),
+    ),
+    searchHandler(
+      async () => {
+        await held;
+        return resolved();
+      },
+      () => {
+        ingested = true;
+      },
+    ),
+  );
+  const history = createMemoryHistory();
+  const { findByRole, findByText } = renderThread(history);
+
+  await userEvent.click(
+    await findByRole("button", { name: "Fetch new remote resource" }),
+  );
+  expect(await findByRole("button", { name: "Fetching…" })).toBeInTheDocument();
+
+  // The reader moves on to the reply's own thread while the resolve runs.
+  await userEvent.click(await findByText("A reply to the opened post"));
+  await settle();
+  const before = contextRequests.length;
+
+  release();
+  await settle();
+
+  // Whatever the resolve reloads, it is never the thread now on screen.
+  const extra = contextRequests.slice(before);
+  expect(extra.every((url) => url.pathname.includes(SUBJECT_ID))).toBe(true);
+
+  // Stepping back finds the original thread rebuilt around its new parent.
+  history.back();
+  expect(
+    await findByText("The post from the other instance"),
+  ).toBeInTheDocument();
 });
 
 test("says so when the instance answers but does not have the post", async () => {

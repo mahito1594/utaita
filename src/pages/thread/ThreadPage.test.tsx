@@ -277,6 +277,41 @@ test("leaves the offset alone when the thread is re-entered by going back", asyn
   expect(broughtIntoView).toHaveLength(0);
 });
 
+test("moves focus to the opened post on an explicit arrival", async () => {
+  // The landing that scrolls also places focus: a keyboard or screen-reader
+  // reader needs the same "you are here" the viewport move gives a sighted one.
+  server.use(...threadHandlers(subject, wholeThread));
+  const { findByRole, findByText } = renderApp();
+
+  await userEvent.click(await findByRole("link", { name: "Open thread" }));
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  await waitFor(() =>
+    expect(document.activeElement).toHaveAttribute("aria-current", "true"),
+  );
+});
+
+test("does not move focus on a traversal back into the thread", async () => {
+  // The same gate as the scroll: focus moved on a restore would fight the
+  // scroll restoration the traversal exists to keep.
+  server.use(...threadHandlers(subject, wholeThread));
+  const history = createMemoryHistory();
+  const { findByRole, findByText } = renderApp(history);
+
+  await userEvent.click(await findByRole("link", { name: "Open thread" }));
+  await waitFor(() =>
+    expect(document.activeElement).toHaveAttribute("aria-current", "true"),
+  );
+  await userEvent.click(await findByRole("link", { name: "Open profile" }));
+  expect(await findByText("A profile")).toBeInTheDocument();
+
+  history.back();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+  await settle();
+  expect(document.activeElement).not.toHaveAttribute("aria-current", "true");
+});
+
 test("goes back through history from a thread opened in-app", async () => {
   server.use(...threadHandlers(subject, wholeThread));
   const { findByText, findByRole } = renderApp();
@@ -402,6 +437,29 @@ test("offers the way back once a directly-opened thread has been dug into", asyn
   );
 });
 
+test("still offers the way back after returning to the post opened from the timeline", async () => {
+  // Stepping back to the post the page opened with lands on the very history
+  // entry the arrival described, so its answer holds: the timeline is still
+  // behind it, and a Home link here would push and lose the reading position.
+  server.use(...conversationHandlers(allPosts, wholeThread));
+  const history = createMemoryHistory();
+  const view = renderApp(history);
+
+  await digIntoReply(view);
+
+  history.back();
+  await waitFor(() =>
+    expect(
+      view.container.querySelector('[aria-current="true"]'),
+    ).toHaveTextContent("The post that was opened"),
+  );
+
+  const back = await view.findByRole("button", { name: "Back" });
+  await userEvent.click(back);
+
+  expect(await view.findByText("Home timeline")).toBeInTheDocument();
+});
+
 test("renders the failure when the post is not on this instance", async () => {
   server.use(
     http.get("*/api/v1/statuses/:id/context", () =>
@@ -414,6 +472,40 @@ test("renders the failure when the post is not on this instance", async () => {
   const { findByRole } = renderThreadDirectly();
 
   expect(await findByRole("alert")).toHaveTextContent(/not on this instance/i);
+});
+
+test("does not leave the previous conversation under the URL of one that failed", async () => {
+  // `createAsync` answers with the post that loaded last while the next one is
+  // in flight, and a failure must not adopt that answer as this URL's own.
+  server.use(
+    http.get<{ id: string }>("*/api/v1/statuses/:id/context", ({ params }) =>
+      params.id === SUBJECT_ID
+        ? HttpResponse.json(wholeThread)
+        : HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+    http.get<{ id: string }>("*/api/v1/statuses/:id", ({ params }) =>
+      params.id === SUBJECT_ID
+        ? HttpResponse.json(subject)
+        : HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  const history = createMemoryHistory();
+  const view = renderApp(history);
+
+  await userEvent.click(await view.findByRole("link", { name: "Open thread" }));
+  expect(await view.findByText("The post that was opened")).toBeInTheDocument();
+
+  await userEvent.click(await view.findByText("A reply to the opened post"));
+
+  await waitFor(() => expect(history.get()).toBe(statusPath(reply.id ?? "")));
+  // The post the reader asked for is gone, so what they get is its failure —
+  // not the previous conversation under a refresh notice.
+  expect(await view.findByRole("alert")).toHaveTextContent(
+    /not on this instance/i,
+  );
+  await settle();
+  expect(view.queryByText("The post that was opened")).not.toBeInTheDocument();
+  expect(view.container.querySelector('[aria-current="true"]')).toBeNull();
 });
 
 test("retries a thread that failed to load", async () => {

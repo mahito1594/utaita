@@ -49,7 +49,6 @@ describe("buildThread", () => {
 
     expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
     expect(rows[0]?.replyTo).toEqual({ kind: "root" });
-    expect(rows[0]?.repliesToSubject).toBe(false);
   });
 
   test("a parent delivered under descendants is still an ancestor", () => {
@@ -96,7 +95,6 @@ describe("buildThread", () => {
       ["119000000000000000", "subject"],
       ["110000000000000010", "descendant"],
     ]);
-    expect(rows[1]?.repliesToSubject).toBe(true);
   });
 
   test("siblings are ordered by created_at, not by id", () => {
@@ -158,12 +156,6 @@ describe("buildThread", () => {
       ["110000000000000002", "descendant"],
       ["110000000000000003", "descendant"],
       ["110000000000000004", "descendant"],
-    ]);
-    expect(rows.map((row) => row.repliesToSubject)).toEqual([
-      false,
-      true,
-      false,
-      true,
     ]);
   });
 
@@ -234,10 +226,7 @@ describe("buildThread", () => {
 
     const rows = buildThread(subject, context());
 
-    expect(rows[0]?.replyTo).toEqual({
-      kind: "missing",
-      id: "119999999999999999",
-    });
+    expect(rows[0]?.replyTo).toEqual({ kind: "missing" });
   });
 
   test("replies cut off from the subject are kept, not dropped", () => {
@@ -261,6 +250,37 @@ describe("buildThread", () => {
     const rows = buildThread(
       subject,
       context({ descendants: [belowOrphan, orphan] }),
+    );
+
+    expect(layout(rows)).toEqual([
+      ["110000000000000001", "subject"],
+      ["110000000000000003", "detached"],
+      ["110000000000000004", "detached"],
+    ]);
+  });
+
+  test("a reply cycle among detached statuses still renders", () => {
+    // Malformed federated data can close a loop: two posts each naming the
+    // other as parent, neither reaching the subject. Neither qualifies as a
+    // detached root, so without the fallback sweep both would vanish.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    const loopHead = status({
+      id: "110000000000000003",
+      createdAt: "2026-08-01T12:02:00.000Z",
+      inReplyToId: "110000000000000004",
+    });
+    const loopTail = status({
+      id: "110000000000000004",
+      createdAt: "2026-08-01T12:03:00.000Z",
+      inReplyToId: "110000000000000003",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [loopTail, loopHead] }),
     );
 
     expect(layout(rows)).toEqual([
