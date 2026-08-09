@@ -10,6 +10,7 @@ import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import type { Result } from "../../api/result";
+import { takeThreadRequest } from "../../entities/status/open-thread";
 import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
 import { outlineButton } from "../../ui/outline-button";
@@ -126,15 +127,38 @@ const ThreadRowItem = (props: {
  * The conversation around one status, as a flat list: ancestors above the post
  * the reader opened, its replies below, depth-first (thread-tree.ts).
  *
- * `data` is what the route's preload read off the navigation itself
- * (thread-query.ts) — this page cannot work it out on its own, and both of the
- * things it decides are about not fighting the router over the scroll offset.
+ * Opening a post from inside a conversation changes `:id` without recreating
+ * this page, so nothing about the arrival may be read once and kept: `data`
+ * describes the entry the page opened on and no other (thread-query.ts).
  */
 export const ThreadPage = (props: { data: ThreadArrival }) => {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isRouting = useIsRouting();
   const thread = createAsync(() => threadQuery(params.id));
+
+  // One value per arrival, whether the route was matched afresh or only `:id`
+  // moved. Reading the request is what consumes it, so this belongs in a
+  // computation that runs exactly once per id — not in an effect that reruns
+  // as the thread below it is rebuilt.
+  const arrival = createMemo(() => ({
+    id: params.id,
+    requested: takeThreadRequest(params.id),
+  }));
+
+  const opening = arrival();
+  // `data` describes the entry the page opened on and no other. From there,
+  // opening another post pushes an entry above that one, and a traversal is
+  // standing above it unless it is back on the post the page opened with.
+  // Where that reasoning is wrong it is wrong conservatively: every case
+  // answered false is one where the opening entry may be the only one this app
+  // put on the stack, and offering a back that leaves the app is the one
+  // outcome worth ruling out.
+  const canGoBack = () => {
+    const current = arrival();
+    if (current === opening) return props.data.canGoBack;
+    return current.requested || current.id !== opening.id;
+  };
 
   const rows = createMemo<readonly ThreadRow[]>(() => {
     const result = thread();
@@ -151,18 +175,21 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   const detached = () => rows().filter((row) => row.place === "detached");
 
   const [subjectElement, setSubjectElement] = createSignal<HTMLElement>();
-  let landed = false;
+  let landed: object | undefined;
 
   // Scrolling the subject into view waits for the router to finish its own
   // scrolling, which happens once routing settles: a push ends at the top of
   // the document, and there is no offset to hold before the ancestors above
   // the subject have rendered at their real height. On a traversal this does
-  // not run at all — see `landOnSubject` (thread-query.ts).
+  // not run at all — scroll restoration owns the offset there. Landing is
+  // remembered per arrival rather than once, so that a rebuild mid-visit never
+  // re-centres the subject while reopening the same post later still does.
   createEffect(() => {
-    if (!props.data.landOnSubject || landed) return;
+    const current = arrival();
+    if (!current.requested || landed === current) return;
     const element = subjectElement();
     if (element === undefined || isRouting()) return;
-    landed = true;
+    landed = current;
     element.scrollIntoView();
   });
 
@@ -192,9 +219,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   // Keeps the reader looking at the same post when an ancestor is inserted
   // above it. The browser's own scroll anchoring cannot do this: every row is
   // rebuilt from a new object on a reload, so `<For>`'s reference keying
-  // replaces the entire list and leaves no anchor candidate standing. The
-  // landing effect stays out of the way because it fires once per arrival, so
-  // a rebuild mid-visit never re-centres the subject.
+  // replaces the entire list and leaves no anchor candidate standing.
   createEffect(() => {
     rows();
     const before = heldSubjectTop;
@@ -221,7 +246,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
             the excursion was supposed to keep (ADR-0004 amendment). A page
             opened straight from a link has no such entry behind it. */}
         <Show
-          when={props.data.canGoBack}
+          when={canGoBack()}
           fallback={
             <A href="/" class={outlineButton({ tone: "neutral" })}>
               Home
