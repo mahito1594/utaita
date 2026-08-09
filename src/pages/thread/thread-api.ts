@@ -33,9 +33,17 @@ export const fetchContext = (
  * round trip (measured around 2.6s), so it belongs behind an explicit user
  * action, never behind rendering.
  *
- * `ok(null)` means the instance answered but could not ingest the post — a
- * normal outcome for a deleted or unreachable remote status, distinct from the
- * request itself failing.
+ * `ok(null)` means the instance answered but the post is not on hand — a normal
+ * outcome for a deleted or unreachable remote status, distinct from the request
+ * itself failing.
+ *
+ * A result counts only when its `uri` is the AP id that was asked for. The
+ * endpoint is a search: when the instance cannot obtain the post it falls back
+ * to full-text hits for the AP id as a plain string, so a post that merely
+ * links to it would otherwise pass for the real one. Rejecting a status stored
+ * under some other canonical id costs nothing either — that id is also what the
+ * instance matches a reply's `inReplyTo` against, so such a status would not
+ * join the conversation on a reload however it were reported here.
  */
 export const resolveStatus = async (
   apId: string,
@@ -45,5 +53,7 @@ export const resolveStatus = async (
       params: { query: { q: apId, resolve: true } },
     }),
   );
-  return result.ok ? ok(result.value.statuses?.[0] ?? null) : result;
+  if (!result.ok) return result;
+  const found = result.value.statuses?.[0];
+  return ok(found !== undefined && found.uri === apId ? found : null);
 };
