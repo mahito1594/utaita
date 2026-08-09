@@ -89,7 +89,8 @@ export type TimelineStore = {
 // outcome is a `Result` value this module inspects itself. Component-scoped
 // (created inside TimelinePage, not a module singleton, per ADR-0004
 // amendment) so a login/logout page transition simply discards and
-// recreates it.
+// recreates it. What outlives a page transition is the snapshot the
+// retention slot holds (TimelineRetention.tsx), never a live store.
 //
 // `fetchPage` is injected rather than hardcoded to one endpoint: the store's
 // paging logic (segments, gap detection, queued older-fetches) is the same

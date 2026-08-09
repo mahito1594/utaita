@@ -13,6 +13,7 @@ import type { ApiError } from "../../api/client";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
+import { claimTimelineSlot } from "./TimelineRetention";
 import { publishTimelineControls } from "./TimelineShell";
 import { createTimelineStore } from "./timeline-store";
 import type { TimelineDefinition } from "./timelines";
@@ -300,7 +301,19 @@ const visuallyHidden = css({
 });
 
 export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
-  const store = createTimelineStore(props.timeline.fetchPage);
+  // Claimed before the store exists, because what the slot hands back is what
+  // the store starts from: the accumulated pages of this same timeline when
+  // the reader is coming back from a detail route, nothing otherwise. The
+  // store is still created here, per page — only the snapshot outlives the
+  // page (TimelineRetention.tsx).
+  const slot = claimTimelineSlot(props.timeline.path);
+  const store = createTimelineStore(props.timeline.fetchPage, slot.restored);
+  // `segments`/`exhausted` are the store's own signals, so this read yields
+  // the content as it stands at disposal; a derived memo could hand back a
+  // value it had already stopped recomputing.
+  onCleanup(() =>
+    slot.retain({ segments: store.segments(), exhausted: store.exhausted() }),
+  );
   const [refreshAnnouncement, setRefreshAnnouncement] = createSignal("");
 
   // Wraps `store.refresh()` to count net new statuses and hand the outcome

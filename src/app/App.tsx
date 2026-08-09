@@ -3,6 +3,7 @@ import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { ProfilePage } from "../pages/profile/ProfilePage";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
+import { TimelineRetention } from "../pages/timeline/TimelineRetention";
 import { TimelineShell } from "../pages/timeline/TimelineShell";
 import { bubble, federated, home, local } from "../pages/timeline/timelines";
 import { outlineButton } from "../ui/outline-button";
@@ -105,22 +106,45 @@ const LocalTimelinePage = () => <TimelinePage timeline={local} />;
 const BubbleTimelinePage = () => <TimelinePage timeline={bubble} />;
 const FederatedTimelinePage = () => <TimelinePage timeline={federated} />;
 
+// The session is passed in rather than read inside the retention component:
+// src/pages must not depend on src/app (.dependency-cruiser.cjs), and the
+// slot has to be dropped on sign-out by an explicit signal rather than by
+// trusting the gate to dispose it.
+const RetainingRoutes = (props: ParentProps) => (
+  <TimelineRetention signedIn={authenticated()}>
+    {props.children}
+  </TimelineRetention>
+);
+
+// `scrollRestoration`: the router records `window.scrollY` per history entry
+// and restores it once routing settles after a pop. The scrolling container
+// is the document — which is why TimelineShell's panel must never clip — so
+// that offset is the whole story, and no hand-rolled save/restore is needed.
+// It only applies to back/forward: a push (a switcher tab) still lands at the
+// top, which is the intended behavior for switching timelines.
 const App = () => (
-  <Router root={Layout}>
+  <Router root={Layout} scrollRestoration>
     <Route path={REDIRECT_PATH} component={OAuthCallback} />
     <Route component={AuthGate}>
-      {/* The four leaves share this one route definition, which is what
-          keeps the shell's switcher tabs (and the focused link among them)
-          mounted while the page below them is recreated. */}
-      <Route component={TimelineShell}>
-        <Route path={home.path} component={HomeTimelinePage} />
-        <Route path={local.path} component={LocalTimelinePage} />
-        <Route path={bubble.path} component={BubbleTimelinePage} />
-        <Route path={federated.path} component={FederatedTimelinePage} />
+      {/* Retention sits below the gate (so signing out cannot carry a
+          timeline into the next session) and above every route the reader
+          may step into and come back from — the timelines and the detail
+          routes alike, since it is leaving the timeline route that destroys
+          the page holding the content. */}
+      <Route component={RetainingRoutes}>
+        {/* The four leaves share this one route definition, which is what
+            keeps the shell's switcher tabs (and the focused link among them)
+            mounted while the page below them is recreated. */}
+        <Route component={TimelineShell}>
+          <Route path={home.path} component={HomeTimelinePage} />
+          <Route path={local.path} component={LocalTimelinePage} />
+          <Route path={bubble.path} component={BubbleTimelinePage} />
+          <Route path={federated.path} component={FederatedTimelinePage} />
+        </Route>
+        {/* /@:acct is not expressible in solid-router (a segment is dynamic
+            only when it starts with ":"), hence /users/ — see profilePath */}
+        <Route path="/users/:acct" component={ProfilePage} />
       </Route>
-      {/* /@:acct is not expressible in solid-router (a segment is dynamic
-          only when it starts with ":"), hence /users/ — see profilePath */}
-      <Route path="/users/:acct" component={ProfilePage} />
     </Route>
   </Router>
 );
