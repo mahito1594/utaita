@@ -56,3 +56,39 @@ export const stateMatches = (
   received: string | undefined,
 ): boolean =>
   expected !== undefined && received !== undefined && expected === received;
+
+// A base that no instance can be served from (`.invalid` is reserved,
+// RFC 2606), so "resolves against this origin" means "carries no origin of
+// its own" — the only kind of destination this app may navigate to.
+const RESOLUTION_BASE = "https://return-path.invalid";
+
+/**
+ * Parse a remembered sign-in destination into an in-app path, or `undefined`
+ * when it is not one. The value crosses the authorization round-trip in
+ * sessionStorage, which any same-origin script can write, so it is untrusted
+ * input on the way back and is parsed once, here, before it can reach
+ * `navigate`.
+ *
+ * Resolving it as a URL rather than matching the string is what makes the
+ * evasions fail: the URL parser strips tabs and newlines and folds
+ * backslashes, so `"/\n//evil.com"` and `"/\evil.com"` only show themselves as
+ * off-origin afterwards.
+ */
+export const parseReturnPath = (raw: string | null): string | undefined => {
+  if (raw === null) return undefined;
+  let resolved: URL;
+  try {
+    resolved = new URL(raw, RESOLUTION_BASE);
+  } catch {
+    return undefined;
+  }
+  if (resolved.origin !== RESOLUTION_BASE) return undefined;
+  // Returning to the callback would replay a spent code and nonce onto the
+  // failure screen. This is reached when the reader retries from that screen,
+  // where the current location is the callback itself.
+  if (resolved.pathname === REDIRECT_PATH) return undefined;
+  const path = resolved.pathname + resolved.search + resolved.hash;
+  // `/..//evil.com` resolves to the pathname `//evil.com`: same origin as
+  // parsed, but protocol-relative again the moment it is used as a path.
+  return path.startsWith("//") ? undefined : path;
+};

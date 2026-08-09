@@ -2,7 +2,7 @@
 // Page-level tests of the auth flow: real App composition (Router, gate,
 // callback, header injection), only HTTP simulated via MSW (ADR-0009).
 import { query } from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { cleanup, render, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -23,6 +23,22 @@ const statuses: Status[] = [
     },
   },
 ];
+
+// A deep link the reader could have followed while signed out — the case the
+// return path exists for, since the timeline is what a lost destination falls
+// back to and would be indistinguishable from success.
+const THREAD_PATH = "/statuses/110000000000000002";
+
+const threadSubject: Status = {
+  id: "110000000000000002",
+  content: "<p>The post that was opened</p>",
+  created_at: "2026-08-01T12:01:00.000Z",
+  account: {
+    id: "900000000000000001",
+    acct: "alice@fixture.example",
+    display_name: "Alice Example",
+  },
+};
 
 const server = setupServer();
 
@@ -61,6 +77,20 @@ const signIn = async () => {
 
 const homeTimelineOk = () =>
   http.get("*/api/v1/timelines/home", () => HttpResponse.json(statuses));
+
+const tokenExchangeOk = () =>
+  http.post("*/oauth/token", () =>
+    HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+  );
+
+// The thread route's preload runs on a match, gate or no gate, so these answer
+// the signed-out visit as well as the refetch that follows the sign-in.
+const threadOk = () => [
+  http.get("*/api/v1/statuses/:id/context", () =>
+    HttpResponse.json({ ancestors: [], descendants: [] }),
+  ),
+  http.get("*/api/v1/statuses/:id", () => HttpResponse.json(threadSubject)),
+];
 
 test("unauthenticated visit renders the login gate without probing the API", async () => {
   // The route preload is gated on the session; a request here could only
@@ -181,6 +211,54 @@ test("callback exchanges the code, injects the token, and lands on the timeline"
   expect(timelineAuthHeader).toBe("Bearer tok-1");
 });
 
+test("a sign-in started from a deep link comes back to it", async () => {
+  seedCredentials();
+  server.use(tokenExchangeOk(), ...threadOk());
+  window.history.replaceState(null, "", THREAD_PATH);
+  const view = render(() => <App />);
+
+  // Outbound leg: the gate renders in place at the deep link, and the click
+  // is what hands the round-trip both the nonce and the destination.
+  await userEvent.click(await view.findByRole("button", { name: "Log in" }));
+  const state = sessionStorage.getItem("utaita:oauth_state");
+  expect(state).not.toBeNull();
+  cleanup();
+
+  // Return leg: the instance redirects to the callback path, which is all the
+  // document has left to work from.
+  window.history.replaceState(
+    null,
+    "",
+    `/oauth-callback?code=code-1&state=${state}`,
+  );
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+  // The address bar is the half that survives a reload or a share, and the
+  // router commits the history entry a tick after the page it renders.
+  await waitFor(() => expect(window.location.pathname).toBe(THREAD_PATH));
+  // Spent by the landing: a later revisit of the callback must not replay it.
+  expect(sessionStorage.getItem("utaita:return_path")).toBeNull();
+});
+
+test("a return path pointing outside the app is refused", async () => {
+  seedCredentials();
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  // sessionStorage is writable by anything else running on this origin, so
+  // what comes back out is untrusted regardless of what login() put in.
+  sessionStorage.setItem("utaita:return_path", "//evil.example/statuses/1");
+  server.use(tokenExchangeOk(), homeTimelineOk());
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-1&state=nonce-1",
+  );
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await waitFor(() => expect(window.location.pathname).toBe("/"));
+});
+
 test("callback with a mismatched state stores no token", async () => {
   seedCredentials();
   sessionStorage.setItem("utaita:oauth_state", "nonce-right");
@@ -224,6 +302,23 @@ test("revisiting the callback while signed in goes home instead of erroring", as
 
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
   expect(queryByText(/state mismatch/i)).not.toBeInTheDocument();
+});
+
+test("a revisit that is already signed in still honours the saved URL", async () => {
+  // The token lives in localStorage, so another tab can sign this one in
+  // while it sits on the authorize page; it returns with nothing to exchange
+  // but with its own destination still saved.
+  await signIn();
+  sessionStorage.setItem("utaita:return_path", THREAD_PATH);
+  server.use(...threadOk());
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=stale&state=stale",
+  );
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
 });
 
 test("denied authorization comes back as a gate error", async () => {
