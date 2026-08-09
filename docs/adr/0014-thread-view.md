@@ -41,8 +41,11 @@ does not have and make a deep branch narrower than a shallow one; who a post
 answers is already on its own card. Depth-first ordering is what carries the
 structure instead: a branch reads as one uninterrupted run.
 
-**Nothing is collapsed.** Every row the context returns is rendered. This is
-a Phase 1 bet on the reference instance's actual conversations, which are
+**Nothing on the subject's branch is collapsed, and nothing beside it is
+drawn.** Every ancestor and descendant of the subject is rendered in full —
+no "show more replies", no depth cut; a reply hanging off an ancestor
+without being one is reached by opening that ancestor instead. This is a
+Phase 1 bet on the reference instance's actual conversations, which are
 small (no status with two or more replies in 240 sampled), not a claim that
 it scales.
 

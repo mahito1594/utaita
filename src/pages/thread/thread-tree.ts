@@ -17,7 +17,7 @@ export type ReplyTarget =
    */
   | { readonly kind: "unfetched"; readonly apId: string | null }
   /** The parent has an id, but the conversation as fetched does not contain it. */
-  | { readonly kind: "missing"; readonly id: string };
+  | { readonly kind: "missing" };
 
 /**
  * How a row sits relative to the subject — the status the reader opened.
@@ -30,7 +30,6 @@ export type ThreadRow = {
   readonly status: Status;
   readonly place: ThreadPlace;
   readonly replyTo: ReplyTarget;
-  readonly repliesToSubject: boolean;
 };
 
 // `id` is optional in the generated type even though every real status carries
@@ -68,7 +67,7 @@ const replyTargetOf = (
   }
   const parent = byId.get(parentId);
   return parent === undefined
-    ? { kind: "missing", id: parentId }
+    ? { kind: "missing" }
     : { kind: "status", status: parent };
 };
 
@@ -215,6 +214,14 @@ const detachedRowsOf = (
     placed.add(root);
     rows.push(root, ...subtreeOf(root, children, placed));
   }
+  // A reply cycle among detached statuses leaves every member with a detached
+  // parent, so none qualifies as a root above — sweep the leftovers so a
+  // malformed cycle degrades to rows instead of vanishing.
+  for (const status of [...detached].sort(byTime)) {
+    if (placed.has(status)) continue;
+    placed.add(status);
+    rows.push(status, ...subtreeOf(status, children, placed));
+  }
   return rows;
 };
 
@@ -248,13 +255,10 @@ export const buildThread = (
   const descendants = subtreeOf(subject, children, placed);
   const detached = detachedRowsOf(union, byId, children, placed, spine);
 
-  const subjectId = idOf(subject);
   const toRow = (status: Status, place: ThreadPlace): ThreadRow => ({
     status,
     place,
     replyTo: replyTargetOf(status, byId),
-    repliesToSubject:
-      subjectId !== undefined && status.in_reply_to_id === subjectId,
   });
 
   return [

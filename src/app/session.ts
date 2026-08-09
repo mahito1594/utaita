@@ -125,6 +125,21 @@ export const completeLogin = async (
   return ok(undefined);
 };
 
+/**
+ * Where the return leg has just landed, answered once and only to the arrival
+ * it names. The leg replaces the callback's own history entry, so the router
+ * reports an ordinary navigation while the instance's authorize page stands
+ * behind it — which a page offering a history back has to know
+ * (open-thread.ts holds the same consume-once shape).
+ */
+let landing: string | undefined;
+
+export const takeSignInLanding = (pathname: string): boolean => {
+  const landed = landing === pathname;
+  landing = undefined;
+  return landed;
+};
+
 // Where the return leg should land. Read once and cleared, because the
 // destination is spent by the navigation it feeds; a failed exchange leaves it
 // in place instead, so a retry still knows where the reader was going.
@@ -133,7 +148,11 @@ export const completeLogin = async (
 export const takeReturnPath = (): string => {
   const stored = sessionStorage.getItem(RETURN_KEY);
   sessionStorage.removeItem(RETURN_KEY);
-  return parseReturnPath(stored) ?? "/";
+  const path = parseReturnPath(stored) ?? "/";
+  // A page asks by pathname: the query and hash are the destination's, not
+  // the route's.
+  landing = new URL(path, window.location.origin).pathname;
+  return path;
 };
 
 export const logout = async (): Promise<void> => {

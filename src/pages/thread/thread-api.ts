@@ -54,6 +54,6 @@ export const resolveStatus = async (
     }),
   );
   if (!result.ok) return result;
-  const found = result.value.statuses?.[0];
-  return ok(found !== undefined && found.uri === apId ? found : null);
+  const found = result.value.statuses?.find((status) => status.uri === apId);
+  return ok(found ?? null);
 };

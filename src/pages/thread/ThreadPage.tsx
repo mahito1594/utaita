@@ -15,7 +15,7 @@ import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
 import { outlineButton } from "../../ui/outline-button";
 import { resolveStatus } from "./thread-api";
-import { type ThreadArrival, threadQuery } from "./thread-query";
+import { type Thread, type ThreadArrival, threadQuery } from "./thread-query";
 import { buildThread, type ThreadRow } from "./thread-tree";
 import { UnfetchedParent } from "./UnfetchedParent";
 
@@ -73,6 +73,35 @@ const list = css({
   listStyleType: "none",
 });
 
+// A refetch that failed while the conversation is on screen: the rows stay and
+// the failure sits above them, mirroring the timeline's RefreshError.
+const refreshNotice = css({
+  bg: "error.subtle",
+  color: "error.default",
+  borderRadius: "md",
+  p: "2",
+  mb: "2",
+  fontSize: "sm",
+  // Anchoring to a row that vanishes on retry would slide the viewport
+  // (TimelinePage.tsx).
+  overflowAnchor: "none",
+});
+
+const RefreshNotice = (props: { error: ApiError; onRetry: () => void }) => (
+  <p role="alert" class={refreshNotice}>
+    {props.error.kind === "network"
+      ? "Refresh failed — check your network."
+      : `Refresh failed (${props.error.status}).`}{" "}
+    <button
+      type="button"
+      class={outlineButton({ tone: "error" })}
+      onClick={props.onRetry}
+    >
+      Retry
+    </button>
+  </p>
+);
+
 // One rule at one offset for every row, whatever its depth. Nesting the
 // indentation instead would spend the width a phone does not have, and a deep
 // branch would end up narrower than a shallow one for no reader benefit; who a
@@ -106,6 +135,9 @@ const ThreadRowItem = (props: {
   <li
     class={props.row.place === "subject" ? subjectRowStyle : rowStyle}
     aria-current={props.row.place === "subject" ? "true" : undefined}
+    // The landing spot for a keyboard or screen-reader arrival (the page's
+    // landing effect focuses it); LoginScreen.tsx sets the pattern.
+    tabindex={props.row.place === "subject" ? "-1" : undefined}
     ref={(element) => {
       if (props.row.place === "subject") props.onSubjectRef(element);
     }}
@@ -135,7 +167,21 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isRouting = useIsRouting();
-  const thread = createAsync(() => threadQuery(params.id));
+  // `createAsync` keeps answering with the previous post's value while a new
+  // `:id` loads, so the id travels with the answer: pairing it with the
+  // current one files a conversation under another's URL. Both statements
+  // stay ahead of the first await — `query` registers against the calling
+  // listener, which an await would lose, and with it `revalidate`'s hold.
+  const thread = createAsync(async () => {
+    const id = params.id;
+    return { id, result: await threadQuery(id) };
+  });
+  const answer = (): Result<Thread, ApiError> | undefined => {
+    const current = thread();
+    return current === undefined || current.id !== params.id
+      ? undefined
+      : current.result;
+  };
 
   // One value per arrival, whether the route was matched afresh or only `:id`
   // moved. Reading the request is what consumes it, so this belongs in a
@@ -149,27 +195,39 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   const opening = arrival();
   // `data` describes the entry the page opened on and no other. From there,
   // opening another post pushes an entry above that one, and a traversal is
-  // standing above it unless it is back on the post the page opened with.
-  // Where that reasoning is wrong it is wrong conservatively: every case
-  // answered false is one where the opening entry may be the only one this app
-  // put on the stack, and offering a back that leaves the app is the one
-  // outcome worth ruling out.
+  // standing above it unless it is back on the post the page opened with —
+  // where it stands on the described entry again, so `data`'s answer holds.
   const canGoBack = () => {
     const current = arrival();
     if (current === opening) return props.data.canGoBack;
-    return current.requested || current.id !== opening.id;
+    if (current.requested || current.id !== opening.id) return true;
+    return props.data.canGoBack;
   };
 
+  // A refetch that settles err must not blank the conversation out from under
+  // the reader (the timeline holds the same line, ADR-0004 amendment) — the
+  // last ok Thread is kept, keyed by `:id` so it never outlives its URL.
+  const loaded = createMemo<{ id: string; thread: Thread } | undefined>(
+    (held) => {
+      const id = params.id;
+      const result = answer();
+      const kept = held !== undefined && held.id === id ? held : undefined;
+      return result === undefined || !result.ok
+        ? kept
+        : { id, thread: result.value };
+    },
+  );
   const rows = createMemo<readonly ThreadRow[]>(() => {
-    const result = thread();
-    return result === undefined || !result.ok
+    const current = loaded();
+    return current === undefined
       ? []
-      : buildThread(result.value.subject, result.value.context);
+      : buildThread(current.thread.subject, current.thread.context);
   });
   const error = () => {
-    const result = thread();
+    const result = answer();
     return result === undefined || result.ok ? undefined : result.error;
   };
+  const retry = () => void revalidate(threadQuery.keyFor(params.id));
 
   const connected = () => rows().filter((row) => row.place !== "detached");
   const detached = () => rows().filter((row) => row.place === "detached");
@@ -188,14 +246,18 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
     const current = arrival();
     if (!current.requested || landed === current) return;
     const element = subjectElement();
-    if (element === undefined || isRouting()) return;
+    if (element === undefined || !element.isConnected || isRouting()) return;
     landed = current;
+    // Keyboard and screen-reader arrivals land where sighted ones look: the
+    // subject row takes focus, with the scroll left to scrollIntoView.
+    element.focus({ preventScroll: true });
     element.scrollIntoView();
   });
 
   // Where the subject sat in the viewport just before a rebuild that will grow
-  // the thread above it; undefined whenever no such rebuild is coming.
-  let heldSubjectTop: number | undefined;
+  // the thread above it; undefined whenever no such rebuild is coming. Carries
+  // the thread's id so a hold taken in one thread never shifts another.
+  let heldSubjectTop: { readonly id: string; readonly top: number } | undefined;
 
   /**
    * Pulls a reply's missing parent onto the instance and rebuilds the thread
@@ -206,13 +268,19 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   const fetchParent = async (
     apId: string,
   ): Promise<Result<Status | null, ApiError>> => {
+    // Captured before the awaits: `:id` can move while the resolve runs, and a
+    // slow fetch must not revalidate whichever thread the reader moved on to.
+    const threadId = params.id;
     const result = await resolveStatus(apId);
     if (!result.ok || result.value === null) return result;
     // Measured here rather than when the button was pressed: the fetch takes
     // seconds, and any scrolling the reader did while waiting is theirs to
     // keep. Only the rebuild that follows has to be compensated for.
-    heldSubjectTop = subjectElement()?.getBoundingClientRect().top;
-    await revalidate(threadQuery.keyFor(params.id));
+    if (params.id === threadId) {
+      const top = subjectElement()?.getBoundingClientRect().top;
+      heldSubjectTop = top === undefined ? undefined : { id: threadId, top };
+    }
+    await revalidate(threadQuery.keyFor(threadId));
     return result;
   };
 
@@ -222,12 +290,20 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   // replaces the entire list and leaves no anchor candidate standing.
   createEffect(() => {
     rows();
-    const before = heldSubjectTop;
-    if (before === undefined) return;
+    // A reload that settles err rebuilds nothing, so `rows()` alone would leave
+    // the hold armed for a later rebuild the reader has since scrolled away
+    // from.
+    const failed = error() !== undefined;
+    const held = heldSubjectTop;
+    if (held === undefined) return;
+    if (failed || held.id !== params.id) {
+      heldSubjectTop = undefined;
+      return;
+    }
     const element = subjectElement();
-    if (element === undefined) return;
+    if (element === undefined || !element.isConnected) return;
     heldSubjectTop = undefined;
-    const shift = element.getBoundingClientRect().top - before;
+    const shift = element.getBoundingClientRect().top - held.top;
     if (shift !== 0) window.scrollBy(0, shift);
   });
 
@@ -268,14 +344,17 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
 
       <Show when={error()} keyed>
         {(failure) => (
-          <ThreadError
-            error={failure}
-            onRetry={() => void revalidate(threadQuery.keyFor(params.id))}
-          />
+          <Show
+            when={rows().length > 0}
+            fallback={<ThreadError error={failure} onRetry={retry} />}
+          >
+            <RefreshNotice error={failure} onRetry={retry} />
+          </Show>
         )}
       </Show>
 
-      <ol class={list}>
+      {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
+      <ol class={list} role="list">
         <For each={connected()}>
           {(row) => (
             <ThreadRowItem
@@ -299,7 +378,8 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
             These came with the conversation, but the posts that would link them
             to it are missing.
           </p>
-          <ol class={list}>
+          {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
+          <ol class={list} role="list">
             <For each={detached()}>
               {(row) => (
                 <ThreadRowItem

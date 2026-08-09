@@ -321,6 +321,48 @@ test("a revisit that is already signed in still honours the saved URL", async ()
   expect(await findByText("The post that was opened")).toBeInTheDocument();
 });
 
+test("the thread the sign-in came back to offers no back out of the app", async () => {
+  // A history back from here would leave the SPA: the entry the return leg
+  // replaced sits on top of the instance's own authorize page.
+  await signIn();
+  sessionStorage.setItem("utaita:return_path", THREAD_PATH);
+  server.use(...threadOk());
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=stale&state=stale",
+  );
+  const { findByText, findByRole, queryByRole } = render(() => <App />);
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+  expect(await findByRole("link", { name: "Home" })).toBeInTheDocument();
+  expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+});
+
+test("a thread opened after the sign-in has landed still offers the way back", async () => {
+  // The landing is one arrival, not a mode: the record is spent by the
+  // destination it named, and every thread after it is an ordinary push.
+  await signIn();
+  sessionStorage.setItem("utaita:return_path", "/");
+  server.use(
+    homeTimelineOk(),
+    http.get("*/api/v1/statuses/:id/context", () =>
+      HttpResponse.json({ ancestors: [], descendants: [] }),
+    ),
+    http.get("*/api/v1/statuses/:id", () => HttpResponse.json(statuses[0])),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=stale&state=stale",
+  );
+  const { findByText, findByRole } = render(() => <App />);
+
+  await userEvent.click(await findByText("Hello from fixture one"));
+
+  expect(await findByRole("button", { name: "Back" })).toBeInTheDocument();
+});
+
 test("denied authorization comes back as a gate error", async () => {
   window.history.replaceState(null, "", "/oauth-callback?error=access_denied");
   const { findByText } = render(() => <App />);
