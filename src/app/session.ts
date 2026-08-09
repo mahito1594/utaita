@@ -16,6 +16,7 @@ import {
 import {
   buildAuthorizeUrl,
   generateState,
+  parseReturnPath,
   REDIRECT_PATH,
   REGISTRATION_SCOPES,
   stateMatches,
@@ -25,9 +26,10 @@ import {
 // errors but still travel as values to the same login screen (ADR-0008).
 export type SessionError = ApiError | { kind: "flow"; message: string };
 
-// sessionStorage, not localStorage: the state nonce must not outlive the
-// tab that started the authorization round-trip.
+// sessionStorage, not localStorage: neither the state nonce nor the place to
+// come back to may outlive the tab that started the authorization round-trip.
 const STATE_KEY = "utaita:oauth_state";
+const RETURN_KEY = "utaita:return_path";
 
 const [authenticated, setAuthenticated] = createSignal(
   loadToken() !== undefined,
@@ -73,6 +75,15 @@ export const login = async (): Promise<Result<void, SessionError>> => {
   if (!credentials.ok) return credentials;
   const state = generateState();
   sessionStorage.setItem(STATE_KEY, state);
+  // The gate renders in place at whatever URL was opened, so the current
+  // location is the destination — a deep link into a thread as much as the
+  // timeline. Nothing is written when the location is not a destination (a
+  // retry from the callback screen): the entry already there is the deep link
+  // that started the attempt that just failed.
+  const returnPath = parseReturnPath(
+    window.location.pathname + window.location.search + window.location.hash,
+  );
+  if (returnPath !== undefined) sessionStorage.setItem(RETURN_KEY, returnPath);
   window.location.assign(
     buildAuthorizeUrl({
       clientId: credentials.value.clientId,
@@ -112,6 +123,17 @@ export const completeLogin = async (
   // so the now-authenticated pages refetch (discussion decision 2026-07-12).
   await revalidate();
   return ok(undefined);
+};
+
+// Where the return leg should land. Read once and cleared, because the
+// destination is spent by the navigation it feeds; a failed exchange leaves it
+// in place instead, so a retry still knows where the reader was going.
+// Anything unusable — absent, off-origin, or planted by other same-origin code
+// — collapses to the timeline (parseReturnPath).
+export const takeReturnPath = (): string => {
+  const stored = sessionStorage.getItem(RETURN_KEY);
+  sessionStorage.removeItem(RETURN_KEY);
+  return parseReturnPath(stored) ?? "/";
 };
 
 export const logout = async (): Promise<void> => {

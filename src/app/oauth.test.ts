@@ -4,6 +4,7 @@ import {
   buildAuthorizeUrl,
   generateState,
   parseCallbackParams,
+  parseReturnPath,
   stateMatches,
 } from "./oauth";
 
@@ -68,6 +69,58 @@ describe("generateState", () => {
     const b = generateState();
     expect(a).toMatch(/^[0-9a-f]{32}$/);
     expect(a).not.toBe(b);
+  });
+});
+
+describe("parseReturnPath", () => {
+  test("keeps an in-app path whole, query and fragment included", () => {
+    expect(parseReturnPath("/statuses/110000000000000001")).toBe(
+      "/statuses/110000000000000001",
+    );
+    expect(parseReturnPath("/users/alice@fixture.example")).toBe(
+      "/users/alice@fixture.example",
+    );
+    expect(parseReturnPath("/local?a=b#c")).toBe("/local?a=b#c");
+    expect(parseReturnPath("/")).toBe("/");
+  });
+
+  test("nothing stored is no destination", () => {
+    expect(parseReturnPath(null)).toBeUndefined();
+  });
+
+  test("rejects an absolute URL, whatever its scheme", () => {
+    expect(parseReturnPath("https://evil.example/statuses/1")).toBeUndefined();
+    expect(parseReturnPath("http://evil.example/")).toBeUndefined();
+    expect(parseReturnPath("javascript:alert(1)")).toBeUndefined();
+    expect(parseReturnPath("data:text/html,<h1>x</h1>")).toBeUndefined();
+  });
+
+  test("rejects a protocol-relative path in every spelling", () => {
+    expect(parseReturnPath("//evil.example")).toBeUndefined();
+    expect(parseReturnPath("///evil.example")).toBeUndefined();
+    // Backslashes: the URL parser folds them into slashes.
+    expect(parseReturnPath("/\\evil.example")).toBeUndefined();
+    expect(parseReturnPath("\\\\evil.example")).toBeUndefined();
+    // Tabs and newlines: the URL parser strips them, so a path that looks
+    // in-app before parsing turns protocol-relative after it.
+    expect(parseReturnPath("/\t/evil.example")).toBeUndefined();
+    expect(parseReturnPath("/\n/evil.example")).toBeUndefined();
+    // Leading whitespace is trimmed by the same parser.
+    expect(parseReturnPath("  //evil.example")).toBeUndefined();
+    // Same-origin as parsed, but the resulting path is protocol-relative
+    // again once it is used as one.
+    expect(parseReturnPath("/..//evil.example")).toBeUndefined();
+  });
+
+  test("rejects the callback path itself, spent code and all", () => {
+    expect(parseReturnPath("/oauth-callback")).toBeUndefined();
+    expect(parseReturnPath("/oauth-callback?code=c&state=s")).toBeUndefined();
+  });
+
+  test("a relative path cannot escape the app either", () => {
+    expect(parseReturnPath("statuses/1")).toBe("/statuses/1");
+    expect(parseReturnPath("../../evil.example")).toBe("/evil.example");
+    expect(parseReturnPath("")).toBe("/");
   });
 });
 

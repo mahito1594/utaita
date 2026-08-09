@@ -86,11 +86,9 @@ const Layout = (props: ParentProps) => (
 
 // The gate is a layout route, not a redirect: unauthenticated visits render
 // the login screen in place at whatever URL was opened — no /login URL
-// exists. The opened URL does not survive a full login, though: the OAuth
-// return leg always lands on "/", so a deep link into any other route is
-// lost across a sign-in (backlogged under the login story in
-// docs/stories.ja.md). The callback sits outside as a sibling so the gate
-// can never swallow the return leg (discussion decision 2026-07-12).
+// exists. That URL is also what login() saves for the return leg, so a deep
+// link survives a full sign-in. The callback sits outside as a sibling so the
+// gate can never swallow the return leg (discussion decision 2026-07-12).
 const AuthGate = (props: ParentProps) => (
   <Show when={authenticated()} fallback={<LoginScreen />}>
     {props.children}
