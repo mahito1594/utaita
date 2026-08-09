@@ -1,26 +1,64 @@
+import { useLocation, useNavigate } from "@solidjs/router";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import { createSignal, createUniqueId, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import { EmojiText } from "./EmojiText";
 import { MediaGrid } from "./MediaGrid";
+import { opensThread, requestThread } from "./open-thread";
 import { StatusContent } from "./StatusContent";
+import { relativeTime } from "./time";
 import type { Status } from "./types";
+import { statusPath } from "./url";
+
+const permalinkStyle = css({
+  ml: "auto",
+  flexShrink: 0,
+  color: "text.muted",
+  textDecoration: "none",
+  _hover: { textDecoration: "underline" },
+});
 
 /**
  * Quote mini-card (ADR-0007), depth 1 by design: it renders no quote card of
  * its own and keeps the server's "RE:" quote-inline link, so deeper chains
  * degrade to links. A separate component rather than a StatusCard variant —
  * no action bar, no reactions, no boost line; sharing happens through the
- * leaves (StatusContent, EmojiText, MediaGrid). Tapping through to the
- * thread arrives with the thread session.
+ * leaves (StatusContent, EmojiText, MediaGrid).
+ *
+ * It leads to the quoted post's own conversation, not to the conversation of
+ * the post quoting it (docs/design/status-card-20260705.html) — which is also
+ * what keeps it from being swallowed by the surrounding card's tap.
  */
 export const QuoteCard = (props: { status: Status }) => {
   const spoiler = () => props.status.spoiler_text ?? "";
   const [cwExpanded, setCwExpanded] = createSignal(false);
   const bodyId = createUniqueId();
 
+  const navigate = useNavigate();
+  const location = useLocation();
+  const quotedId = () => props.status.id ?? "";
+  const threadPath = (): string | null => {
+    if (quotedId() === "") return null;
+    const path = statusPath(quotedId());
+    return path === location.pathname ? null : path;
+  };
+
+  let permalink: HTMLAnchorElement | undefined;
+  const openThread = (event: MouseEvent) => {
+    const path = threadPath();
+    if (path === null || !opensThread(event, permalink)) return;
+    // Stops here rather than bubbling on: the enclosing card reads the
+    // prevented default and leaves this tap alone.
+    event.preventDefault();
+    requestThread(quotedId());
+    navigate(path);
+  };
+
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the card-wide tap is a pointer shortcut layered over the permalink in the header; the div itself is not a control
+    // biome-ignore lint/a11y/useKeyWithClickEvents: a focusable card would nest interactive elements — keyboard activation stays on the permalink, which fires click natively on Enter
     <div
+      onClick={openThread}
       class={css({
         borderWidth: "1px",
         borderColor: "border.default",
@@ -84,6 +122,21 @@ export const QuoteCard = (props: { status: Status }) => {
         >
           @{props.status.account?.acct}
         </span>
+        {/* The mini-card has no other line that can carry its permalink, and
+            without one the tap-through would be pointer-only. */}
+        <Show when={threadPath()}>
+          {(path) => (
+            <a ref={permalink} href={path()} class={permalinkStyle}>
+              <span class={css({ srOnly: true })}>Conversation</span>
+              <time
+                datetime={props.status.created_at}
+                title={props.status.created_at}
+              >
+                {relativeTime(props.status.created_at ?? "", new Date())}
+              </time>
+            </a>
+          )}
+        </Show>
       </header>
       <Show when={spoiler() !== ""}>
         <button

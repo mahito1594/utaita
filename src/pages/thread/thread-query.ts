@@ -1,6 +1,7 @@
 import { query, type RoutePreloadFunc } from "@solidjs/router";
 import type { ApiError } from "../../api/client";
 import { ok, type Result } from "../../api/result";
+import { requestThread } from "../../entities/status/open-thread";
 import type { Status } from "../../entities/status/types";
 import { fetchContext, fetchStatus, type ThreadContext } from "./thread-api";
 
@@ -36,36 +37,37 @@ export const threadQuery = query(
   "thread",
 );
 
-/** What the navigation that opened the thread decides about the page. */
+/** What the navigation that first landed on the route decides about the page. */
 export type ThreadArrival = {
-  /**
-   * Whether the page should scroll the subject into view on arrival, or leave
-   * the offset to `<Router scrollRestoration>`.
-   */
-  readonly landOnSubject: boolean;
   /** Whether a history back leads anywhere inside the app. */
   readonly canGoBack: boolean;
 };
 
 /**
- * Warms the thread cache before the route renders, and reads the two things
- * about the navigation itself that only the router knows at this point.
+ * Warms the thread cache before the route renders, and reads what only the
+ * router knows at this point about the navigation that caused it.
  *
  * `intent` is how a browser traversal is told apart from a link tap. Scroll
  * restoration applies to traversals only, and it gives up the moment a scroll
- * it did not make arrives — so on a traversal the landing scroll would both
- * lose the restored offset and replace it with a different one. A first render
- * of the document ("initial") is the one arrival with nothing behind it in this
- * app's history, so that is where a back control has to become a link home.
+ * it did not make arrives — so on a traversal, scrolling the subject into view
+ * would both lose the restored offset and replace it with a different one. A
+ * preload is not an arrival at all; everything else is the reader asking for
+ * this post, including a first render of the document ("initial"), which is
+ * also the one arrival with nothing behind it in this app's history and so the
+ * one where a back control has to become a link home.
+ *
+ * This runs once per route context, which is not once per arrival: see
+ * `takeThreadRequest` (open-thread.ts) for the half of the story that a change
+ * of `:id` alone falls into.
  */
 export const preloadThread: RoutePreloadFunc<ThreadArrival> = ({
   params,
   intent,
 }) => {
   const { id } = params;
-  if (id !== undefined) void threadQuery(id);
-  return {
-    landOnSubject: intent !== "native",
-    canGoBack: intent !== "initial",
-  };
+  if (id !== undefined) {
+    void threadQuery(id);
+    if (intent === "navigate" || intent === "initial") requestThread(id);
+  }
+  return { canGoBack: intent !== "initial" };
 };

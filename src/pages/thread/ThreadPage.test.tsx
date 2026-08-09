@@ -6,7 +6,7 @@ import {
   query,
   Route,
 } from "@solidjs/router";
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { cleanup, render, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -84,6 +84,20 @@ const server = setupServer();
 const threadHandlers = (subjectStatus: Status, context: ThreadContext) => [
   http.get("*/api/v1/statuses/:id/context", () => HttpResponse.json(context)),
   http.get("*/api/v1/statuses/:id", () => HttpResponse.json(subjectStatus)),
+];
+
+/** Serves whichever post of one conversation the page asks for. */
+const conversationHandlers = (
+  posts: readonly Status[],
+  context: ThreadContext,
+) => [
+  http.get("*/api/v1/statuses/:id/context", () => HttpResponse.json(context)),
+  http.get<{ id: string }>("*/api/v1/statuses/:id", ({ params }) => {
+    const found = posts.find((post) => post.id === params.id);
+    return found === undefined
+      ? HttpResponse.json({ error: "Record not found" }, { status: 404 })
+      : HttpResponse.json(found);
+  }),
 ];
 
 // happy-dom implements scrollIntoView as a no-op, so the element the page asks
@@ -286,6 +300,106 @@ test("offers a way home instead when the thread was opened directly", async () =
   await userEvent.click(await findByRole("link", { name: "Home" }));
 
   expect(await findByText("Home timeline")).toBeInTheDocument();
+});
+
+// --- digging from one post in the conversation into another --------------
+//
+// A change of `:id` alone does not recreate this page (@solidjs/router reuses
+// a route context whose definition is unchanged), so everything the arrival
+// decides has to survive being asked a second time.
+
+const allPosts = [root, subject, reply, replyToReply, laterReply];
+
+/** Opens the thread from the timeline, then digs into one of its replies. */
+const digIntoReply = async (view: ReturnType<typeof renderApp>) => {
+  await userEvent.click(await view.findByRole("link", { name: "Open thread" }));
+  expect(await view.findByText("The post that was opened")).toBeInTheDocument();
+  await waitFor(() => expect(broughtIntoView).toHaveLength(1));
+  broughtIntoView.length = 0;
+
+  await userEvent.click(await view.findByText("A reply to the opened post"));
+  await waitFor(() =>
+    expect(
+      view.container.querySelector('[aria-current="true"]'),
+    ).toHaveTextContent("A reply to the opened post"),
+  );
+};
+
+test("opens the conversation of a post tapped inside the thread", async () => {
+  server.use(...conversationHandlers(allPosts, wholeThread));
+  const view = renderApp();
+
+  await digIntoReply(view);
+
+  // The post that was opened first has become one row of the ancestor chain,
+  // and the tapped one is now the subject the page landed on.
+  await waitFor(() => expect(broughtIntoView).toHaveLength(1));
+  expect(broughtIntoView[0]).toHaveTextContent("A reply to the opened post");
+});
+
+test("digs in through a row's permalink the same way as through its card", async () => {
+  // The two affordances share one handler, which is what keeps the router's
+  // own anchor handling from navigating past it and losing the landing.
+  server.use(...conversationHandlers(allPosts, wholeThread));
+  const view = renderApp();
+
+  await userEvent.click(await view.findByRole("link", { name: "Open thread" }));
+  expect(await view.findByText("The post that was opened")).toBeInTheDocument();
+  await waitFor(() => expect(broughtIntoView).toHaveLength(1));
+  broughtIntoView.length = 0;
+
+  const row = [...view.container.querySelectorAll("li")].find((item) =>
+    item.textContent?.includes("A reply to the opened post"),
+  );
+  if (row === undefined) throw new Error("the reply row is missing");
+  await userEvent.click(
+    within(row).getByRole("link", { name: /Conversation/ }),
+  );
+
+  await waitFor(() => expect(broughtIntoView).toHaveLength(1));
+  expect(broughtIntoView[0]).toHaveTextContent("A reply to the opened post");
+});
+
+test("leaves the offset alone when stepping back between two conversations", async () => {
+  // The same invariant as re-entering the thread from another route, on the
+  // traversal the router cannot report: `:id` moves but the page does not.
+  server.use(...conversationHandlers(allPosts, wholeThread));
+  const history = createMemoryHistory();
+  const view = renderApp(history);
+
+  await digIntoReply(view);
+  broughtIntoView.length = 0;
+
+  history.back();
+
+  await waitFor(() =>
+    expect(
+      view.container.querySelector('[aria-current="true"]'),
+    ).toHaveTextContent("The post that was opened"),
+  );
+  await settle();
+  expect(broughtIntoView).toHaveLength(0);
+});
+
+test("offers the way back once a directly-opened thread has been dug into", async () => {
+  server.use(...conversationHandlers(allPosts, wholeThread));
+  const { findByText, findByRole, queryByRole } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+  expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+
+  await userEvent.click(await findByText("A reply to the opened post"));
+
+  // Opening a post put an entry behind this one, so back now stays in the app.
+  const back = await findByRole("button", { name: "Back" });
+  await userEvent.click(back);
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+  // …and stepping off it returns to the entry the page opened on, which has
+  // nothing of this app behind it.
+  await waitFor(() =>
+    expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument(),
+  );
 });
 
 test("renders the failure when the post is not on this instance", async () => {

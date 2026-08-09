@@ -2,7 +2,7 @@
 // Card-behavior tests through the timeline page (ADR-0009: observable
 // behavior at page level; the pipeline internals are covered in
 // entities/status/content.test.ts under jsdom).
-import { MemoryRouter, Route } from "@solidjs/router";
+import { MemoryRouter, Route, useParams } from "@solidjs/router";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
@@ -40,8 +40,18 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
   cleanup();
+  // The selection outlives the render: one test leaving text selected would
+  // suppress the next one's card tap.
+  window.getSelection()?.removeAllRanges();
 });
 afterAll(() => server.close());
+
+// Stands in for ThreadPage: what these tests are about is which taps arrive at
+// a conversation and which ones belong to something inside the card.
+const ThreadStub = () => {
+  const params = useParams<{ id: string }>();
+  return <p>Reading {params.id}</p>;
+};
 
 const renderApp = () =>
   render(() => (
@@ -50,6 +60,7 @@ const renderApp = () =>
         <Route path="/" component={() => <TimelinePage timeline={home} />} />
       </Route>
       <Route path="/users/:acct" component={ProfilePage} />
+      <Route path="/statuses/:id" component={ThreadStub} />
     </MemoryRouter>
   ));
 
@@ -59,13 +70,15 @@ test("a mention tap navigates to the in-app profile page", async () => {
       HttpResponse.json([mentionStatus]),
     ),
   );
-  const { findByRole, findByText } = renderApp();
+  const { findByRole, findByText, queryByText } = renderApp();
 
   const mention = await findByRole("link", { name: "@carol" });
   await userEvent.click(mention);
 
   expect(await findByText("@carol@fixture.example")).toBeInTheDocument();
   expect(await findByText(/not implemented/i)).toBeInTheDocument();
+  // The card-wide tap did not take the mention's destination away from it.
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
 });
 
 test("a boost flattens into one card with a boost line", async () => {
@@ -160,7 +173,7 @@ test("a content warning hides the body until expanded, without unmounting it", a
   server.use(
     http.get("*/api/v1/timelines/home", () => HttpResponse.json([cwStatus])),
   );
-  const { findByRole, findByText } = renderApp();
+  const { findByRole, findByText, queryByText } = renderApp();
 
   const toggle = await findByRole("button", { name: "CW: the reveal" });
   expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -170,6 +183,7 @@ test("a content warning hides the body until expanded, without unmounting it", a
   await userEvent.click(toggle);
   expect(toggle).toHaveAttribute("aria-expanded", "true");
   expect(await findByText("Spoiled contents")).toBeVisible();
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
 });
 
 test("sensitive media hides behind a reveal button; missing blurhash does not crash", async () => {
@@ -201,13 +215,15 @@ test("sensitive media hides behind a reveal button; missing blurhash does not cr
       HttpResponse.json([sensitiveStatus]),
     ),
   );
-  const { findByRole, findByAltText, queryByAltText } = renderApp();
+  const { findByRole, findByAltText, queryByAltText, queryByText } =
+    renderApp();
 
   const reveal = await findByRole("button", { name: "Show media" });
   expect(queryByAltText("a fixture image")).not.toBeInTheDocument();
 
   await userEvent.click(reveal);
   expect(await findByAltText("a fixture image")).toBeInTheDocument();
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
 });
 
 test("non-sensitive images render directly with alt text", async () => {
@@ -279,6 +295,9 @@ test("tapping an image opens the overlay; closing pops history", async () => {
   // role is "dialog" once shown (no explicit role attribute needed).
   const dialog = await screen.findByRole("dialog");
   expect(dialog).toBeInTheDocument();
+  // The thumbnail's own tap, not the card's: the overlay is a state push on
+  // the same path, so a card tap would have replaced it with a navigation.
+  expect(screen.queryByText(/^Reading /)).not.toBeInTheDocument();
 
   // Close = navigate(-1): the back gesture and the button share this path.
   // If same-path navigation ever stopped pushing (solid-router internal
@@ -593,4 +612,182 @@ test("external links are decorated to open in a new tab", async () => {
   const link = await findByRole("link", { name: "read this" });
   expect(link).toHaveAttribute("target", "_blank");
   expect(link).toHaveAttribute("rel", "noopener noreferrer");
+});
+
+// --- opening the conversation from the card ------------------------------
+
+const plainStatus: Status = {
+  id: "110000000000000040",
+  content: "<p>a post worth opening</p>",
+  created_at: "2026-07-05T12:00:00.000Z",
+  account: {
+    id: "900000000000000001",
+    acct: "alice@fixture.example",
+    display_name: "Alice Example",
+  },
+};
+
+const servePlain = () =>
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([plainStatus])),
+  );
+
+test("a tap anywhere on the card opens the post's conversation", async () => {
+  servePlain();
+  const { findByText } = renderApp();
+
+  await userEvent.click(await findByText("a post worth opening"));
+
+  expect(await findByText(`Reading ${plainStatus.id}`)).toBeInTheDocument();
+});
+
+test("the timestamp is the card's link to the conversation", async () => {
+  // The card-wide tap is a pointer shortcut; this link is what a keyboard
+  // reaches, what announces where the card leads, and what a modified click
+  // opens in a new tab.
+  servePlain();
+  const { findByRole, findByText } = renderApp();
+
+  const link = await findByRole("link", { name: /Conversation/ });
+  expect(link).toHaveAttribute("href", `/statuses/${plainStatus.id}`);
+
+  await userEvent.click(link);
+  expect(await findByText(`Reading ${plainStatus.id}`)).toBeInTheDocument();
+});
+
+test("selecting text in a card does not open its conversation", async () => {
+  servePlain();
+  const { findByText, queryByText } = renderApp();
+
+  const body = await findByText("a post worth opening");
+  // A drag across the text, which ends in a click on the card like any other
+  // pointer release — the standing selection is the only thing telling the two
+  // apart.
+  await userEvent.pointer([
+    { target: body, offset: 0, keys: "[MouseLeft>]" },
+    { target: body, offset: 6 },
+    "[/MouseLeft]",
+  ]);
+  expect(window.getSelection()?.isCollapsed).toBe(false);
+
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
+  expect(await findByText("a post worth opening")).toBeInTheDocument();
+});
+
+test("a link in the body keeps its own destination", async () => {
+  const linkStatus: Status = {
+    id: "110000000000000041",
+    content: '<p><a href="https://elsewhere.test/article">read this</a></p>',
+    created_at: "2026-07-05T12:00:00.000Z",
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([linkStatus])),
+  );
+  const { findByRole, queryByText } = renderApp();
+
+  const link = await findByRole("link", { name: "read this" });
+  // The anchor is external and opens in a new tab, so the assertion is that
+  // the card did not navigate this one away in-app.
+  link.addEventListener("click", (event) => event.preventDefault());
+  await userEvent.click(link);
+
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
+});
+
+test("a link preview keeps its own destination", async () => {
+  const cardStatus: Status = {
+    id: "110000000000000042",
+    content: "<p>with a preview</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    card: {
+      url: "https://elsewhere.test/article",
+      title: "An article",
+      description: "",
+      type: "link",
+      provider_name: "Elsewhere",
+    },
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([cardStatus])),
+  );
+  const { findByText, queryByText } = renderApp();
+
+  const title = await findByText("An article");
+  title.addEventListener("click", (event) => event.preventDefault());
+  await userEvent.click(title);
+
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
+});
+
+test("native media controls are not taken over by the card's tap", async () => {
+  const videoStatus: Status = {
+    id: "110000000000000043",
+    content: "<p>a clip</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    media_attachments: [
+      {
+        id: "300000000000000009",
+        type: "video",
+        url: "https://fixture.example/media/clip.mp4",
+        description: "a fixture clip",
+      },
+    ],
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([videoStatus])),
+  );
+  const { findByLabelText, queryByText } = renderApp();
+
+  // The play/pause controls are inside the element, so the whole element has
+  // to be out of the card's tap.
+  await userEvent.click(await findByLabelText("a fixture clip"));
+
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
+});
+
+test("a quote mini-card leads to the quoted post, not to the post quoting it", async () => {
+  const quoted: Status = {
+    id: "110000000000000044",
+    content: "<p>the quoted words</p>",
+    created_at: "2026-07-05T11:00:00.000Z",
+    account: {
+      id: "900000000000000004",
+      acct: "quinn@fixture.example",
+      display_name: "Quinn Quoted",
+    },
+  };
+  const quoting: Status = {
+    id: "110000000000000045",
+    content: "<p>my take</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    quote: quoted,
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () => HttpResponse.json([quoting])),
+  );
+  const { findByText } = renderApp();
+
+  await userEvent.click(await findByText("the quoted words"));
+
+  expect(await findByText(`Reading ${quoted.id}`)).toBeInTheDocument();
 });

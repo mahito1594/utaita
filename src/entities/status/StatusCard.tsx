@@ -1,3 +1,4 @@
+import { useLocation, useNavigate } from "@solidjs/router";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import Globe from "lucide-solid/icons/globe";
 import House from "lucide-solid/icons/house";
@@ -14,6 +15,7 @@ import { ActionBar } from "./ActionBar";
 import { EmojiText } from "./EmojiText";
 import { LinkPreview } from "./LinkPreview";
 import { MediaGrid } from "./MediaGrid";
+import { opensThread, requestThread } from "./open-thread";
 import { PollView } from "./PollView";
 import { parseEmojiReactions } from "./parse";
 import { QuoteCard } from "./QuoteCard";
@@ -21,6 +23,7 @@ import { ReactionChips } from "./ReactionChips";
 import { StatusContent } from "./StatusContent";
 import { relativeTime } from "./time";
 import type { Status } from "./types";
+import { statusPath } from "./url";
 
 export type { Status } from "./types";
 
@@ -40,6 +43,14 @@ const VISIBILITY_ICONS: Record<VisibilityScope, typeof Globe> = {
   direct: Mail,
 };
 
+// The permalink carries the timestamp and nothing else, so it borrows the
+// header's muted colour instead of announcing itself as a link in every card.
+const permalinkStyle = css({
+  color: "inherit",
+  textDecoration: "none",
+  _hover: { textDecoration: "underline" },
+});
+
 export const StatusCard = (props: { status: Status }) => {
   // A boost (reblog) flattens into one card: the wrapper contributes only
   // the boost line, every other zone reads the boosted status (wireframe
@@ -55,8 +66,40 @@ export const StatusCard = (props: { status: Status }) => {
       ? (subject().pleroma?.in_reply_to_account_acct ?? null)
       : null;
 
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Where this card leads, or null when it leads nowhere: a card of the post
+  // that is already being read is not a way to reach it, and the thread view
+  // draws its subject with this very component.
+  const subjectId = () => subject().id ?? "";
+  const threadPath = (): string | null => {
+    if (subjectId() === "") return null;
+    const path = statusPath(subjectId());
+    return path === location.pathname ? null : path;
+  };
+
+  let permalink: HTMLAnchorElement | undefined;
+  // One navigation for both affordances: the permalink is a real anchor, so a
+  // keyboard reaches the conversation and a modified click still opens a tab,
+  // while a tap anywhere on the card is routed through the same handler.
+  const openThread = (event: MouseEvent) => {
+    const path = threadPath();
+    if (path === null || !opensThread(event, permalink)) return;
+    event.preventDefault();
+    requestThread(subjectId());
+    navigate(path);
+  };
+
+  const Timestamp = () => (
+    <time datetime={subject().created_at} title={subject().created_at}>
+      {relativeTime(subject().created_at ?? "", new Date())}
+    </time>
+  );
+
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: a focusable card would nest interactive elements — keyboard activation stays on the permalink, which fires click natively on Enter
     <article
+      onClick={openThread}
       class={css({
         bg: "bg.surface",
         borderWidth: "1px",
@@ -170,9 +213,17 @@ export const StatusCard = (props: { status: Status }) => {
             alignItems: "center",
           })}
         >
-          <time datetime={subject().created_at} title={subject().created_at}>
-            {relativeTime(subject().created_at ?? "", new Date())}
-          </time>
+          <Show when={threadPath()} fallback={<Timestamp />}>
+            {(path) => (
+              <a ref={permalink} href={path()} class={permalinkStyle}>
+                {/* Keeps the visible text inside the accessible name (WCAG
+                    2.5.3) while saying what the link is for: on its own, a
+                    relative time names no destination. */}
+                <span class={css({ srOnly: true })}>Conversation</span>
+                <Timestamp />
+              </a>
+            )}
+          </Show>
           <Show when={subject().visibility}>
             {(visibility) => (
               <span
