@@ -9,10 +9,14 @@ import {
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
+import type { Result } from "../../api/result";
 import { StatusCard } from "../../entities/status/StatusCard";
+import type { Status } from "../../entities/status/types";
 import { outlineButton } from "../../ui/outline-button";
+import { resolveStatus } from "./thread-api";
 import { type ThreadArrival, threadQuery } from "./thread-query";
 import { buildThread, type ThreadRow } from "./thread-tree";
+import { UnfetchedParent } from "./UnfetchedParent";
 
 const errorBox = css({
   bg: "error.subtle",
@@ -61,8 +65,6 @@ const ThreadError = (props: { error: ApiError; onRetry: () => void }) => {
   }
 };
 
-const note = css({ fontSize: "xs", color: "text.muted" });
-
 const list = css({
   display: "flex",
   flexDirection: "column",
@@ -98,6 +100,7 @@ const subjectRowStyle = css({
 const ThreadRowItem = (props: {
   row: ThreadRow;
   onSubjectRef: (element: HTMLElement) => void;
+  onFetchParent: (apId: string) => Promise<Result<Status | null, ApiError>>;
 }) => (
   <li
     class={props.row.place === "subject" ? subjectRowStyle : rowStyle}
@@ -106,12 +109,14 @@ const ThreadRowItem = (props: {
       if (props.row.place === "subject") props.onSubjectRef(element);
     }}
   >
-    {/* The card's own "replying to @who" line would claim the parent is on
-        hand; this says otherwise while there is nothing to open. */}
-    <Show when={props.row.replyTo.kind === "unfetched"}>
-      <p class={note}>
-        This instance has not fetched the post this replies to.
-      </p>
+    <Show
+      when={
+        props.row.replyTo.kind === "unfetched" ? props.row.replyTo : undefined
+      }
+    >
+      {(target) => (
+        <UnfetchedParent apId={target().apId} onFetch={props.onFetchParent} />
+      )}
     </Show>
     <StatusCard status={props.row.status} />
   </li>
@@ -161,6 +166,46 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
     element.scrollIntoView();
   });
 
+  // Where the subject sat in the viewport just before a rebuild that will grow
+  // the thread above it; undefined whenever no such rebuild is coming.
+  let heldSubjectTop: number | undefined;
+
+  /**
+   * Pulls a reply's missing parent onto the instance and rebuilds the thread
+   * around it. Reloading the whole conversation is what makes the parent
+   * appear: the reply's own `in_reply_to_id` stops being the unfetched
+   * sentinel only in a freshly fetched copy (thread-query.ts).
+   */
+  const fetchParent = async (
+    apId: string,
+  ): Promise<Result<Status | null, ApiError>> => {
+    const result = await resolveStatus(apId);
+    if (!result.ok || result.value === null) return result;
+    // Measured here rather than when the button was pressed: the fetch takes
+    // seconds, and any scrolling the reader did while waiting is theirs to
+    // keep. Only the rebuild that follows has to be compensated for.
+    heldSubjectTop = subjectElement()?.getBoundingClientRect().top;
+    await revalidate(threadQuery.keyFor(params.id));
+    return result;
+  };
+
+  // Keeps the reader looking at the same post when an ancestor is inserted
+  // above it. The browser's own scroll anchoring cannot do this: every row is
+  // rebuilt from a new object on a reload, so `<For>`'s reference keying
+  // replaces the entire list and leaves no anchor candidate standing. The
+  // landing effect stays out of the way because it fires once per arrival, so
+  // a rebuild mid-visit never re-centres the subject.
+  createEffect(() => {
+    rows();
+    const before = heldSubjectTop;
+    if (before === undefined) return;
+    const element = subjectElement();
+    if (element === undefined) return;
+    heldSubjectTop = undefined;
+    const shift = element.getBoundingClientRect().top - before;
+    if (shift !== 0) window.scrollBy(0, shift);
+  });
+
   return (
     <section>
       <div
@@ -208,7 +253,11 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
       <ol class={list}>
         <For each={connected()}>
           {(row) => (
-            <ThreadRowItem row={row} onSubjectRef={setSubjectElement} />
+            <ThreadRowItem
+              row={row}
+              onSubjectRef={setSubjectElement}
+              onFetchParent={fetchParent}
+            />
           )}
         </For>
       </ol>
@@ -228,7 +277,11 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
           <ol class={list}>
             <For each={detached()}>
               {(row) => (
-                <ThreadRowItem row={row} onSubjectRef={setSubjectElement} />
+                <ThreadRowItem
+                  row={row}
+                  onSubjectRef={setSubjectElement}
+                  onFetchParent={fetchParent}
+                />
               )}
             </For>
           </ol>

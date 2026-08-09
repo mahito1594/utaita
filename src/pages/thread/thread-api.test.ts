@@ -68,7 +68,7 @@ test("resolveStatus asks the instance to ingest the AP id", async () => {
       return HttpResponse.json({
         accounts: [],
         hashtags: [],
-        statuses: [{ id: "110000000000000001" }],
+        statuses: [{ id: "110000000000000001", uri: apId }],
       });
     }),
   );
@@ -77,7 +77,34 @@ test("resolveStatus asks the instance to ingest the AP id", async () => {
 
   expect(seen[0]?.get("q")).toBe(apId);
   expect(seen[0]?.get("resolve")).toBe("true");
-  expect(result).toEqual({ ok: true, value: { id: "110000000000000001" } });
+  expect(result).toEqual({
+    ok: true,
+    value: { id: "110000000000000001", uri: apId },
+  });
+});
+
+test("a post that merely mentions the AP id does not pass for it", async () => {
+  // The endpoint is a search, so an AP id it cannot obtain falls through to
+  // full-text hits on the id as a plain string.
+  server.use(
+    http.get("*/api/v2/search", () =>
+      HttpResponse.json({
+        accounts: [],
+        hashtags: [],
+        statuses: [
+          {
+            id: "110000000000000002",
+            uri: "https://elsewhere.example/objects/def",
+            content: "<p>look at https://remote.example/objects/abc</p>",
+          },
+        ],
+      }),
+    ),
+  );
+
+  const result = await resolveStatus("https://remote.example/objects/abc");
+
+  expect(result).toEqual({ ok: true, value: null });
 });
 
 test("an AP id the instance cannot ingest resolves to nothing", async () => {
