@@ -124,6 +124,17 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   親は `akkoma.in_reply_to_apid` (AP URI) にのみ入る。`/api/v2/search` の
   `resolve=true` でサーバに取得させてから context を再取得する経路がある
   (2026-07-07 に実測。resolve がスレッドをどこまで遡るかは未検証)。
+  resolve は 1 回あたり 2.6 秒前後かかる (2026-08-09 に実測、2 サンプル)。
+- **`/api/v1/statuses/:id/context` の ancestors / descendants の振り分けは信用できない。**
+  resolve で後から取り込んだ親は、子の `descendants` 側に入る (2026-08-09 に実測、
+  2/2 で再現)。子の `in_reply_to_id` は正しく実 ID に変わるので、リンク自体は張れている。
+  ancestors + descendants + 起点の和集合を取り、`in_reply_to_id` だけからツリーを
+  組み立てて祖先/子孫はクライアント側で導出すること。
+- **ID の辞書順が時系列順に一致するのは「タイムラインに流れてくる投稿」に限られる。**
+  flake ID はローカル DB への挿入順なので、後から取り込んだ古い投稿は新しい ID を
+  持つ (2026-08-09 に実測: 親の `created_at` が 1〜2 分古いのに ID は子より大きい)。
+  スレッド内の並び順には `created_at` を使うこと。ページネーションの ID 順依存
+  (ADR-0004 amendment のセグメント合流) はサーバ側の順序なので影響を受けない。
 - ページネーション情報は `Link` ヘッダのみ (レスポンスボディに無い)。`limit` は
   指定しても 40 でクランプされる (2026-07-07 に実測)。
 - ステータス等の ID は 18 文字固定長・base62 の flake ID で、辞書順比較が
