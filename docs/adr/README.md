@@ -35,3 +35,4 @@ Template:
 | [0011](./0011-default-actions-stay-in-app.md) | Default tap actions never leave the app |
 | [0012](./0012-enforce-boundaries-with-dependency-cruiser.md) | Enforce directory boundaries with dependency-cruiser |
 | [0013](./0013-dompurify-html-pipeline.md) | Sanitize status HTML with DOMPurify in a fragment pipeline |
+| [0014](./0014-thread-view.md) | Thread view — one subject, no indentation, arrival-aware scrolling |
