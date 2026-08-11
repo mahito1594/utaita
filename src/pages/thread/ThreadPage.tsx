@@ -6,6 +6,7 @@ import {
   useNavigate,
   useParams,
 } from "@solidjs/router";
+import ArrowLeft from "lucide-solid/icons/arrow-left";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
@@ -73,10 +74,7 @@ const ThreadError = (props: { error: ApiError; onRetry: () => void }) => {
 // the construction is the point: a de-carded row needs a surface under it, and
 // anything else would flip the background on every timeline ⇄ thread round
 // trip (docs/design/timeline-density.md).
-const list = css({
-  display: "flex",
-  flexDirection: "column",
-  listStyleType: "none",
+const planeShape = {
   bg: "bg.surface",
   mx: "-4",
   md: {
@@ -85,6 +83,35 @@ const list = css({
     borderColor: "border.default",
     borderRadius: "md",
   },
+} as const;
+
+// Body of a plane: no padding and no gap of its own, so the rules the rows
+// draw span it and the rows carry the inset (TimelineShell's `panelBody`).
+const rowColumn = {
+  display: "flex",
+  flexDirection: "column",
+  listStyleType: "none",
+} as const;
+
+// The connected conversation: one plane whose whole content is rows.
+const list = css({ ...rowColumn, ...planeShape });
+
+// The detached posts get a plane of their own, headed by a band rather than
+// starting straight at a row: standing on the canvas above the plane, the
+// heading read as a caption for the page instead of for the rows it names.
+const detachedPlane = css({ ...planeShape, mt: "4" });
+const detachedRows = css(rowColumn);
+
+// The plane's top edge, built like the timeline bar's (TimelineShell.tsx) —
+// same inset as the rows below it, same top radius standing in for the clip
+// the plane must not do — but not sticky: it heads a section of a page that
+// scrolls past, not a panel the reader keeps working in.
+const detachedBand = css({
+  px: "3",
+  py: "2",
+  borderBottomWidth: "1px",
+  borderBottomColor: "border.default",
+  md: { borderTopRadius: "md" },
 });
 
 // A refetch that failed while the conversation is on screen: the rows stay and
@@ -162,6 +189,17 @@ const subjectRowStyle = css({
   bg: "bg.subtle",
 });
 
+// A row on the detached plane, whose top edge is the heading band rather than
+// a row: the first one has the band's bottom rule over it, so rounding its
+// spine there would notch a corner in the middle of the plane. The whole `md`
+// block is restated rather than deleted from a copy — the bottom of the plane
+// is still a row's to round.
+const detachedRowStyle = css({
+  ...rowShape,
+  borderLeftColor: "border.default",
+  md: { _last: { borderBottomRadius: "md" } },
+});
+
 // 12px from each edge of the row, the spine counted in on the left.
 const rowInset = { pl: "2.5", pr: "3" } as const;
 
@@ -184,9 +222,20 @@ const ThreadRowItem = (props: {
   const placeholder = () =>
     props.row.replyTo.kind === "unfetched" ? props.row.replyTo : undefined;
 
+  const rowClass = () => {
+    switch (props.row.place) {
+      case "subject":
+        return subjectRowStyle;
+      case "detached":
+        return detachedRowStyle;
+      default:
+        return rowStyle;
+    }
+  };
+
   return (
     <li
-      class={props.row.place === "subject" ? subjectRowStyle : rowStyle}
+      class={rowClass()}
       aria-current={props.row.place === "subject" ? "true" : undefined}
       // The landing spot for a keyboard or screen-reader arrival (the page's
       // landing effect focuses it); LoginScreen.tsx sets the pattern.
@@ -212,6 +261,22 @@ const ThreadRowItem = (props: {
     </li>
   );
 };
+
+// 40px ghost icon button, the shape the timeline bar's refresh control uses
+// (TimelineShell.tsx). The label the reader reads is the arrow, so the
+// accessible name is carried by `aria-label` and the icon is hidden from it.
+const backButton = css({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "10",
+  height: "10",
+  borderRadius: "md",
+  bg: "transparent",
+  color: "accent.default",
+  cursor: "pointer",
+  _hover: { bg: "bg.subtle" },
+});
 
 /**
  * The conversation around one status, as a flat list: ancestors above the post
@@ -389,13 +454,14 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
         >
           <button
             type="button"
-            class={outlineButton({ tone: "neutral" })}
+            aria-label="Back"
+            class={backButton}
             onClick={() => navigate(-1)}
           >
-            Back
+            <ArrowLeft size={20} aria-hidden="true" />
           </button>
         </Show>
-        <h2 class={css({ fontSize: "md", fontWeight: "semibold" })}>
+        <h2 class={css({ fontSize: "sm", fontWeight: "semibold" })}>
           Conversation
         </h2>
       </div>
@@ -434,16 +500,18 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
           subject — federation loses middle posts, and dropping them would take
           whole branches out of the view without a trace (thread-tree.ts). */}
       <Show when={detached().length > 0}>
-        <section class={css({ mt: "4" })}>
-          <h3 class={css({ fontSize: "sm", fontWeight: "semibold" })}>
-            Not connected to this post
-          </h3>
-          <p class={css({ fontSize: "xs", color: "text.muted", mb: "2" })}>
-            These came with the conversation, but the posts that would link them
-            to it are missing.
-          </p>
+        <section class={detachedPlane}>
+          <div class={detachedBand}>
+            <h3 class={css({ fontSize: "sm", fontWeight: "semibold" })}>
+              Not connected to this post
+            </h3>
+            <p class={css({ fontSize: "xs", color: "text.muted" })}>
+              These came with the conversation, but the posts that would link
+              them to it are missing.
+            </p>
+          </div>
           {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
-          <ol class={list} role="list">
+          <ol class={detachedRows} role="list">
             <For each={detached()}>
               {(row) => (
                 <ThreadRowItem
