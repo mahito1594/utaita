@@ -256,6 +256,10 @@ const ThreadRowItem = (props: {
       </Show>
       <StatusCard
         status={props.row.status}
+        // A conversation is read as an exchange, where the posts can sit
+        // minutes apart: "2d" on every row would say nothing about the
+        // spacing the timeline's relative age is enough for.
+        timeStyle="precise"
         class={placeholder() === undefined ? rowBody : rowBodyUnderPlaceholder}
       />
     </li>

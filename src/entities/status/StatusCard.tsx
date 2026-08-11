@@ -21,7 +21,7 @@ import { parseEmojiReactions } from "./parse";
 import { QuoteCard } from "./QuoteCard";
 import { ReactionChips } from "./ReactionChips";
 import { StatusContent } from "./StatusContent";
-import { relativeTime } from "./time";
+import { preciseTime, relativeTime } from "./time";
 import type { Status } from "./types";
 import { statusPath } from "./url";
 
@@ -51,7 +51,12 @@ const permalinkStyle = css({
   _hover: { textDecoration: "underline" },
 });
 
-export const StatusCard = (props: { status: Status; class?: string }) => {
+export const StatusCard = (props: {
+  status: Status;
+  class?: string;
+  /** How the header renders the post's age; "relative" unless asked. */
+  timeStyle?: "relative" | "precise";
+}) => {
   // A boost (reblog) flattens into one card: the wrapper contributes only
   // the boost line, every other zone reads the boosted status (wireframe
   // decision — a nested inner card breaks the timeline's vertical rhythm).
@@ -90,9 +95,13 @@ export const StatusCard = (props: { status: Status; class?: string }) => {
     navigate(path);
   };
 
+  // Only the rendering changes with `timeStyle`: the machine-readable instant
+  // and the hover text stay the raw timestamp in either mode.
   const Timestamp = () => (
     <time datetime={subject().created_at} title={subject().created_at}>
-      {relativeTime(subject().created_at ?? "", new Date())}
+      {props.timeStyle === "precise"
+        ? preciseTime(subject().created_at ?? "", new Date())
+        : relativeTime(subject().created_at ?? "", new Date())}
     </time>
   );
 
