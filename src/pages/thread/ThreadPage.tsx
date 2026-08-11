@@ -66,11 +66,25 @@ const ThreadError = (props: { error: ApiError; onRetry: () => void }) => {
   }
 };
 
+// The plane the conversation is drawn on, built exactly like the timeline's
+// panel (TimelineShell.tsx) — full-bleed on mobile by escaping `main`'s px-4
+// (App.tsx), bordered and rounded from `md` up, where "the panel is capped"
+// and "the column is capped" are the same condition by construction. Sharing
+// the construction is the point: a de-carded row needs a surface under it, and
+// anything else would flip the background on every timeline ⇄ thread round
+// trip (docs/design/timeline-density.md).
 const list = css({
   display: "flex",
   flexDirection: "column",
-  gap: "2",
   listStyleType: "none",
+  bg: "bg.surface",
+  mx: "-4",
+  md: {
+    mx: "0",
+    borderWidth: "1px",
+    borderColor: "border.default",
+    borderRadius: "md",
+  },
 });
 
 // A refetch that failed while the conversation is on screen: the rows stay and
@@ -106,54 +120,98 @@ const RefreshNotice = (props: { error: ApiError; onRetry: () => void }) => (
 // indentation instead would spend the width a phone does not have, and a deep
 // branch would end up narrower than a shallow one for no reader benefit; who a
 // post answers is carried by its own "replying to" line (StatusCard.tsx).
+//
+// The row reaches both edges of the plane and insets its body by 12px on each
+// side, with the spine spending part of the left gutter rather than pushing
+// the text inward (docs/design/timeline-density.md). The closing hairline and
+// the 12px block padding are the timeline row's (TimelinePage.tsx), so the two
+// views scroll at one rhythm.
+//
+// What the row itself draws is the spine, the plane and the rule; the inset is
+// `rowBody`'s, on the content the row holds.
 const rowShape = {
-  borderLeftWidth: "2px",
-  pl: "3",
   display: "flex",
   flexDirection: "column",
   gap: "1",
+  borderLeftWidth: "2px",
+  borderBottomWidth: "1px",
+  borderBottomColor: "border.default",
+  // Nothing follows the last row inside the plane, so its rule would either
+  // sit on the panel's own bottom border or dangle across the mobile
+  // full-bleed edge.
+  _last: { borderBottomWidth: "0" },
+  md: {
+    // Neither plane clips its content (TimelineShell.tsx), so the rows at the
+    // ends round their own corners the way the timeline's bar does — a square
+    // spine, or the subject's square background, would otherwise cut across
+    // the panel's rounded corners.
+    _first: { borderTopRadius: "md" },
+    _last: { borderBottomRadius: "md" },
+  },
 } as const;
 
-const rowStyle = css({ ...rowShape, py: "1", borderColor: "border.default" });
+const rowStyle = css({ ...rowShape, borderLeftColor: "border.default" });
 
-// The post the reader opened, marked in two channels at once: the rule turns
-// accent and the row takes the page tone behind a card that stays white.
+// The post the reader opened, marked in two channels at once: the spine turns
+// accent and the row takes the page tone out of the plane the others sit on.
+// The band runs edge to edge like every other row — a rounded right end would
+// read as the row pulling away from the plane it belongs to.
 const subjectRowStyle = css({
   ...rowShape,
-  py: "2",
-  borderColor: "accent.default",
+  borderLeftColor: "accent.default",
   bg: "bg.subtle",
-  borderTopRightRadius: "lg",
-  borderBottomRightRadius: "lg",
 });
+
+// 12px from each edge of the row, the spine counted in on the left.
+const rowInset = { pl: "2.5", pr: "3" } as const;
+
+// The card carries the whole inset, block padding included: a tap anywhere on
+// a post opens it (StatusCard.tsx), and padding held by the row around the
+// card would be a band the thumb can miss the post in.
+const rowBody = css({ ...rowInset, py: "3" });
+
+// Under a placeholder, which opens the row itself: the card only closes it,
+// and the 4px between the two stays the row's own gap. The placeholder is not
+// part of what a tap on the post reaches — it has its own controls.
+const rowBodyUnderPlaceholder = css({ ...rowInset, pb: "3" });
+const placeholderStyle = css({ ...rowInset, pt: "3" });
 
 const ThreadRowItem = (props: {
   row: ThreadRow;
   onSubjectRef: (element: HTMLElement) => void;
   onFetchParent: (apId: string) => Promise<Result<Status | null, ApiError>>;
-}) => (
-  <li
-    class={props.row.place === "subject" ? subjectRowStyle : rowStyle}
-    aria-current={props.row.place === "subject" ? "true" : undefined}
-    // The landing spot for a keyboard or screen-reader arrival (the page's
-    // landing effect focuses it); LoginScreen.tsx sets the pattern.
-    tabindex={props.row.place === "subject" ? "-1" : undefined}
-    ref={(element) => {
-      if (props.row.place === "subject") props.onSubjectRef(element);
-    }}
-  >
-    <Show
-      when={
-        props.row.replyTo.kind === "unfetched" ? props.row.replyTo : undefined
-      }
+}) => {
+  const placeholder = () =>
+    props.row.replyTo.kind === "unfetched" ? props.row.replyTo : undefined;
+
+  return (
+    <li
+      class={props.row.place === "subject" ? subjectRowStyle : rowStyle}
+      aria-current={props.row.place === "subject" ? "true" : undefined}
+      // The landing spot for a keyboard or screen-reader arrival (the page's
+      // landing effect focuses it); LoginScreen.tsx sets the pattern.
+      tabindex={props.row.place === "subject" ? "-1" : undefined}
+      ref={(element) => {
+        if (props.row.place === "subject") props.onSubjectRef(element);
+      }}
     >
-      {(target) => (
-        <UnfetchedParent apId={target().apId} onFetch={props.onFetchParent} />
-      )}
-    </Show>
-    <StatusCard status={props.row.status} />
-  </li>
-);
+      <Show when={placeholder()}>
+        {(target) => (
+          <div class={placeholderStyle}>
+            <UnfetchedParent
+              apId={target().apId}
+              onFetch={props.onFetchParent}
+            />
+          </div>
+        )}
+      </Show>
+      <StatusCard
+        status={props.row.status}
+        class={placeholder() === undefined ? rowBody : rowBodyUnderPlaceholder}
+      />
+    </li>
+  );
+};
 
 /**
  * The conversation around one status, as a flat list: ancestors above the post
@@ -353,18 +411,24 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
         )}
       </Show>
 
-      {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
-      <ol class={list} role="list">
-        <For each={connected()}>
-          {(row) => (
-            <ThreadRowItem
-              row={row}
-              onSubjectRef={setSubjectElement}
-              onFetchParent={fetchParent}
-            />
-          )}
-        </For>
-      </ol>
+      {/* The plane is visible in its own right — an empty one is a bare strip
+          of surface, and a hairline of border on md — so it arrives with the
+          first row rather than standing under the heading while the
+          conversation loads or after a load that brought none. */}
+      <Show when={connected().length > 0}>
+        {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
+        <ol class={list} role="list">
+          <For each={connected()}>
+            {(row) => (
+              <ThreadRowItem
+                row={row}
+                onSubjectRef={setSubjectElement}
+                onFetchParent={fetchParent}
+              />
+            )}
+          </For>
+        </ol>
+      </Show>
 
       {/* Posts the context delivered that no chain of replies ties to the
           subject — federation loses middle posts, and dropping them would take
