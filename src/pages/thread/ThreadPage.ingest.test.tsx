@@ -207,6 +207,50 @@ test("fetches the missing parent when asked and reads it in the conversation", a
   expect(contextRequests).toHaveLength(2);
 });
 
+test("hands focus to the parent's row once it lands in the conversation", async () => {
+  // The button that asked for the fetch is gone with the placeholder it stood
+  // in, so focus has somewhere to be put: left alone it falls to <body>, and a
+  // reader who is not watching the viewport is dropped at the top of the
+  // document with nothing to say the post they asked for arrived.
+  server.use(
+    ...threadHandlers,
+    searchHandler(resolved, () => {
+      ingested = true;
+    }),
+  );
+  const { findByRole, findByText } = renderThread();
+
+  await userEvent.click(
+    await findByRole("button", { name: "Fetch new remote resource" }),
+  );
+
+  const parent = await findByText("The post from the other instance");
+  await waitFor(() =>
+    expect(document.activeElement).toBe(parent.closest("li")),
+  );
+});
+
+test("leaves focus on the button when the fetch fails", async () => {
+  // The counterpart: a failure is reported beside the control that caused it,
+  // and moves the reader nowhere.
+  server.use(
+    ...threadHandlers,
+    searchHandler(() => HttpResponse.error()),
+  );
+  const { findByRole } = renderThread();
+
+  const button = await findByRole("button", {
+    name: "Fetch new remote resource",
+  });
+  await userEvent.click(button);
+
+  expect(await findByRole("alert")).toHaveTextContent(/connection failed/i);
+  // One element across idle, in flight and failed — relabeled, never swapped
+  // out, and held focusable by `aria-disabled` standing in for `disabled`.
+  expect(await findByRole("button", { name: "Retry" })).toBe(button);
+  expect(document.activeElement).toBe(button);
+});
+
 test("holds the opened post where the reader left it when an ancestor lands above it", async () => {
   const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
   viewportTop = 100;
@@ -319,6 +363,45 @@ test("does not hold the reader to where they were before a failed reload", async
   ).toBeInTheDocument();
   await settle();
   expect(scrollBy).not.toHaveBeenCalled();
+});
+
+test("does not chase the parent with focus once a failed reload has come between", async () => {
+  // The counterpart to the offset: the focus move belongs to the rebuild the
+  // ingest was about. A reload that failed brings none, and the rebuild that
+  // eventually does is the reader's own Retry — moving them off the button they
+  // just pressed, without scrolling to show why, would be a move out of nowhere.
+  let failReload = false;
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", () => {
+      if (failReload) return HttpResponse.error();
+      return HttpResponse.json(
+        ingested
+          ? { ancestors: [parent], descendants: [] }
+          : { ancestors: [], descendants: [] },
+      );
+    }),
+    http.get("*/api/v1/statuses/:id", () => {
+      if (failReload) return HttpResponse.error();
+      return HttpResponse.json(ingested ? linkedSubject : orphanSubject);
+    }),
+    searchHandler(resolved, () => {
+      ingested = true;
+      failReload = true;
+    }),
+  );
+  const { findByRole, findByText } = renderThread();
+
+  await userEvent.click(
+    await findByRole("button", { name: "Fetch new remote resource" }),
+  );
+  expect(await findByRole("alert")).toHaveTextContent(/refresh failed/i);
+
+  failReload = false;
+  await userEvent.click(await findByRole("button", { name: "Retry" }));
+
+  const landed = await findByText("The post from the other instance");
+  await settle();
+  expect(document.activeElement).not.toBe(landed.closest("li"));
 });
 
 test("revalidates the thread the fetch started in, not the one the reader moved to", async () => {
