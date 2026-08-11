@@ -22,44 +22,48 @@ import { bubble, federated, home, local } from "./timelines";
 // clipping the panel would re-scope the bar's `position: sticky` away from
 // the viewport.
 const panel = css({
-  // Base (mobile): the column already spans the viewport width, so the
-  // panel stays invisible — no border/radius/padding — and the bar alone
-  // carries the flush full-bleed treatment below, pixel-identical to the
-  // pre-panel design.
+  // The plane the rows are drawn on (docs/design/timeline-density.md): the
+  // surface belongs to the list as a whole, and a status is a rule on it
+  // rather than a card of its own.
+  bg: "bg.surface",
+  // Base (mobile): the column already spans the viewport width, so the panel
+  // drops its frame and instead escapes `main`'s own px-4/py-4 (App.tsx) with
+  // these negative margins — the whole panel, bar and rows alike, meets the
+  // viewport edges the way the header does.
   //
   // `md`, matching App.tsx's `column.maxWidth: { md: "600px" }`: the column
-  // is only capped from `md` up, so "flush, full-bleed bar" and "column is
+  // is only capped from `md` up, so "flush, full-bleed panel" and "column is
   // uncapped" are the same condition by construction — no viewport width
   // can produce a capped-but-still-flush band (a bespoke 600px breakpoint
   // synced by comment across two files was tried and dropped in favor of
   // this structural invariant).
+  mx: "-4",
+  mt: "-4",
   md: {
+    mx: "0",
+    mt: "0",
     borderWidth: "1px",
     borderColor: "border.default",
-    // One step above the cards' `lg` (errorBox, StatusCard), matching the
-    // comp's 12px — the panel is a container, not a card itself.
-    borderRadius: "xl",
+    // A container's frame, not a card's: soft enough and it reads as a card
+    // of its own around the square, full-bleed rows. The bar's top corners
+    // and the thread plane (ThreadPage.tsx) carry the same value and have to
+    // track it — the bar peels off the panel otherwise. Boxes inside the
+    // panel (TimelinePage's errorBox) stay rounder than the frame at their
+    // own `lg`, which never reads as an inversion: a 12px margin puts their
+    // corners nowhere near these.
+    borderRadius: "md",
   },
 });
 
-// Body of the panel: the existing column gap between rows, plus the
-// panel's own inset once the panel has a border to inset from. `pt` is
-// unconditional so the bar→first-card gap always matches the inter-card
-// gap ("3"), now that they're siblings with no shared flex `gap` between
-// them (the panel restructure made the bar a sibling of this flex column
-// rather than its first child).
-// `md` sets `px`/`pb` rather than `p`, not `pt`, so it never collides with
-// the base `pt` on the same property (cascade-order-dependent) — the
-// effective padding is still 12px on all sides once `md` applies.
+// Body of the panel: no gap and no padding of its own, so the rules the rows
+// draw run the full width of the panel and the rows carry the 12px inset
+// themselves (docs/design/timeline-density.md). Still a flex column rather
+// than a plain block: children whose own margins would otherwise collapse
+// through the frameless mobile panel (TimelinePage's error notices) stay
+// inside it.
 const panelBody = css({
   display: "flex",
   flexDirection: "column",
-  gap: "3",
-  pt: "3",
-  md: {
-    px: "3",
-    pb: "3",
-  },
 });
 
 // The panel's top edge: carries the timeline switcher tabs and the manual
@@ -72,34 +76,28 @@ const bar = css({
   borderColor: "border.default",
   // No z-index scale in this project's tokens (only colors are governed by
   // the semantic-token rule) — a raw value just keeps the sticky bar above
-  // card internals (MediaGrid, PollView) that create their own stacking
+  // row internals (MediaGrid, PollView) that create their own stacking
   // context.
   zIndex: "1",
   // Never a scroll-anchor candidate: see TimelinePage's gapRow/sentinelRow —
   // the bar is sticky, not part of the scrolling content, and must not be
-  // chosen over a card.
+  // chosen over a status row.
   overflowAnchor: "none",
-  px: "4",
+  // Same inset as the rows below it (TimelinePage's `statusRow`), so the
+  // leftmost tab and the body text share one vertical line.
+  px: "3",
   py: "2",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  // Base (mobile): the panel enclosing this is invisible, so these negative
-  // margins still have to reach past `main`'s own px-4/py-4 (App.tsx)
-  // themselves — the bar's edges meet the header's flush, matching its width
-  // there.
-  mx: "-4",
-  mt: "-4",
   borderBottomWidth: "1px",
-  // `md`+ (see `panel` for why `md` is the right condition): no more
-  // escaping to do — the panel now carries the border. The bar just
-  // sits flush against the panel's own top edge, with a matching top radius
-  // standing in for the `overflow: hidden` clip we deliberately don't use
-  // (CRITICAL, see `panel`).
+  // The panel around this one reaches the viewport edges on its own, so the
+  // bar only ever spans it — no escaping to do at any width. `md`+ (see
+  // `panel` for why `md` is the right condition): a top radius matching the
+  // panel's stands in for the `overflow: hidden` clip we deliberately don't
+  // use (CRITICAL, see `panel`).
   md: {
-    mx: "0",
-    mt: "0",
-    borderTopRadius: "xl",
+    borderTopRadius: "md",
   },
 });
 

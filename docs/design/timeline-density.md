@@ -23,6 +23,12 @@ Statuses render as full-bleed rows, not cards.
   rule moves to the screen edge and lives inside the left gutter instead of
   pushing the text; the subject keeps its two-channel mark (accent spine +
   `bg.subtle` background).
+- **Thread surface** (added 2026-08-11, at implementation): the thread list
+  gets the same plane construction as the timeline — `bg.surface` behind the
+  rows, and the bordered, rounded panel from `md` up. Without it, de-carded
+  rows would sit directly on the cream canvas and the background would flip
+  on every timeline ⇄ thread round trip; akkoma-fe uses the same
+  construction for its conversation view.
 
 ## Why
 
@@ -36,8 +42,10 @@ Statuses render as full-bleed rows, not cards.
   padding: both akkoma-fe and x.com keep a ~12px text inset (legibility,
   and edge-swipe gestures) — what they drop is the per-item frame.
 - Vertical arithmetic: card padding + border + gap + border + padding
-  stacked ≈ 38px between bodies; row padding + rule + padding ≈ 21px.
-  Roughly one extra status per phone screen.
+  stacked ≈ 38px between bodies; row padding + rule + padding = 25px as
+  implemented (12px block padding, matching akkoma-fe's inner padding and
+  the horizontal inset). A third less chrome between bodies, plus the
+  per-status border no longer spends width.
 - Measured references (2026-08-11): akkoma-fe separates statuses with a 1px
   border-bottom only, zero margin, 12px inner padding, and dissolves the
   column's card chrome entirely on mobile (effectively full-bleed at
