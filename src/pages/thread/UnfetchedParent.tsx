@@ -27,6 +27,20 @@ const messageFor = (failure: IngestFailure): string => {
   return `Couldn't fetch that post (${failure.error.status}).`;
 };
 
+// A dashed frame is the conventional sign of a thing that is not there yet, and
+// it stays legible next to the solid frame a post the instance does hold gets
+// when it is quoted (QuoteCard.tsx) — the two must not read as the same object.
+const ghostCard = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "1",
+  borderWidth: "1px",
+  borderStyle: "dashed",
+  borderColor: "border.default",
+  borderRadius: "md",
+  p: "3",
+});
+
 const note = css({ fontSize: "xs", color: "text.muted" });
 const failureNote = css({ fontSize: "xs", color: "error.default" });
 
@@ -89,7 +103,7 @@ export const UnfetchedParent = (props: {
   };
 
   return (
-    <div class={css({ display: "flex", flexDirection: "column", gap: "1" })}>
+    <div class={ghostCard}>
       {/* The card's own "replying to @who" line would claim the parent is on
           hand; this says otherwise while there is nothing to open. */}
       <p class={note}>

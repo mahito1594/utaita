@@ -216,7 +216,9 @@ const placeholderStyle = css({ ...rowInset, pt: "3" });
 
 const ThreadRowItem = (props: {
   row: ThreadRow;
-  onSubjectRef: (element: HTMLElement) => void;
+  // Every row reports its element; which of them the page keeps is the page's
+  // business (it holds a scroll on one and hands focus to another).
+  onRef: (element: HTMLElement) => void;
   onFetchParent: (apId: string) => Promise<Result<Status | null, ApiError>>;
 }) => {
   const placeholder = () =>
@@ -240,9 +242,7 @@ const ThreadRowItem = (props: {
       // The landing spot for a keyboard or screen-reader arrival (the page's
       // landing effect focuses it); LoginScreen.tsx sets the pattern.
       tabindex={props.row.place === "subject" ? "-1" : undefined}
-      ref={(element) => {
-        if (props.row.place === "subject") props.onSubjectRef(element);
-      }}
+      ref={(element) => props.onRef(element)}
     >
       <Show when={placeholder()}>
         {(target) => (
@@ -386,6 +386,34 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   // the thread's id so a hold taken in one thread never shifts another.
   let heldSubjectTop: { readonly id: string; readonly top: number } | undefined;
 
+  // The post an ingest pulled in, waiting for the rebuild to give it a row to
+  // hand focus to; the same one-slot, id-carrying shape as the scroll hold.
+  let pendingParentFocus:
+    | { readonly id: string; readonly statusId: string }
+    | undefined;
+
+  // The element that row turned out to be. A signal, because the rebuild that
+  // produces it is what the effect handing over focus is waiting for.
+  const [parentFocusRow, setParentFocusRow] = createSignal<{
+    readonly statusId: string;
+    readonly element: HTMLElement;
+  }>();
+
+  // Both halves go together: the element outlives the rows around it as long as
+  // the signal names it, and a row kept past its rebuild is a detached subtree.
+  const disarmParentFocus = (): void => {
+    pendingParentFocus = undefined;
+    setParentFocusRow(undefined);
+  };
+
+  const noteRow = (row: ThreadRow, element: HTMLElement): void => {
+    if (row.place === "subject") setSubjectElement(element);
+    const statusId = row.status.id;
+    if (statusId !== undefined && statusId === pendingParentFocus?.statusId) {
+      setParentFocusRow({ statusId, element });
+    }
+  };
+
   /**
    * Pulls a reply's missing parent onto the instance and rebuilds the thread
    * around it. Reloading the whole conversation is what makes the parent
@@ -406,6 +434,9 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
     if (params.id === threadId) {
       const top = subjectElement()?.getBoundingClientRect().top;
       heldSubjectTop = top === undefined ? undefined : { id: threadId, top };
+      const statusId = result.value.id;
+      pendingParentFocus =
+        statusId === undefined ? undefined : { id: threadId, statusId };
     }
     await revalidate(threadQuery.keyFor(threadId));
     return result;
@@ -432,6 +463,38 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
     heldSubjectTop = undefined;
     const shift = element.getBoundingClientRect().top - held.top;
     if (shift !== 0) window.scrollBy(0, shift);
+  });
+
+  // Hands focus to the post the reader asked for. The button that asked is gone
+  // with the placeholder it stood in, so focus would otherwise fall to <body>
+  // and leave a keyboard or screen-reader reader at the top of the document
+  // with no sign that anything arrived. `preventScroll` because the two run off
+  // the same rebuild and where the viewport ends up is `heldSubjectTop`'s call.
+  createEffect(() => {
+    rows();
+    // Read before the arm is, and so subscribed to whether or not one is
+    // waiting: a reload that settles err rebuilds nothing, and this run is the
+    // only one that comes to drop an arm whose rebuild never arrived. Reading
+    // them behind the arm would leave it standing until some later reload
+    // succeeded — and hand focus to a row the reader has since scrolled away
+    // from, silently, since the move does not scroll.
+    const failed = error() !== undefined;
+    const id = params.id;
+    const pending = pendingParentFocus;
+    if (pending === undefined) return;
+    if (failed || pending.id !== id) {
+      disarmParentFocus();
+      return;
+    }
+    const target = parentFocusRow();
+    if (target === undefined || target.statusId !== pending.statusId) return;
+    if (!target.element.isConnected) return;
+    disarmParentFocus();
+    // Rows are out of the tab order, so the landing spot is made focusable as
+    // it is focused rather than standing ready: every row is rebuilt from a new
+    // element on a reload, which is also what takes the attribute away again.
+    target.element.setAttribute("tabindex", "-1");
+    target.element.focus({ preventScroll: true });
   });
 
   return (
@@ -492,7 +555,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
             {(row) => (
               <ThreadRowItem
                 row={row}
-                onSubjectRef={setSubjectElement}
+                onRef={(element) => noteRow(row, element)}
                 onFetchParent={fetchParent}
               />
             )}
@@ -520,7 +583,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
               {(row) => (
                 <ThreadRowItem
                   row={row}
-                  onSubjectRef={setSubjectElement}
+                  onRef={(element) => noteRow(row, element)}
                   onFetchParent={fetchParent}
                 />
               )}
