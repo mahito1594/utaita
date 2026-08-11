@@ -77,9 +77,15 @@ export const StatusContent = (props: StatusContentProps) => {
         },
         "& :where(img.custom-emoji)": {
           display: "inline-block",
-          height: "1.25em",
+          // Custom emoji are drawn to be seen, not to pass as characters:
+          // 1.25em kept the line tidy but reduced them to indistinct dots
+          // (akkoma-fe draws them at 38px against our ~20px). 2em overshoots
+          // the relaxed line box (1.625em), so a line holding an emoji grows —
+          // accepted: legibility of the emoji over uniform leading, with
+          // vertical-align middle splitting the overflow to both sides.
+          height: "2em",
           width: "auto",
-          verticalAlign: "text-bottom",
+          verticalAlign: "middle",
         },
         "& :where(pre)": { overflowX: "auto" },
         "& :where(blockquote)": {
