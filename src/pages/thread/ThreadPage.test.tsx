@@ -201,6 +201,22 @@ test("marks the opened post so it is not just a card among cards", async () => {
   expect(marked[0]).toHaveTextContent("The post that was opened");
 });
 
+test("times the posts of a conversation to the minute", async () => {
+  server.use(...threadHandlers(subject, wholeThread));
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  // Which clock time is shown depends on the environment's time zone, so the
+  // claim is the shape: a relative age ("3h", "Aug 1") carries no HH:MM.
+  const stamps = Array.from(container.querySelectorAll("time"));
+  // The opening post, the opened one, and its three replies.
+  expect(stamps).toHaveLength(5);
+  for (const stamp of stamps) {
+    expect(stamp).toHaveTextContent(/\d{2}:\d{2}$/);
+  }
+});
+
 test("says so when the post a reply answers has never been fetched", async () => {
   // Akkoma's sentinel for a parent this instance does not hold; the card's own
   // "replying to" line cannot tell that story (docs/PLAN.ja.md, pitfalls).

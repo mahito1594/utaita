@@ -12,6 +12,25 @@ const otherYearFormat = new Intl.DateTimeFormat("en", {
   year: "numeric",
 });
 
+// 24-hour clock by explicit hour cycle: "en" would otherwise render 2:32 PM,
+// and the reading these timestamps get is a comparison between neighbouring
+// posts, not a time someone says out loud.
+const sameYearClockFormat = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const otherYearClockFormat = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 /**
  * Compact relative timestamp for the card header: "now", "5m", "3h", "2d",
  * then a calendar date past a week ("Jul 5", with the year once it differs).
@@ -28,4 +47,18 @@ export const relativeTime = (iso: string, now: Date): string => {
   return then.getFullYear() === now.getFullYear()
     ? sameYearFormat.format(then)
     : otherYearFormat.format(then);
+};
+
+/**
+ * Date and time of day for a reading where posts sit minutes apart:
+ * "Jul 5, 14:32", with the year once it differs from the current one. Renders
+ * in the environment's time zone; invalid input renders nothing, as with
+ * `relativeTime`.
+ */
+export const preciseTime = (iso: string, now: Date): string => {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "";
+  return then.getFullYear() === now.getFullYear()
+    ? sameYearClockFormat.format(then)
+    : otherYearClockFormat.format(then);
 };
