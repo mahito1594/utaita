@@ -9,7 +9,7 @@ import Repeat2 from "lucide-solid/icons/repeat-2";
 import Reply from "lucide-solid/icons/reply";
 import { createSignal, createUniqueId, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { css } from "../../../styled-system/css";
+import { css, cx } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 import { ActionBar } from "./ActionBar";
 import { EmojiText } from "./EmojiText";
@@ -51,7 +51,7 @@ const permalinkStyle = css({
   _hover: { textDecoration: "underline" },
 });
 
-export const StatusCard = (props: { status: Status }) => {
+export const StatusCard = (props: { status: Status; class?: string }) => {
   // A boost (reblog) flattens into one card: the wrapper contributes only
   // the boost line, every other zone reads the boosted status (wireframe
   // decision — a nested inner card breaks the timeline's vertical rhythm).
@@ -97,19 +97,27 @@ export const StatusCard = (props: { status: Status }) => {
   );
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: a focusable card would nest interactive elements — keyboard activation stays on the permalink, which fires click natively on Enter
+    // Chrome-free by design (docs/design/timeline-density.md): a status is a
+    // full-bleed row on a plane, so the separating rule and the background
+    // belong to whatever frames it — the timeline's row wrapper and the
+    // thread's list item need different ones, which is why this is not a
+    // variant prop here.
+    //
+    // The row's inset comes in through `class` instead, because a tap anywhere
+    // on the row opens the conversation: padding sitting on the frame would
+    // turn the 12px around every post into dead space under the thumb.
+    //
+    // biome-ignore lint/a11y/useKeyWithClickEvents: a focusable row would nest interactive elements — keyboard activation stays on the permalink, which fires click natively on Enter
     <article
       onClick={openThread}
-      class={css({
-        bg: "bg.surface",
-        borderWidth: "1px",
-        borderColor: "border.default",
-        borderRadius: "xl",
-        p: "3",
-        display: "flex",
-        flexDirection: "column",
-        gap: "2",
-      })}
+      class={cx(
+        css({
+          display: "flex",
+          flexDirection: "column",
+          gap: "2",
+        }),
+        props.class,
+      )}
     >
       <Show when={props.status.reblog}>
         <div

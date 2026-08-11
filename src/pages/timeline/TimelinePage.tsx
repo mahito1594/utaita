@@ -18,6 +18,32 @@ import { publishTimelineControls } from "./TimelineShell";
 import { createTimelineStore } from "./timeline-store";
 import type { TimelineDefinition } from "./timelines";
 
+// The list's unit of rhythm (docs/design/timeline-density.md): a status is a
+// full-bleed row on the panel's plane — 12px inset, one hairline underneath —
+// with no frame, radius or gap of its own. The chrome lives here rather than
+// in StatusCard because the thread view frames the same component differently.
+const statusRow = css({
+  borderBottomWidth: "1px",
+  borderColor: "border.default",
+});
+
+// The inset is the card's, not the wrapper's: the card is what opens the
+// conversation on tap, so 12px of padding around it has to be padding *inside*
+// it to stay reachable by a thumb (StatusCard.tsx).
+const statusRowBody = css({ px: "3", py: "3" });
+
+// The loading and empty states: whichever shows is alone in the panel, so it
+// takes the row inset without the rule — there is nothing under it to separate
+// itself from.
+const noticeRow = css({
+  px: "3",
+  py: "3",
+  color: "text.muted",
+});
+
+// A box, not a row: it is the only thing in the panel when it shows, so it
+// keeps its frame and takes the row inset as a margin instead — nothing to
+// separate itself from with a rule.
 const errorBox = css({
   bg: "error.subtle",
   color: "error.default",
@@ -25,6 +51,7 @@ const errorBox = css({
   borderColor: "error.default",
   borderRadius: "lg",
   p: "3",
+  m: "3",
   fontSize: "sm",
 });
 
@@ -71,7 +98,7 @@ const TimelineError = (props: { error: ApiError; onRetry: () => void }) => {
 
 // A forward-fetch failure while the store already holds content (a refresh
 // gone wrong) must not blank the timeline out from under the reader — it
-// surfaces as a small notice above the existing cards instead.
+// surfaces as a small notice above the existing rows instead.
 const RefreshError = (props: { error: ApiError }) => (
   <p
     role="alert"
@@ -80,9 +107,10 @@ const RefreshError = (props: { error: ApiError }) => (
       color: "error.default",
       borderRadius: "md",
       p: "2",
+      m: "3",
       fontSize: "sm",
       // Never a scroll-anchor candidate (ADR-0004 amendment): this row appears
-      // above existing cards and vanishes on a successful refresh — anchoring to
+      // above existing rows and vanishes on a successful refresh — anchoring to
       // it would slide the viewport.
       overflowAnchor: "none",
     })}
@@ -100,6 +128,9 @@ const olderErrorMessage = (error: ApiError): string =>
     ? "Couldn't load more — check your network."
     : `Couldn't load more (${error.status}).`;
 
+// Vertical padding is the enclosing row's (`sentinelRow`), not this line's —
+// stacking the two would leave the failure state taller than the loading state
+// it replaces in place.
 const inlineErrorRow = css({
   display: "flex",
   alignItems: "center",
@@ -107,7 +138,6 @@ const inlineErrorRow = css({
   gap: "2",
   color: "error.default",
   fontSize: "sm",
-  py: "2",
 });
 
 // Shared by the gap marker and the sentinel's persistent buttons; the
@@ -116,16 +146,21 @@ const inlineErrorRow = css({
 // refresh button in TimelineShell.tsx).
 const olderRetryButton = outlineButton({ tone: "neutral" });
 
+// Sits between two status rows, so it takes their inset and their closing
+// rule — a band in the same sequence rather than something laid over it.
 const gapRow = css({
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
   gap: "2",
-  py: "2",
+  px: "3",
+  py: "3",
+  borderBottomWidth: "1px",
+  borderColor: "border.default",
   // Never a scroll-anchor candidate (ADR-0004 amendment): this row is
   // created/destroyed as gaps open and close, so anchoring to it would
-  // slide the viewport. Anchoring should always land on a card, whose DOM
-  // the flat `<For>` below keeps stable.
+  // slide the viewport. Anchoring should always land on a status row, whose
+  // DOM the flat `<For>` keeps stable.
   overflowAnchor: "none",
 });
 
@@ -178,13 +213,16 @@ const GapMarker = (props: {
   );
 };
 
+// The list's own end while more is coming: no closing rule, since the last
+// status row's rule already sits above it and nothing follows.
 const sentinelRow = css({
   display: "flex",
   justifyContent: "center",
-  py: "2",
+  px: "3",
+  py: "3",
   // Same reasoning as `gapRow`: this row must never be picked as the
   // scroll anchor, or a tail-append would slide the viewport down by the
-  // inserted page's height instead of holding still on existing cards.
+  // inserted page's height instead of holding still on existing rows.
   overflowAnchor: "none",
 });
 
@@ -276,7 +314,8 @@ const caughtUpRow = css({
   color: "text.muted",
   fontSize: "sm",
   textAlign: "center",
-  py: "2",
+  px: "3",
+  py: "3",
   // See `gapRow`/`sentinelRow`: this row replaces the sentinel once
   // exhausted, and must be just as anchor-inert as the row it replaces.
   overflowAnchor: "none",
@@ -420,7 +459,7 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
       </p>
 
       <Show when={statuses().length === 0 && store.loading()}>
-        <p role="status" class={css({ color: "text.muted" })}>
+        <p role="status" class={noticeRow}>
           Loading…
         </p>
       </Show>
@@ -449,7 +488,7 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
           store.error() === undefined
         }
       >
-        <p role="status" class={css({ color: "text.muted" })}>
+        <p role="status" class={noticeRow}>
           No posts yet.
         </p>
       </Show>
@@ -457,11 +496,13 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
       <For each={statuses()}>
         {(status) => (
           <>
-            <StatusCard status={status} />
+            <div class={statusRow}>
+              <StatusCard status={status} class={statusRowBody} />
+            </div>
             {/* A segment boundary *is* a gap (segment model — segments.ts,
                   ADR-0004 amendment); `gapAfter` only matches the tail id of
                   a non-last segment — the last segment's boundary is the
-                  sentinel below instead. */}
+                  sentinel instead. */}
             <Show when={gapAfter(status.id)}>
               {(gap) => (
                 <GapMarker
