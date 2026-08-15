@@ -209,7 +209,11 @@ test("times the posts of a conversation to the minute", async () => {
 
   // Which clock time is shown depends on the environment's time zone, so the
   // claim is the shape: a relative age ("3h", "Aug 1") carries no HH:MM.
-  const stamps = Array.from(container.querySelectorAll("time"));
+  // Scoped to the rows' own headers: a quoted post keeps the relative age
+  // (QuoteCard.tsx) and a poll's deadline is a <time> of a different kind.
+  const stamps = Array.from(
+    container.querySelectorAll("li > article > header time"),
+  );
   // The opening post, the opened one, and its three replies.
   expect(stamps).toHaveLength(5);
   for (const stamp of stamps) {
