@@ -486,15 +486,29 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
       disarmParentFocus();
       return;
     }
+    // This run is the rebuild the arm was waiting for, so it is also the arm's
+    // last chance: a reload that settled without the post — Akkoma can take a
+    // beat to link the reply to a parent it has just ingested — leaves nothing
+    // behind to consume it, and an arm left standing would fire on whatever
+    // rebuild came next, silently, since the move does not scroll.
     const target = parentFocusRow();
+    disarmParentFocus();
     if (target === undefined || target.statusId !== pending.statusId) return;
     if (!target.element.isConnected) return;
-    disarmParentFocus();
     // Rows are out of the tab order, so the landing spot is made focusable as
     // it is focused rather than standing ready: every row is rebuilt from a new
     // element on a reload, which is also what takes the attribute away again.
     target.element.setAttribute("tabindex", "-1");
     target.element.focus({ preventScroll: true });
+    // The hold answers for the subject, not for the parent: a tall parent fills
+    // the gap above the placeholder's row and overshoots the top, and a reader
+    // who scrolled during the seconds the fetch took can have left the whole
+    // row below the fold. Either way focus would sit where nobody can see it,
+    // so the correction runs on both — and on neither when the hold did its job.
+    const rect = target.element.getBoundingClientRect();
+    if (rect.top < 0 || rect.top >= window.innerHeight) {
+      target.element.scrollIntoView({ block: "nearest" });
+    }
   });
 
   return (

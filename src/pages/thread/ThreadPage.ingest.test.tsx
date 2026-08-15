@@ -230,6 +230,60 @@ test("hands focus to the parent's row once it lands in the conversation", async 
   );
 });
 
+/** Runs an ingest with the parent's row reporting `top`, and returns it. */
+const ingestWithRowAt = async (top: number) => {
+  viewportTop = top;
+  server.use(
+    ...threadHandlers,
+    searchHandler(resolved, () => {
+      ingested = true;
+    }),
+  );
+  const { findByRole, findByText } = renderThread();
+  await userEvent.click(
+    await findByRole("button", { name: "Fetch new remote resource" }),
+  );
+  const row = (await findByText("The post from the other instance")).closest(
+    "li",
+  );
+  await waitFor(() => expect(document.activeElement).toBe(row));
+  return row;
+};
+
+test("brings the parent into view when it lands above the fold", async () => {
+  // The hold answers for the subject, not for the parent: one tall enough
+  // overshoots the top of the gap it fills, and focus on a row whose ring is
+  // clipped tells the reader nothing arrived.
+  const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+
+  const row = await ingestWithRowAt(-50);
+
+  // Which element was brought into view is the claim, not that something was:
+  // the landing effect scrolls too, on a thread arrived at by request.
+  expect(scrollIntoView.mock.contexts).toContain(row);
+});
+
+test("brings the parent into view when it lands below the fold", async () => {
+  // The other direction: the hold is measured after the resolve, so a reader
+  // who scrolled during the seconds the fetch took can be left with the whole
+  // row past the bottom edge.
+  const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+
+  const row = await ingestWithRowAt(window.innerHeight + 50);
+
+  expect(scrollIntoView.mock.contexts).toContain(row);
+});
+
+test("leaves the viewport where the hold put it when the parent lands in view", async () => {
+  // `preventScroll` is the rule and the correction is the exception: a parent
+  // the hold left on screen is not moved for.
+  const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+
+  const row = await ingestWithRowAt(100);
+
+  expect(scrollIntoView.mock.contexts).not.toContain(row);
+});
+
 test("leaves focus on the button when the fetch fails", async () => {
   // The counterpart: a failure is reported beside the control that caused it,
   // and moves the reader nowhere.
