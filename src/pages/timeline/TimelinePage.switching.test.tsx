@@ -38,8 +38,26 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
   cleanup();
+  // happy-dom keeps one window per file, and its scroll offset is plain
+  // stored state that `cleanup()` does not touch.
+  window.scrollTo(0, 0);
 });
 afterAll(() => server.close());
+
+/**
+ * Lets a response that settled at the HTTP boundary reach the page that asked.
+ *
+ * The count is empirical, and generous on purpose: the assertion it serves is
+ * a negative one, so a wait that ends too early would not flake — it would
+ * silently stop protecting anything. Ten ticks cost nothing here, and the
+ * stray scroll this guards against was verified to land well inside them
+ * (assert against a build with the disposal guard removed when touching this).
+ */
+const settle = async (): Promise<void> => {
+  for (let i = 0; i < 10; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+};
 
 // Mirrors App.tsx's route table (one `<Route>` per timeline under a shared
 // shell route, each leaf a thin wrapper passing its own definition) — the
@@ -213,4 +231,41 @@ test("the bar's Refresh drives the timeline switched to, not the one it was firs
   // its outcome reached the announcement channel of the page now mounted.
   expect(await findByText("newer local post")).toBeInTheDocument();
   expect(await findByText("1 new post loaded")).toBeInTheDocument();
+});
+
+test("a refresh that settles after its page is gone leaves the switched-to timeline where the reader put it", async () => {
+  // `store.refresh()` cannot be cancelled, so the page's disposal guard is
+  // the only thing between a slow forward fetch and a viewport it no longer
+  // owns — `window.scrollTo` is global. A stray scroll here would also read
+  // as "the reader took over" to `<Router scrollRestoration>` (App.tsx).
+  let releaseRefresh: (() => void) | undefined;
+  const refreshHeld = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const newerHomeStatus = statusOn("newer home", "110000000000000009");
+  server.use(
+    http.get("*/api/v1/timelines/home", async ({ request }) => {
+      const url = new URL(request.url);
+      if (url.searchParams.get("since_id") === null)
+        return HttpResponse.json([homeStatus]);
+      await refreshHeld;
+      return HttpResponse.json([newerHomeStatus]);
+    }),
+    http.get("*/api/v1/timelines/public", () =>
+      HttpResponse.json([localStatus]),
+    ),
+  );
+  const { findByText, findByRole } = renderApp();
+
+  expect(await findByText("home post")).toBeInTheDocument();
+  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+  await userEvent.click(await findByRole("link", { name: "Local" }));
+  expect(await findByText("local post")).toBeInTheDocument();
+  // The reader has settled into the timeline they switched to.
+  window.scrollTo(0, 500);
+
+  releaseRefresh?.();
+  await settle();
+
+  expect(window.scrollY).toBe(500);
 });

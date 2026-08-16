@@ -108,6 +108,10 @@ afterEach(() => {
   server.resetHandlers();
   cleanup();
   FakeIntersectionObserver.instances = [];
+  // happy-dom keeps one window per file, and its scroll offset is plain
+  // stored state that `cleanup()` does not touch — reset it so the scroll
+  // tests start from a position they set themselves.
+  window.scrollTo(0, 0);
 });
 afterAll(() => {
   server.close();
@@ -271,6 +275,7 @@ test("a refresh failure surfaces a notice without blanking existing content", as
   const { findByText, findByRole } = renderTimeline();
 
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  window.scrollTo(0, 500);
 
   await userEvent.click(await findByRole("button", { name: "Refresh" }));
 
@@ -279,6 +284,10 @@ test("a refresh failure surfaces a notice without blanking existing content", as
   // The existing cards are untouched by the failed refresh.
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
   expect(await findByText("Second fixture status")).toBeInTheDocument();
+  // Only a refresh that applies something moves the viewport — a failure
+  // keeps the reading position so the reader stays where the alert
+  // interrupted them.
+  expect(window.scrollY).toBe(500);
 });
 
 test("a scroll-triggered sentinel loads and appends an older page", async () => {
@@ -481,21 +490,45 @@ test("a successful refresh with new posts announces the count via the live regio
   expect(helloIndex).toBeGreaterThan(alsoNewIndex);
 });
 
-test("a refresh with nothing new announces 'No new posts' via the live region", async () => {
-  server.use(
-    http.get("*/api/v1/timelines/home", ({ request }) => {
-      const sinceId = new URL(request.url).searchParams.get("since_id");
-      if (sinceId === null) return HttpResponse.json(statuses);
-      return HttpResponse.json([]);
-    }),
-  );
-  const { findByText, findByRole } = renderTimeline();
+// Refresh is an explicit ask for the newest content, so the landing must not
+// vary by outcome — both rows are the contract, not one plus an illustration.
+// happy-dom stores the scroll offset as plain state (no layout involved), so
+// the position itself is the observable, not the `scrollTo` call. Awaiting
+// each row's announcement also carries the empty case's live-region contract,
+// which no longer needs a test of its own.
+test.each([
+  ["refresh with nothing new", [] as Status[], "No new posts"],
+  [
+    "refresh with new posts",
+    [
+      newerStatus("110000000000000004", "Brand new"),
+      newerStatus("110000000000000003", "Also new"),
+    ],
+    "2 new posts loaded",
+  ],
+])(
+  "a manual %s lands the viewport back at the top",
+  async (_name, fresh, announcement) => {
+    server.use(
+      http.get("*/api/v1/timelines/home", ({ request }) => {
+        const sinceId = new URL(request.url).searchParams.get("since_id");
+        if (sinceId === null) return HttpResponse.json(statuses);
+        return HttpResponse.json(fresh);
+      }),
+    );
+    window.scrollTo(0, 500);
+    const { findByText, findByRole } = renderTimeline();
 
-  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
-  await userEvent.click(await findByRole("button", { name: "Refresh" }));
+    expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+    // The initial load is not a manual refresh, so it leaves the reader be.
+    expect(window.scrollY).toBe(500);
 
-  expect(await findByText("No new posts")).toBeInTheDocument();
-});
+    await userEvent.click(await findByRole("button", { name: "Refresh" }));
+
+    expect(await findByText(announcement)).toBeInTheDocument();
+    expect(window.scrollY).toBe(0);
+  },
+);
 
 test("clicking Refresh keeps focus on the button while the request is in flight and after it settles", async () => {
   // Contract: TimelineShell.tsx's refresh button never loses focus across a

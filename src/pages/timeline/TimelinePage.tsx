@@ -371,6 +371,14 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
     setRefreshAnnouncement("");
     queueMicrotask(() => setRefreshAnnouncement(message));
   };
+  // `store.refresh()` is not cancellable, so a request still in flight when
+  // the reader leaves settles against whatever route replaced this page —
+  // and `window.scrollTo` is global. Nothing this page owns may act on a
+  // refresh it no longer has a viewport for.
+  let disposed = false;
+  onCleanup(() => {
+    disposed = true;
+  });
   const runRefreshWithAnnouncement = async (): Promise<void> => {
     // The applied count comes from the store itself, not a before/after
     // total diff here: an older-fetch completing while the refresh was in
@@ -379,7 +387,13 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
     // fetch failed (RefreshError/TimelineError carry that) or another
     // refresh was already in flight — so there is no outcome to announce.
     const applied = await store.refresh();
-    if (applied === undefined) return;
+    if (applied === undefined || disposed) return;
+    // Refresh is an explicit ask for the newest content, so land the viewport
+    // on it — even when nothing new arrived, so the response to the action
+    // doesn't vary by outcome. A refresh that fails, or that finds another
+    // already in flight, returns before this point and keeps the reading
+    // position (a failure's notice carries role="alert" instead).
+    window.scrollTo(0, 0);
     announceRefreshOutcome(
       applied === 0
         ? "No new posts"
