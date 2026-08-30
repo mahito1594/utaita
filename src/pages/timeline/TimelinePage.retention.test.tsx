@@ -5,7 +5,7 @@
 // re-issued, and the resumed page can still load older content — the last one
 // being the canary for a store held across the disposal of the page that
 // created it, whose memos would come back frozen.
-import { A, MemoryRouter, Route } from "@solidjs/router";
+import { A, MemoryRouter, Route, useParams } from "@solidjs/router";
 import { cleanup, render } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
@@ -13,7 +13,6 @@ import { setupServer } from "msw/node";
 import { createSignal, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
-import { ProfilePage } from "../profile/ProfilePage";
 import { TimelinePage } from "./TimelinePage";
 import { TimelineRetention } from "./TimelineRetention";
 import { TimelineShell } from "./TimelineShell";
@@ -128,6 +127,15 @@ const AppChrome = (props: ParentProps) => (
   </>
 );
 
+// The detail route these tests leave the timeline for. A stub rather than
+// ProfilePage: what has to happen off-timeline is only that the timeline page
+// is disposed and something else is showing — the real page would fetch an
+// account these tests have no reason to serve.
+const ProfileStub = () => {
+  const params = useParams<{ acct: string }>();
+  return <p>@{params.acct}</p>;
+};
+
 // Mirrors App.tsx's route table: the retention provider is a pathless layout
 // route wrapping both the timeline shell and the detail route, so leaving for
 // a profile and coming back takes the same path through the router the app
@@ -151,7 +159,7 @@ const renderApp = (signedIn: () => boolean = () => true) => {
             component={() => <TimelinePage timeline={local} />}
           />
         </Route>
-        <Route path="/users/:acct" component={ProfilePage} />
+        <Route path="/users/:acct" component={ProfileStub} />
       </Route>
     </MemoryRouter>
   ));
