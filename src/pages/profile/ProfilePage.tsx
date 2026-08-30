@@ -58,7 +58,7 @@ const postRow = css({
 
 const postRowBody = css({ px: "3", py: "3" });
 
-// Whichever of the loading/empty states shows is alone under the header, so it
+// Whichever of the loading/empty states shows stands alone on the plane, so it
 // takes the row inset without the rule.
 const noticeRow = css({
   px: "3",
@@ -87,19 +87,35 @@ const httpMessage = (status: number, message: string | undefined): string => {
   return `Request failed (${status}${message ? `: ${message}` : ""}).`;
 };
 
+// The account fetch failing is the page failing: what went wrong is all there
+// is to say.
+const accountErrorMessage = (error: ApiError): string =>
+  error.kind === "network"
+    ? "Connection failed — check your network."
+    : httpMessage(error.status, error.message);
+
+// The posts failing is one region of a page that otherwise arrived, so the
+// copy names the region — the header above it is proof the account exists.
+const postsErrorMessage = (error: ApiError): string =>
+  error.kind === "network"
+    ? "Couldn't load this account's posts — check your network."
+    : `Couldn't load this account's posts (${error.status}).`;
+
 // A 404 is the one answer that repeating the request cannot change.
 const retryable = (error: ApiError): boolean =>
   error.kind === "network" || error.status !== 404;
 
-// Errors are ordinary render branches, not exceptions (ADR-0008). Shared by
-// the account fetch and the first page of posts: both leave the same hole in
-// the page and are recovered the same way, only the call behind Retry differs.
-const ProfileError = (props: { error: ApiError; onRetry: () => void }) => (
+// Errors are ordinary render branches, not exceptions (ADR-0008). Both the
+// wording and whether recovery is offered at all belong to the call site: an
+// account that is not here says something different from a list that did not
+// arrive, and only one of the two can be worth a second request.
+const ErrorCard = (props: {
+  message: string;
+  onRetry: (() => void) | undefined;
+}) => (
   <p class={errorBox} role="alert">
-    {props.error.kind === "network"
-      ? "Connection failed — check your network."
-      : httpMessage(props.error.status, props.error.message)}{" "}
-    <Show when={retryable(props.error)}>
+    {props.message}{" "}
+    <Show when={props.onRetry !== undefined}>
       <button
         type="button"
         class={outlineButton({ tone: "error" })}
@@ -140,7 +156,7 @@ const inlineErrorRow = css({
   fontSize: "sm",
 });
 
-const caughtUpRow = css({
+const endOfPostsRow = css({
   color: "text.muted",
   fontSize: "sm",
   textAlign: "center",
@@ -263,10 +279,13 @@ const ProfileBody = (props: { account: Account; acct: string }) => {
           </p>
         </Show>
 
+        {/* Retry is always offered here, 404 included: this endpoint answers
+            for an account that has already been found, so a missing list is a
+            transient answer rather than a settled one. */}
         <Show when={store.error()} keyed>
           {(failure) => (
-            <ProfileError
-              error={failure}
+            <ErrorCard
+              message={postsErrorMessage(failure)}
               onRetry={() => void store.loadInitial()}
             />
           )}
@@ -298,8 +317,8 @@ const ProfileBody = (props: { account: Account; acct: string }) => {
           <Show
             when={!store.exhausted()}
             fallback={
-              <p role="status" class={caughtUpRow}>
-                You're all caught up.
+              <p role="status" class={endOfPostsRow}>
+                No more posts.
               </p>
             }
           >
@@ -357,12 +376,34 @@ export const ProfilePage = () => {
   return (
     <section class={plane}>
       <Show when={error()} keyed>
-        {(failure) => <ProfileError error={failure} onRetry={retry} />}
+        {(failure) => (
+          <ErrorCard
+            message={accountErrorMessage(failure)}
+            onRetry={retryable(failure) ? retry : undefined}
+          />
+        )}
+      </Show>
+
+      {/* The stretch between a `:acct` change and its answer: `createAsync`
+          keeps serving the account being left, `answer()` discards it as
+          another account's, and neither branch below has anything to draw
+          until the new one lands. */}
+      <Show when={answer() === undefined}>
+        <p role="status" class={noticeRow}>
+          Loading profile…
+        </p>
       </Show>
 
       {/* Keyed: a change of `:acct` alone does not remount this page, so the
           body — and the posts store inside it — is recreated by this `Show`
-          instead. Nothing here resets the store by hand. */}
+          instead. Nothing here resets the store by hand.
+
+          The key is the fetched object's identity, so any revalidation of
+          `profileQuery` while the body is mounted rebuilds it too, dropping
+          the pages loaded so far and the reader's place among them. No caller
+          does that today (the account-error Retry revalidates with no body on
+          screen); one that refreshes counts after a follow would, and the key
+          has to become the acct string before it exists. */}
       <Show when={loadedAccount()} keyed>
         {(loaded) => <ProfileBody account={loaded} acct={params.acct} />}
       </Show>

@@ -88,11 +88,15 @@ const countsRow = css({ display: "flex", gap: "4", fontSize: "sm" });
 
 // Display-only this session: the counts become entry points into the tab bar
 // and the follow lists once those exist (docs/design/profile-page-20260830.html).
+// A count that is absent — withheld by the account or simply not in the payload
+// — renders nothing: a zero would be a claim the instance never made.
 const Count = (props: { value: number | undefined; label: string }) => (
-  <span>
-    <b>{props.value ?? 0}</b>{" "}
-    <span class={css({ color: "text.muted" })}>{props.label}</span>
-  </span>
+  <Show when={props.value !== undefined}>
+    <span>
+      <b>{props.value}</b>{" "}
+      <span class={css({ color: "text.muted" })}>{props.label}</span>
+    </span>
+  </Show>
 );
 
 /**
@@ -186,10 +190,27 @@ export const ProfileHeader = (props: { account: Account }) => {
           </dl>
         </Show>
 
+        {/* An account can hide its follow stats from everyone; the post count
+            has no such switch. Hidden here means shown as nothing at all —
+            Akkoma still sends the number. */}
         <div class={countsRow}>
           <Count value={props.account.statuses_count} label="posts" />
-          <Count value={props.account.following_count} label="following" />
-          <Count value={props.account.followers_count} label="followers" />
+          <Count
+            value={
+              props.account.pleroma?.hide_follows_count
+                ? undefined
+                : props.account.following_count
+            }
+            label="following"
+          />
+          <Count
+            value={
+              props.account.pleroma?.hide_followers_count
+                ? undefined
+                : props.account.followers_count
+            }
+            label="followers"
+          />
         </div>
       </div>
     </header>

@@ -151,6 +151,18 @@ const renderProfile = (acct: string) => {
   };
 };
 
+/**
+ * A response the test releases by hand: the handler awaits this promise, so an
+ * answer can be left in flight across a navigation and delivered afterwards.
+ */
+const deferred = () => {
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  return { held, release };
+};
+
 /** Lets the router's transition and the effects behind it run to completion. */
 const settle = async (): Promise<void> => {
   for (let i = 0; i < 3; i += 1) {
@@ -193,6 +205,35 @@ test("renders the identity block over the account's posts", async () => {
   expect(postsUrl?.searchParams.get("max_id")).toBeNull();
 });
 
+test("counts the account withholds are absent, not zeroes", async () => {
+  // `hide_follows_count` / `hide_followers_count` are the account's own
+  // settings; Akkoma still sends the numbers next to them. `statuses_count`
+  // has no such switch, so its absence here is the payload simply not carrying
+  // one.
+  const shy: Account = {
+    id: "900000000000000001",
+    acct: ALICE_ACCT,
+    display_name: "Alice Example",
+    following_count: 7,
+    followers_count: 13,
+    pleroma: { hide_follows_count: true, hide_followers_count: true },
+  };
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(shy)),
+    http.get("*/api/v1/accounts/:id/statuses", () =>
+      HttpResponse.json(alicePosts),
+    ),
+  );
+  const { findByRole, container } = renderProfile(ALICE_ACCT);
+
+  await findByRole("heading", { level: 2 });
+  const header = container.querySelector("header");
+  expect(header).not.toHaveTextContent("following");
+  expect(header).not.toHaveTextContent("followers");
+  expect(header).not.toHaveTextContent("posts");
+  expect(header).not.toHaveTextContent("0");
+});
+
 test("renders an empty-success row and no sentinel when the account has no posts", async () => {
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
@@ -230,7 +271,7 @@ test("a scroll-triggered sentinel appends the next page and stops at a short one
   expect(await findByText("Full page item 39")).toBeInTheDocument();
   // The short second page proves nothing older remains, and the quiet end
   // marker replaces the sentinel.
-  expect(await findByText(/all caught up/i)).toBeInTheDocument();
+  expect(await findByText(/no more posts/i)).toBeInTheDocument();
 });
 
 test("an older-page failure offers a retry that repeats the same request", async () => {
@@ -259,6 +300,33 @@ test("an older-page failure offers a retry that repeats the same request", async
   expect(await findByText("Recovered page")).toBeInTheDocument();
   // The retry resumes from the same cursor, so no post is skipped over.
   expect(requestedMaxIds).toEqual([fullPageTailId, fullPageTailId]);
+});
+
+test("a retry that fails again leaves the reader's focus on the Retry button", async () => {
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      const maxId = new URL(request.url).searchParams.get("max_id");
+      return maxId === null
+        ? HttpResponse.json(fullPage)
+        : HttpResponse.error();
+    }),
+  );
+  const { findByText, findByRole } = renderProfile(ALICE_ACCT);
+
+  expect(await findByText("Full page item 39")).toBeInTheDocument();
+
+  FakeIntersectionObserver.instances.at(-1)?.fireVisible();
+
+  const retryButton = await findByRole("button", { name: "Retry" });
+  await userEvent.click(retryButton);
+  expect(document.activeElement).toBe(retryButton);
+
+  // The second failure has to reach the page as one update: pressing Retry
+  // again is the only way forward, so the button it is pressed with must not
+  // be unmounted and rebuilt underneath the reader in between.
+  expect(await findByRole("alert")).toHaveTextContent(/couldn't load more/i);
+  expect(document.activeElement).toBe(retryButton);
 });
 
 test("an account this instance does not have renders an error and asks for no posts", async () => {
@@ -311,6 +379,39 @@ test("a failed account fetch offers a retry that revalidates and succeeds", asyn
   expect(accountRequestCount).toBe(2);
 });
 
+test("a first page of posts that fails leaves the header standing and recovers on retry", async () => {
+  let postsRequestCount = 0;
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+    http.get("*/api/v1/accounts/:id/statuses", () => {
+      postsRequestCount += 1;
+      if (postsRequestCount === 1) {
+        return HttpResponse.json(
+          { error: "Something went wrong" },
+          { status: 500 },
+        );
+      }
+      return HttpResponse.json(alicePosts);
+    }),
+  );
+  const { findByText, findByRole, queryByText } = renderProfile(ALICE_ACCT);
+
+  // Only the list failed, so the account's own copy is not what is said.
+  expect(await findByRole("alert")).toHaveTextContent(
+    /couldn't load this account's posts/i,
+  );
+  expect(await findByRole("heading", { level: 2 })).toHaveTextContent(
+    "Alice Example",
+  );
+
+  await userEvent.click(await findByRole("button", { name: "Retry" }));
+
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+  expect(queryByText(/couldn't load this account's posts/i)).toBeNull();
+  // Recovery is the same first-page call again — the account is not refetched.
+  expect(postsRequestCount).toBe(2);
+});
+
 test("changing only :acct leaves none of the previous account's posts behind", async () => {
   // A change of `:acct` alone does not remount the route, so the posts of the
   // account being left have to be taken off the page by the profile body being
@@ -344,4 +445,46 @@ test("changing only :acct leaves none of the previous account's posts behind", a
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
   expect(queryByText("Bob's only post")).not.toBeInTheDocument();
+});
+
+test("a page of the previous account's posts that lands after the :acct changed is dropped", async () => {
+  // The first page for Alice is still out when Bob's URL takes over. It is the
+  // body being rebuilt around a fresh store that makes the answer harmless:
+  // nothing cancels the request, and its result has nowhere to go.
+  const alicePostsHeld = deferred();
+  server.use(
+    http.get<{ id: string }>("*/api/v1/accounts/:id", ({ params }) =>
+      HttpResponse.json(params.id === BOB_ACCT ? bob : alice),
+    ),
+    http.get<{ id: string }>(
+      "*/api/v1/accounts/:id/statuses",
+      async ({ params }) => {
+        if (params.id === BOB_ACCT) {
+          return HttpResponse.json([
+            post("110000000000000003", "Bob's only post", bob),
+          ]);
+        }
+        await alicePostsHeld.held;
+        return HttpResponse.json(alicePosts);
+      },
+    ),
+  );
+  const { history, findByText, findByRole, queryByText } =
+    renderProfile(ALICE_ACCT);
+
+  // Alice's header is up and her posts are in flight, held.
+  expect(await findByRole("heading", { level: 2 })).toHaveTextContent(
+    "Alice Example",
+  );
+
+  history.set({ value: `/users/${BOB_ACCT}` });
+
+  expect(await findByText("Bob's only post")).toBeInTheDocument();
+
+  alicePostsHeld.release();
+  await settle();
+
+  expect(queryByText("Alice's newer post")).not.toBeInTheDocument();
+  expect(queryByText("Alice's older post")).not.toBeInTheDocument();
+  expect(queryByText("Bob's only post")).toBeInTheDocument();
 });

@@ -1,4 +1,4 @@
-import { type Accessor, createSignal } from "solid-js";
+import { type Accessor, batch, createSignal } from "solid-js";
 import type { ApiError } from "../../api/client";
 import type { Status } from "../../entities/status/types";
 import { fetchAccountPosts, POSTS_PAGE_LIMIT } from "./profile-api";
@@ -83,12 +83,19 @@ export const createProfilePostsStore = (acct: string): ProfilePostsStore => {
     // (ProfilePage.tsx).
     setLoadOlderError(undefined);
     const result = await fetchAccountPosts(acct, { maxId: cursor });
-    setLoadingOlder(false);
 
     if (!result.ok) {
-      setLoadOlderError(result.error);
+      // One update, not two: effects run between separate writes, and an
+      // in-between state of "not loading, no error" is one where the sentinel's
+      // error row has no reason to be mounted — it would take the Retry button
+      // the reader just pressed, and their focus, with it (ProfilePage.tsx).
+      batch(() => {
+        setLoadingOlder(false);
+        setLoadOlderError(result.error);
+      });
       return;
     }
+    setLoadingOlder(false);
     const page = result.value;
     if (page.length < POSTS_PAGE_LIMIT) setExhausted(true);
     setStatuses((current) => {
