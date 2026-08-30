@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile page wireframe — 2026-08-30</title>
+<style>
+:root{--bg:#f5f5f4;--surface:#fff;--line:#c8c6c0;--line-strong:#8a8880;--text:#2c2c2a;--muted:#77756e;--accent:#185fa5;--accent-bg:#e6f1fb;--warn-bg:#faeeda;--warn:#854f0b;--skeleton:#e4e2dc;--error:#a0490f;--error-bg:#fbeadd}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--surface:#2a2a28;--line:#4a4a46;--line-strong:#6e6c66;--text:#e8e6e0;--muted:#a5a39c;--accent:#85b7eb;--accent-bg:#0c2c47;--warn-bg:#3a2f14;--warn:#fac775;--skeleton:#3a3a36;--error:#e8956a;--error-bg:#3a2418}}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;line-height:1.5}
+h1{font-size:20px;font-weight:600}
+h2{font-size:15px;font-weight:600;margin:24px 0 8px}
+.caption{font-size:12px;color:var(--muted)}
+.zone{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px}
+.cond{border-style:dashed;color:var(--muted)}
+.state{border:1px dashed var(--line);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--muted);text-align:center}
+ul{font-size:13px}
+li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<h1>Profile page wireframe</h1>
+<p class="caption">2026-08-30 · Phase 1, profile session #1: header + single post list ("posts" = <code>exclude_replies=true</code>). Tabs (posts and replies / media), relationship badge, pinned posts, and follow lists are later sessions — the header leaves room for them but shows none. Dashed = conditional. Zone order is the decision; visual styling is not.</p>
+
+<div style="max-width:420px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;margin-top:16px;overflow:hidden">
+
+  <!-- ── Header block ── -->
+  <div style="height:96px;background:var(--skeleton);display:flex;align-items:center;justify-content:center" class="caption">header image — 3:1-ish band, plain bg.subtle when absent (default header is a known blank)</div>
+  <div style="padding:12px;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;gap:12px;align-items:flex-end;margin-top:-40px">
+      <div style="width:72px;height:72px;border-radius:50%;background:var(--skeleton);border:3px solid var(--surface);flex-shrink:0"></div>
+      <div style="flex:1;min-width:0;padding-bottom:2px">
+        <div style="font-weight:600;font-size:16px">Display name :custom_emoji: (EmojiText)</div>
+        <div class="caption">@acct@remote.host — full acct, always with domain for remote</div>
+      </div>
+    </div>
+    <div class="zone cond">note — sanitized HTML via StatusContent (<code>mentions: []</code>, <code>hasQuoteCard: false</code>). Known limit: bio mentions have no <code>Status.mentions</code> data, so they fall back to opening the remote page in a new tab.</div>
+    <div class="zone cond" style="padding:0;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <tr><td style="padding:5px 10px;border-bottom:1px dashed var(--line);color:var(--muted);width:35%">field name</td><td style="padding:5px 10px;border-bottom:1px dashed var(--line)">value — HTML via StatusContent (links live here)</td></tr>
+        <tr><td style="padding:5px 10px;color:var(--muted)">field name</td><td style="padding:5px 10px">value</td></tr>
+      </table>
+    </div>
+    <div style="display:flex;gap:16px;font-size:13px">
+      <span><b>123</b> <span class="caption">posts</span></span>
+      <span><b>45</b> <span class="caption">following</span></span>
+      <span><b>67</b> <span class="caption">followers</span></span>
+    </div>
+    <div class="caption" style="font-style:italic">counts are plain text this session — they become tab/follow-list entry points in later sessions</div>
+  </div>
+
+  <!-- ── Tab bar (target design; the bar itself ships in session #2) ── -->
+  <div style="display:flex;border-top:1px solid var(--line-strong);font-size:13px;text-align:center">
+    <div style="flex:1;padding:8px 0;font-weight:600;border-bottom:2px solid var(--accent);color:var(--accent)">Posts</div>
+    <div style="flex:1;padding:8px 0;color:var(--muted);border-bottom:2px solid transparent;border-left:1px dashed var(--line);border-right:1px dashed var(--line)">Posts &amp; replies</div>
+    <div style="flex:1;padding:8px 0;color:var(--muted);border-bottom:2px solid transparent">Media</div>
+  </div>
+  <div class="caption" style="padding:4px 12px;font-style:italic">tab semantics (decided): Posts = <code>exclude_replies=true</code> / Posts &amp; replies = no filter / Media = <code>only_media=true</code>. Session #1 renders the Posts list without the bar; #2 adds the bar and the two other tabs. Active tab = accent underline.</div>
+
+  <!-- ── Post list ── -->
+  <div style="border-top:1px solid var(--line)">
+    <div class="zone" style="border-radius:0;border-width:0 0 1px;padding:10px">StatusCard row × N — same row chrome as the timeline: full-bleed row, 12px inset, hairline underneath (<code>postRow</code>/<code>postRowBody</code>, local to this page)</div>
+    <div class="zone" style="border-radius:0;border-width:0 0 1px;padding:10px">StatusCard row</div>
+    <div class="state" style="border-radius:0;border-width:0">sentinel — IntersectionObserver target; "Loading more…" while fetching</div>
+  </div>
+</div>
+
+<h2>List states (mutually exclusive tail / whole-list states)</h2>
+<div style="max-width:420px;display:flex;flex-direction:column;gap:8px">
+  <div class="state">initial loading — "Loading…" notice row (header may already be visible: account and statuses load independently)</div>
+  <div class="state">empty — "No posts yet." notice row, no sentinel</div>
+  <div class="state">exhausted — "You're all caught up." replaces the sentinel</div>
+  <div class="state" style="color:var(--error);border-color:var(--error);background:var(--error-bg)">older-load failure — inline error + Retry button in the sentinel row (role="alert", focus preserved through retry)</div>
+  <div class="state" style="color:var(--error);border-color:var(--error);background:var(--error-bg)">account fetch failure — full-page error card (role="alert") + Retry; 404 = "not found" without Retry</div>
+</div>
+
+<h2>Decisions</h2>
+<ul>
+<li>Zone order: header image → avatar + names (avatar overlaps the header image bottom edge) → note → fields → counts → tab bar → post list.</li>
+<li>Tab-first design (2026-08-30): three tabs — Posts / Posts &amp; replies / Media, X-style. The bar and the latter two tabs ship in session #2; session #1 renders the Posts list as the future default tab's content, so nothing is thrown away.</li>
+<li>This session renders the "posts" list only (<code>exclude_replies=true</code>). Akkoma also drops self-replies with this flag — accepted as-is; client-side filtering would break pagination.</li>
+<li>Counts are display-only. No follow button (Phase 2), no relationship badge (#2), no tabs (#2), no pinned (last).</li>
+<li>Post rows reuse StatusCard chrome-free with page-local row chrome, same as the timeline — per-framing chrome is the StatusCard contract, not duplication.</li>
+<li>Flat append-only store with a single <code>max_id</code> cursor; no segments/gap/refresh (those exist for streaming and refresh, which the profile list doesn't have).</li>
+<li>Navigating <code>/users/alice</code> → <code>/users/bob</code> recreates the whole body (keyed Show on the loaded account) — no manual reset of the post store.</li>
+</ul>
+
+<h2>Field sources (verified against the reference instance, 2026-08-30)</h2>
+<ul>
+<li><code>GET /api/v1/accounts/{acct}</code> → <code>header</code> / <code>avatar</code> / <code>display_name</code> + <code>emojis</code> / <code>acct</code> / <code>note</code> (HTML) / <code>fields[].name,value</code> / <code>statuses_count</code>, <code>following_count</code>, <code>followers_count</code>.</li>
+<li><code>GET /api/v1/accounts/{id}/statuses?exclude_replies=true&amp;limit=40</code> → post list; <code>max_id</code> pagination.</li>
+<li>2026-08-30 live checks: remote acct <code>user@domain</code> resolves as the path param — both raw <code>@</code> and <code>%40</code>-encoded return 200 with the same account, so openapi-fetch's path encoding is a non-issue. <code>exclude_replies=true</code> drops self-replies too (a self-reply present without the flag disappears with it) — confirmed. <code>with_relationships=true</code> embeds <code>pleroma.relationship</code> (full shape, even anonymously — all-false then); recorded for session #2, unused here.</li>
+</ul>
+</body>
+</html>
