@@ -3,6 +3,7 @@ import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { statusPath } from "../entities/status/url";
 import { ProfilePage } from "../pages/profile/ProfilePage";
+import { preloadProfile } from "../pages/profile/profile-query";
 import { ThreadPage } from "../pages/thread/ThreadPage";
 import {
   preloadThread,
@@ -158,7 +159,11 @@ const App = () => (
         </Route>
         {/* /@:acct is not expressible in solid-router (a segment is dynamic
             only when it starts with ":"), hence /users/ — see profilePath */}
-        <Route path="/users/:acct" component={ProfilePage} />
+        <Route
+          path="/users/:acct"
+          component={ProfilePage}
+          preload={preloadProfile}
+        />
         {/* The URL shape is statusPath's (src/entities/status/url.ts). Unlike
             the timelines, this route fetches through the router's own data
             layer, so the preload is what starts the requests (ADR-0004). */}

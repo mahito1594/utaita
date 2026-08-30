@@ -9,7 +9,6 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
-import { ProfilePage } from "../profile/ProfilePage";
 import { TimelinePage } from "./TimelinePage";
 import { TimelineShell } from "./TimelineShell";
 import { home } from "./timelines";
@@ -53,13 +52,22 @@ const ThreadStub = () => {
   return <p>Reading {params.id}</p>;
 };
 
+// Stands in for ProfilePage for the same reason: what a mention tap has to
+// prove is that it reached /users/:acct with the acct it named, not anything
+// the profile page then does with it (that page fetches, and these tests
+// stub the timeline endpoint only).
+const ProfileStub = () => {
+  const params = useParams<{ acct: string }>();
+  return <p>@{params.acct}</p>;
+};
+
 const renderApp = () =>
   render(() => (
     <MemoryRouter>
       <Route component={TimelineShell}>
         <Route path="/" component={() => <TimelinePage timeline={home} />} />
       </Route>
-      <Route path="/users/:acct" component={ProfilePage} />
+      <Route path="/users/:acct" component={ProfileStub} />
       <Route path="/statuses/:id" component={ThreadStub} />
     </MemoryRouter>
   ));
@@ -76,7 +84,6 @@ test("a mention tap navigates to the in-app profile page", async () => {
   await userEvent.click(mention);
 
   expect(await findByText("@carol@fixture.example")).toBeInTheDocument();
-  expect(await findByText(/not implemented/i)).toBeInTheDocument();
   // The card-wide tap did not take the mention's destination away from it.
   expect(queryByText(/^Reading /)).not.toBeInTheDocument();
 });
