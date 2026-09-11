@@ -18,12 +18,18 @@ export const POSTS_PAGE_LIMIT = 40;
  * flake id, remote `user@domain` included — measured 2026-08-30 against the
  * reference instance, raw `@` and percent-encoded alike — which is what lets
  * the route's `:acct` be handed straight to it.
+ *
+ * `with_relationships` folds the viewer's relationship into
+ * `pleroma.relationship` (null without it). Anonymous callers get the full
+ * shape with every flag false rather than an error (measured 2026-08-30).
  */
 export const fetchAccount = (
   acct: string,
 ): Promise<Result<Account, ApiError>> =>
   toResult(
-    client.GET("/api/v1/accounts/{id}", { params: { path: { id: acct } } }),
+    client.GET("/api/v1/accounts/{id}", {
+      params: { path: { id: acct }, query: { with_relationships: true } },
+    }),
   );
 
 /**

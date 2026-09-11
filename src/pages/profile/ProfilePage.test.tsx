@@ -228,6 +228,90 @@ test("renders the identity block over the account's posts", async () => {
   expect(postsUrl?.searchParams.get("max_id")).toBeNull();
 });
 
+test("the account is fetched with the viewer's relationship and shows it as badges", async () => {
+  let accountUrl: URL | undefined;
+  const mutual: Account = {
+    ...alice,
+    pleroma: { relationship: { following: true, followed_by: true } },
+  };
+  server.use(
+    http.get("*/api/v1/accounts/:id", ({ request }) => {
+      accountUrl = new URL(request.url);
+      return HttpResponse.json(mutual);
+    }),
+    http.get("*/api/v1/accounts/:id/statuses", () =>
+      HttpResponse.json(alicePosts),
+    ),
+  );
+  const { findByText, container } = renderProfile(`/users/${ALICE_ACCT}`);
+
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+  expect(accountUrl?.searchParams.get("with_relationships")).toBe("true");
+  const header = container.querySelector("header");
+  expect(header).toHaveTextContent("Following");
+  expect(header).toHaveTextContent("Follows you");
+});
+
+test("each badge follows its own flag", async () => {
+  // The two pills sit behind one shared gate; only a one-sided relationship
+  // can tell a pill wired to the wrong flag from a correct one.
+  const cases: [Account, string, string][] = [
+    [
+      { ...alice, pleroma: { relationship: { following: true } } },
+      "Following",
+      "Follows you",
+    ],
+    [
+      { ...alice, pleroma: { relationship: { followed_by: true } } },
+      "Follows you",
+      "Following",
+    ],
+  ];
+  for (const [account, shown, hidden] of cases) {
+    server.use(
+      http.get("*/api/v1/accounts/:id", () => HttpResponse.json(account)),
+      http.get("*/api/v1/accounts/:id/statuses", () =>
+        HttpResponse.json(alicePosts),
+      ),
+    );
+    const { findByText, container, unmount } = renderProfile(
+      `/users/${ALICE_ACCT}`,
+    );
+    expect(await findByText("Alice's newer post")).toBeInTheDocument();
+    const header = container.querySelector("header");
+    expect(header).toHaveTextContent(shown);
+    expect(header).not.toHaveTextContent(hidden);
+    unmount();
+    query.clear();
+  }
+});
+
+test("no relationship, or an all-false one, shows no badge", async () => {
+  // Anonymous viewers get every flag false; `null` is the shape without
+  // `with_relationships`, kept here so a payload that lacks it stays quiet.
+  const strangers: Account[] = [
+    { ...alice, pleroma: { relationship: { following: false } } },
+    { ...alice, pleroma: { relationship: null } },
+  ];
+  for (const stranger of strangers) {
+    server.use(
+      http.get("*/api/v1/accounts/:id", () => HttpResponse.json(stranger)),
+      http.get("*/api/v1/accounts/:id/statuses", () =>
+        HttpResponse.json(alicePosts),
+      ),
+    );
+    const { findByText, container, unmount } = renderProfile(
+      `/users/${ALICE_ACCT}`,
+    );
+    expect(await findByText("Alice's newer post")).toBeInTheDocument();
+    const header = container.querySelector("header");
+    expect(header).not.toHaveTextContent("Following");
+    expect(header).not.toHaveTextContent("Follows you");
+    unmount();
+    query.clear();
+  }
+});
+
 test("counts the account withholds are absent, not zeroes", async () => {
   // `hide_follows_count` / `hide_followers_count` are the account's own
   // settings; Akkoma still sends the numbers next to them. `statuses_count`

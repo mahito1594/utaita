@@ -67,6 +67,21 @@ const displayNameStyle = css({
 
 const acctStyle = css({ ...truncated, fontSize: "sm", color: "text.muted" });
 
+const badgeRow = css({ display: "flex", gap: "1.5", mt: "1" });
+
+// Same pill as a reaction chip (ReactionChips.tsx); second occurrence, so not
+// yet shared (rule of three).
+const badge = css({
+  display: "inline-flex",
+  px: "2",
+  py: "0.5",
+  borderWidth: "1px",
+  borderRadius: "full",
+  borderColor: "border.default",
+  color: "text.muted",
+  fontSize: "xs",
+});
+
 // Name/value pairs in one grid rather than two columns of blocks, so every
 // value starts at the same offset however long the names are.
 const fieldList = css({
@@ -113,6 +128,9 @@ export const ProfileHeader = (props: { account: Account }) => {
   const emojis = () => props.account.emojis ?? [];
   const displayName = () =>
     props.account.display_name || props.account.acct || "?";
+  // Present because the fetch asks for it (profile-api.ts); all-false for an
+  // anonymous viewer, so nothing shows. Acting on it is Phase 2.
+  const relationship = () => props.account.pleroma?.relationship;
 
   return (
     <header>
@@ -152,6 +170,18 @@ export const ProfileHeader = (props: { account: Account }) => {
             {/* Always the full acct, domain included: a remote handle without
                 its domain names a different account on this instance. */}
             <p class={acctStyle}>@{props.account.acct}</p>
+            <Show
+              when={relationship()?.following || relationship()?.followed_by}
+            >
+              <p class={badgeRow}>
+                <Show when={relationship()?.following}>
+                  <span class={badge}>Following</span>
+                </Show>
+                <Show when={relationship()?.followed_by}>
+                  <span class={badge}>Follows you</span>
+                </Show>
+              </p>
+            </Show>
           </div>
         </div>
 
