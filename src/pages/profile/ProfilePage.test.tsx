@@ -525,6 +525,63 @@ test("a first page of posts that fails leaves the header standing and recovers o
   expect(postsRequestCount).toBe(2);
 });
 
+test("a first-page retry that fails again leaves focus on its Retry button", async () => {
+  // Same contract as the sentinel's Retry: a failed request is a new error
+  // object, and the card must update in place rather than be rebuilt around
+  // it, or the button being pressed vanishes under the reader.
+  let postsRequestCount = 0;
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+    http.get("*/api/v1/accounts/:id/statuses", () => {
+      postsRequestCount += 1;
+      // A different status the second time, so the copy changing is what
+      // proves the second answer has landed — the card shows no in-flight
+      // state of its own.
+      return HttpResponse.json(
+        { error: "Something went wrong" },
+        { status: postsRequestCount === 1 ? 500 : 503 },
+      );
+    }),
+  );
+  const { findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+
+  const retryButton = await findByRole("button", { name: "Retry" });
+  await userEvent.click(retryButton);
+  expect(document.activeElement).toBe(retryButton);
+
+  // Two failures, one card: the copy updates in place and the same element
+  // is still the one focused.
+  await vi.waitFor(() => expect(postsRequestCount).toBe(2));
+  expect(await findByRole("alert")).toHaveTextContent(/posts \(503\)/);
+  expect(await findByRole("button", { name: "Retry" })).toBe(retryButton);
+  expect(document.activeElement).toBe(retryButton);
+});
+
+test("an account retry that comes back 404 withdraws Retry without rebuilding the card", async () => {
+  // The one behavior keying on the error value used to buy (TimelinePage.tsx
+  // records it shipping broken once): the Retry offer must follow the error's
+  // kind even though the card itself is not recreated.
+  let accountRequestCount = 0;
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => {
+      accountRequestCount += 1;
+      if (accountRequestCount === 1) return HttpResponse.error();
+      return HttpResponse.json({ error: "Record not found" }, { status: 404 });
+    }),
+    http.get("*/api/v1/accounts/:id/statuses", () => HttpResponse.json([])),
+  );
+  const { findByRole, queryByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+
+  const alert = await findByRole("alert");
+  expect(alert).toHaveTextContent(/connection failed/i);
+  await userEvent.click(await findByRole("button", { name: "Retry" }));
+
+  await vi.waitFor(() =>
+    expect(alert).toHaveTextContent(/not on this instance/i),
+  );
+  expect(queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+});
+
 test("changing only :acct leaves none of the previous account's posts behind", async () => {
   // A change of `:acct` alone does not remount the route, so the posts of the
   // account being left have to be taken off the page by the profile body being
