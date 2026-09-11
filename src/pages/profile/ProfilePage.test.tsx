@@ -624,6 +624,7 @@ test("a page of the previous account's posts that lands after the :acct changed 
   // body being rebuilt around a fresh store that makes the answer harmless:
   // nothing cancels the request, and its result has nowhere to go.
   const alicePostsHeld = deferred();
+  let alicePostsAnswered = false;
   server.use(
     http.get<{ id: string }>("*/api/v1/accounts/:id", ({ params }) =>
       HttpResponse.json(params.id === BOB_ACCT ? bob : alice),
@@ -637,6 +638,7 @@ test("a page of the previous account's posts that lands after the :acct changed 
           ]);
         }
         await alicePostsHeld.held;
+        alicePostsAnswered = true;
         return HttpResponse.json(alicePosts);
       },
     ),
@@ -655,6 +657,9 @@ test("a page of the previous account's posts that lands after the :acct changed 
   expect(await findByText("Bob's only post")).toBeInTheDocument();
 
   alicePostsHeld.release();
+  // The answer did go out — what is asserted below is that it was discarded,
+  // not that it never came.
+  await vi.waitFor(() => expect(alicePostsAnswered).toBe(true));
   await settle();
 
   expect(queryByText("Alice's newer post")).not.toBeInTheDocument();
