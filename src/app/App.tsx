@@ -2,8 +2,9 @@ import { Route, type RoutePreloadFunc, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { statusPath } from "../entities/status/url";
-import { ProfilePage } from "../pages/profile/ProfilePage";
+import { ProfilePage, ProfilePosts } from "../pages/profile/ProfilePage";
 import { preloadProfile } from "../pages/profile/profile-query";
+import { media, posts, postsAndReplies } from "../pages/profile/profile-tabs";
 import { ThreadPage } from "../pages/thread/ThreadPage";
 import {
   preloadThread,
@@ -122,6 +123,12 @@ const LocalTimelinePage = () => <TimelinePage timeline={local} />;
 const BubbleTimelinePage = () => <TimelinePage timeline={bubble} />;
 const FederatedTimelinePage = () => <TimelinePage timeline={federated} />;
 
+// Same reasoning for the profile tabs: one leaf per tab so a switch remounts
+// the list (and its store) under a header the layout route keeps.
+const ProfilePostsTab = () => <ProfilePosts tab={posts} />;
+const ProfileRepliesTab = () => <ProfilePosts tab={postsAndReplies} />;
+const ProfileMediaTab = () => <ProfilePosts tab={media} />;
+
 // The session is passed in rather than read inside the retention component:
 // src/pages must not depend on src/app (.dependency-cruiser.cjs), and the
 // slot has to be dropped on sign-out by an explicit signal rather than by
@@ -163,7 +170,11 @@ const App = () => (
           path="/users/:acct"
           component={ProfilePage}
           preload={preloadProfile}
-        />
+        >
+          <Route path={posts.path} component={ProfilePostsTab} />
+          <Route path={postsAndReplies.path} component={ProfileRepliesTab} />
+          <Route path={media.path} component={ProfileMediaTab} />
+        </Route>
         {/* The URL shape is statusPath's (src/entities/status/url.ts). Unlike
             the timelines, this route fetches through the router's own data
             layer, so the preload is what starts the requests (ADR-0004). */}

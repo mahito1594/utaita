@@ -12,9 +12,16 @@ import { setupServer } from "msw/node";
 import { type ParentProps, Suspense } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/types";
-import { ProfilePage } from "./ProfilePage";
+import { ProfilePage, ProfilePosts } from "./ProfilePage";
 import type { Account } from "./profile-api";
 import { preloadProfile } from "./profile-query";
+import {
+  media,
+  posts,
+  postsAndReplies,
+  profileTabPath,
+  profileTabs,
+} from "./profile-tabs";
 
 // happy-dom's IntersectionObserver constructs but never actually calls back
 // (see ProfilePage.tsx's PostsSentinel) — this fake stands in for the global so
@@ -126,17 +133,18 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-// Mirrors App.tsx: the profile is a leaf route with the preload attached, and
-// the Suspense boundary the page's pending state falls into belongs to the
-// layout above it, not to the page. The fallback text is deliberately not the
-// page's own "Loading…" row, so the two are distinguishable in assertions.
+// Mirrors App.tsx: the profile is a layout route with the preload attached
+// and one leaf per tab, and the Suspense boundary the page's pending state
+// falls into belongs to the layout above it, not to the page. The fallback
+// text is deliberately not the page's own "Loading…" row, so the two are
+// distinguishable in assertions.
 const Chrome = (props: ParentProps) => (
   <Suspense fallback={<p>Routing…</p>}>{props.children}</Suspense>
 );
 
-const renderProfile = (acct: string) => {
+const renderProfile = (path: string) => {
   const history = createMemoryHistory();
-  history.set({ value: `/users/${acct}`, replace: true });
+  history.set({ value: path, replace: true });
   return {
     history,
     ...render(() => (
@@ -145,7 +153,20 @@ const renderProfile = (acct: string) => {
           path="/users/:acct"
           component={ProfilePage}
           preload={preloadProfile}
-        />
+        >
+          <Route
+            path={posts.path}
+            component={() => <ProfilePosts tab={posts} />}
+          />
+          <Route
+            path={postsAndReplies.path}
+            component={() => <ProfilePosts tab={postsAndReplies} />}
+          />
+          <Route
+            path={media.path}
+            component={() => <ProfilePosts tab={media} />}
+          />
+        </Route>
       </MemoryRouter>
     )),
   };
@@ -179,7 +200,9 @@ test("renders the identity block over the account's posts", async () => {
       return HttpResponse.json(alicePosts);
     }),
   );
-  const { findByText, findByRole, container } = renderProfile(ALICE_ACCT);
+  const { findByText, findByRole, container } = renderProfile(
+    `/users/${ALICE_ACCT}`,
+  );
 
   const name = await findByRole("heading", { level: 2 });
   expect(name).toHaveTextContent("Alice Example");
@@ -224,7 +247,7 @@ test("counts the account withholds are absent, not zeroes", async () => {
       HttpResponse.json(alicePosts),
     ),
   );
-  const { findByRole, container } = renderProfile(ALICE_ACCT);
+  const { findByRole, container } = renderProfile(`/users/${ALICE_ACCT}`);
 
   await findByRole("heading", { level: 2 });
   const header = container.querySelector("header");
@@ -239,7 +262,7 @@ test("renders an empty-success row and no sentinel when the account has no posts
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     http.get("*/api/v1/accounts/:id/statuses", () => HttpResponse.json([])),
   );
-  const { findByText } = renderProfile(ALICE_ACCT);
+  const { findByText } = renderProfile(`/users/${ALICE_ACCT}`);
 
   expect(await findByText(/no posts yet/i)).toBeInTheDocument();
   // Nothing to page from: the sentinel is never mounted, so it never observes.
@@ -260,7 +283,7 @@ test("a scroll-triggered sentinel appends the next page and stops at a short one
       return HttpResponse.json(olderPage);
     }),
   );
-  const { findByText } = renderProfile(ALICE_ACCT);
+  const { findByText } = renderProfile(`/users/${ALICE_ACCT}`);
 
   expect(await findByText("Full page item 39")).toBeInTheDocument();
 
@@ -286,7 +309,7 @@ test("an older-page failure offers a retry that repeats the same request", async
       return HttpResponse.json([post("119999999999999999", "Recovered page")]);
     }),
   );
-  const { findByText, findByRole } = renderProfile(ALICE_ACCT);
+  const { findByText, findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
 
   expect(await findByText("Full page item 39")).toBeInTheDocument();
 
@@ -312,7 +335,7 @@ test("a retry that fails again leaves the reader's focus on the Retry button", a
         : HttpResponse.error();
     }),
   );
-  const { findByText, findByRole } = renderProfile(ALICE_ACCT);
+  const { findByText, findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
 
   expect(await findByText("Full page item 39")).toBeInTheDocument();
 
@@ -340,7 +363,9 @@ test("an account this instance does not have renders an error and asks for no po
       return HttpResponse.json([]);
     }),
   );
-  const { findByRole, queryByRole } = renderProfile("ghost@fixture.example");
+  const { findByRole, queryByRole } = renderProfile(
+    "/users/ghost@fixture.example",
+  );
 
   expect(await findByRole("alert")).toHaveTextContent(/not on this instance/i);
   // A 404 is the one answer repeating the request cannot change.
@@ -363,7 +388,9 @@ test("a failed account fetch offers a retry that revalidates and succeeds", asyn
       HttpResponse.json(alicePosts),
     ),
   );
-  const { findByText, findByRole, queryByText } = renderProfile(ALICE_ACCT);
+  const { findByText, findByRole, queryByText } = renderProfile(
+    `/users/${ALICE_ACCT}`,
+  );
 
   expect(await findByText(/connection failed/i)).toBeInTheDocument();
 
@@ -394,7 +421,9 @@ test("a first page of posts that fails leaves the header standing and recovers o
       return HttpResponse.json(alicePosts);
     }),
   );
-  const { findByText, findByRole, queryByText } = renderProfile(ALICE_ACCT);
+  const { findByText, findByRole, queryByText } = renderProfile(
+    `/users/${ALICE_ACCT}`,
+  );
 
   // Only the list failed, so the account's own copy is not what is said.
   expect(await findByRole("alert")).toHaveTextContent(
@@ -428,7 +457,9 @@ test("changing only :acct leaves none of the previous account's posts behind", a
       ),
     ),
   );
-  const { history, findByText, queryByText } = renderProfile(ALICE_ACCT);
+  const { history, findByText, queryByText } = renderProfile(
+    `/users/${ALICE_ACCT}`,
+  );
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
 
@@ -469,8 +500,9 @@ test("a page of the previous account's posts that lands after the :acct changed 
       },
     ),
   );
-  const { history, findByText, findByRole, queryByText } =
-    renderProfile(ALICE_ACCT);
+  const { history, findByText, findByRole, queryByText } = renderProfile(
+    `/users/${ALICE_ACCT}`,
+  );
 
   // Alice's header is up and her posts are in flight, held.
   expect(await findByRole("heading", { level: 2 })).toHaveTextContent(
@@ -487,4 +519,109 @@ test("a page of the previous account's posts that lands after the :acct changed 
   expect(queryByText("Alice's newer post")).not.toBeInTheDocument();
   expect(queryByText("Alice's older post")).not.toBeInTheDocument();
   expect(queryByText("Bob's only post")).toBeInTheDocument();
+});
+
+test("the tab bar links every tab and marks only the current one", async () => {
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+    http.get("*/api/v1/accounts/:id/statuses", () =>
+      HttpResponse.json(alicePosts),
+    ),
+  );
+  const { findByRole, findByText } = renderProfile(`/users/${ALICE_ACCT}`);
+
+  // Settled first: the list's request must not still be in flight when the
+  // next test installs its own handlers.
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+  const nav = await findByRole("navigation", { name: "Profile sections" });
+  const links = Array.from(nav.querySelectorAll("a"));
+  expect(links.map((link) => link.getAttribute("href"))).toEqual(
+    profileTabs.map((tab) => profileTabPath(ALICE_ACCT, tab)),
+  );
+  // `<A>` marks an exact match only, so the Posts tab's shorter path is not
+  // current on the other two tabs' URLs.
+  expect(
+    links.map((link) => [link.textContent, link.getAttribute("aria-current")]),
+  ).toEqual([
+    ["Posts", "page"],
+    ["Posts & replies", null],
+    ["Media", null],
+  ]);
+});
+
+test("the replies and media tabs send their own filters", async () => {
+  const requested: URL[] = [];
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      requested.push(new URL(request.url));
+      return HttpResponse.json(alicePosts);
+    }),
+  );
+
+  const replies = renderProfile(`/users/${ALICE_ACCT}/with_replies`);
+  expect(await replies.findByText("Alice's newer post")).toBeInTheDocument();
+  // No filter at all: replies are in, and so is everything else.
+  expect(requested[0]?.searchParams.get("exclude_replies")).toBeNull();
+  expect(requested[0]?.searchParams.get("only_media")).toBeNull();
+  expect(
+    replies.container.querySelector("a[aria-current=page]")?.textContent,
+  ).toBe("Posts & replies");
+  replies.unmount();
+
+  const mediaTab = renderProfile(`/users/${ALICE_ACCT}/media`);
+  expect(await mediaTab.findByText("Alice's newer post")).toBeInTheDocument();
+  expect(requested[1]?.searchParams.get("only_media")).toBe("true");
+  expect(requested[1]?.searchParams.get("exclude_replies")).toBeNull();
+});
+
+test("activating a tab refetches under its filter, keeps the account, and keeps focus on the tab", async () => {
+  let accountRequestCount = 0;
+  const requested: URL[] = [];
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => {
+      accountRequestCount += 1;
+      return HttpResponse.json(alice);
+    }),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      const url = new URL(request.url);
+      requested.push(url);
+      return HttpResponse.json(
+        url.searchParams.get("only_media") === "true"
+          ? [post("110000000000000005", "Alice's picture")]
+          : alicePosts,
+      );
+    }),
+  );
+  const { findByText, findByRole, queryByText } = renderProfile(
+    `/users/${ALICE_ACCT}`,
+  );
+
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+
+  const mediaTab = await findByRole("link", { name: "Media" });
+  await userEvent.click(mediaTab);
+
+  // The list is rebuilt around a fresh store, so nothing of the previous tab
+  // survives; the header above it stays, served from the query cache.
+  expect(await findByText("Alice's picture")).toBeInTheDocument();
+  expect(queryByText("Alice's newer post")).not.toBeInTheDocument();
+  expect(await findByRole("heading", { level: 2 })).toHaveTextContent(
+    "Alice Example",
+  );
+  expect(requested.map((url) => url.searchParams.get("only_media"))).toEqual([
+    null,
+    "true",
+  ]);
+  expect(accountRequestCount).toBe(1);
+
+  // The nav is keyed on the acct, not on the tab, so the activated link is
+  // the same element and still holds focus (the timeline switcher's contract,
+  // TimelinePage.switching.test.tsx).
+  expect(mediaTab).toHaveAttribute("aria-current", "page");
+  expect(await findByRole("link", { name: "Posts" })).not.toHaveAttribute(
+    "aria-current",
+  );
+  expect(document.activeElement).toBe(mediaTab);
+  expect(await findByRole("link", { name: "Media" })).toBe(mediaTab);
 });
