@@ -306,10 +306,10 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
       {/* Retry is always offered here, 404 included: this endpoint answers
           for an account that has already been found, so a missing list is a
           transient answer rather than a settled one. */}
-      <Show when={store.error()} keyed>
+      <Show when={store.error()}>
         {(failure) => (
           <ErrorCard
-            message={postsErrorMessage(failure)}
+            message={postsErrorMessage(failure())}
             onRetry={() => void store.loadInitial()}
           />
         )}
@@ -398,11 +398,17 @@ export const ProfilePage = (props: ParentProps) => {
 
   return (
     <section class={plane}>
-      <Show when={error()} keyed>
+      {/* Not keyed, here and on the posts card: every failed request is a new
+          error object, so keying would rebuild the card — and unmount the
+          Retry button under the reader's focus — each time a retry fails
+          again. The card's props are reactive, so a non-keyed `Show` still
+          updates the copy and withdraws Retry when a network error turns
+          into a 404. */}
+      <Show when={error()}>
         {(failure) => (
           <ErrorCard
-            message={accountErrorMessage(failure)}
-            onRetry={retryable(failure) ? retry : undefined}
+            message={accountErrorMessage(failure())}
+            onRetry={retryable(failure()) ? retry : undefined}
           />
         )}
       </Show>
