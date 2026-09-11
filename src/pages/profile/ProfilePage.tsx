@@ -1,4 +1,4 @@
-import { createAsync, revalidate, useParams } from "@solidjs/router";
+import { A, createAsync, revalidate, useParams } from "@solidjs/router";
 import {
   createEffect,
   createSignal,
@@ -6,6 +6,7 @@ import {
   on,
   onCleanup,
   onMount,
+  type ParentProps,
   Show,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
@@ -16,6 +17,7 @@ import { ProfileHeader } from "./ProfileHeader";
 import type { Account } from "./profile-api";
 import { createProfilePostsStore } from "./profile-posts-store";
 import { profileQuery } from "./profile-query";
+import { type ProfileTab, profileTabPath, profileTabs } from "./profile-tabs";
 
 // The plane the profile is drawn on, built like the timeline's panel
 // (TimelineShell.tsx): full-bleed on mobile by escaping `main`'s px-4/py-4
@@ -38,13 +40,36 @@ const plane = css({
   },
 });
 
-// The list starts where the identity block ends; the rule is the list's,
-// drawn once at its top rather than under the header's padding.
+// The tab bar sits between the identity block and the list, ruled off from
+// the header above; each tab's own bottom edge is the active marker, so the
+// bar draws no rule of its own below (docs/design/profile-page-20260830.html).
+const tabBar = css({
+  display: "flex",
+  borderTopWidth: "1px",
+  borderColor: "border.default",
+});
+
+// Router-driven active styling, as in the timeline switcher
+// (TimelineShell.tsx): `<A>` sets `aria-current="page"` on an exact match,
+// so `/users/alice` is not current while `/users/alice/media` is shown.
+const tabLink = css({
+  flex: 1,
+  textAlign: "center",
+  py: "3",
+  fontSize: "sm",
+  fontWeight: "semibold",
+  color: "text.muted",
+  borderBottomWidth: "2px",
+  borderBottomColor: "transparent",
+  "&[aria-current=page]": {
+    color: "text.brand",
+    borderBottomColor: "accent.default",
+  },
+});
+
 const postList = css({
   display: "flex",
   flexDirection: "column",
-  borderTopWidth: "1px",
-  borderColor: "border.default",
 });
 
 // Same row rhythm as the timeline (docs/design/timeline-density.md): a
@@ -247,12 +272,13 @@ const PostsSentinel = (props: {
 };
 
 /**
- * Header plus posts for one account, recreated whenever that account changes:
- * the posts store it owns starts empty and is never reset, so the previous
- * profile's posts cannot survive into the next one.
+ * The list under the tab bar, one tab's filter over one account's posts. The
+ * leaf of the profile route (App.tsx): a new `acct` or a new tab is a new
+ * mount, so the store it owns starts empty and is never reset.
  */
-const ProfileBody = (props: { account: Account; acct: string }) => {
-  const store = createProfilePostsStore(props.acct);
+export const ProfilePosts = (props: { tab: ProfileTab }) => {
+  const params = useParams<{ acct: string }>();
+  const store = createProfilePostsStore(params.acct, props.tab);
   onMount(() => void store.loadInitial());
 
   // The store's dedupe absorbs re-fires on its own; this gate is what keeps an
@@ -270,78 +296,75 @@ const ProfileBody = (props: { account: Account; acct: string }) => {
   };
 
   return (
-    <>
-      <ProfileHeader account={props.account} />
-      <div class={postList}>
-        <Show when={store.loading()}>
-          <p role="status" class={noticeRow}>
-            Loading…
-          </p>
-        </Show>
+    <div class={postList}>
+      <Show when={store.loading()}>
+        <p role="status" class={noticeRow}>
+          Loading…
+        </p>
+      </Show>
 
-        {/* Retry is always offered here, 404 included: this endpoint answers
-            for an account that has already been found, so a missing list is a
-            transient answer rather than a settled one. */}
-        <Show when={store.error()} keyed>
-          {(failure) => (
-            <ErrorCard
-              message={postsErrorMessage(failure)}
-              onRetry={() => void store.loadInitial()}
-            />
-          )}
-        </Show>
+      {/* Retry is always offered here, 404 included: this endpoint answers
+          for an account that has already been found, so a missing list is a
+          transient answer rather than a settled one. */}
+      <Show when={store.error()} keyed>
+        {(failure) => (
+          <ErrorCard
+            message={postsErrorMessage(failure)}
+            onRetry={() => void store.loadInitial()}
+          />
+        )}
+      </Show>
 
-        {/* Empty-success state: the fetch settled without posts and without an
-            error. Distinct from the loading and failure rows above. */}
+      {/* Empty-success state: the fetch settled without posts and without an
+          error. Distinct from the loading and failure rows above. */}
+      <Show
+        when={
+          !store.loading() &&
+          store.error() === undefined &&
+          store.statuses().length === 0
+        }
+      >
+        <p role="status" class={noticeRow}>
+          No posts yet.
+        </p>
+      </Show>
+
+      <For each={store.statuses()}>
+        {(status) => (
+          <div class={postRow}>
+            <StatusCard status={status} class={postRowBody} />
+          </div>
+        )}
+      </For>
+
+      <Show when={store.statuses().length > 0}>
         <Show
-          when={
-            !store.loading() &&
-            store.error() === undefined &&
-            store.statuses().length === 0
+          when={!store.exhausted()}
+          fallback={
+            <p role="status" class={endOfPostsRow}>
+              No more posts.
+            </p>
           }
         >
-          <p role="status" class={noticeRow}>
-            No posts yet.
-          </p>
+          <PostsSentinel
+            loading={store.loadingOlder()}
+            error={store.loadOlderError()}
+            onVisible={requestOlder}
+            onRetry={() => void store.loadOlder()}
+          />
         </Show>
-
-        <For each={store.statuses()}>
-          {(status) => (
-            <div class={postRow}>
-              <StatusCard status={status} class={postRowBody} />
-            </div>
-          )}
-        </For>
-
-        <Show when={store.statuses().length > 0}>
-          <Show
-            when={!store.exhausted()}
-            fallback={
-              <p role="status" class={endOfPostsRow}>
-                No more posts.
-              </p>
-            }
-          >
-            <PostsSentinel
-              loading={store.loadingOlder()}
-              error={store.loadOlderError()}
-              onVisible={requestOlder}
-              onRetry={() => void store.loadOlder()}
-            />
-          </Show>
-        </Show>
-      </div>
-    </>
+      </Show>
+    </div>
   );
 };
 
 /**
- * One account's profile: the identity block over the account's posts
- * (`exclude_replies=true` — profile-api.ts). Tabs, the relationship badge and
- * pinned posts are later work; the wireframe
+ * One account's profile: the identity block, the tab bar, and below them the
+ * outlet for whichever tab's list the URL names (profile-tabs.ts). Pinned
+ * posts and the follow lists are later work; the wireframe
  * (docs/design/profile-page-20260830.html) shows where they go.
  */
-export const ProfilePage = () => {
+export const ProfilePage = (props: ParentProps) => {
   // Untyped useParams is an index signature — bracket access then trips
   // useLiteralKeys, dot access noPropertyAccessFromIndexSignature.
   const params = useParams<{ acct: string }>();
@@ -394,18 +417,28 @@ export const ProfilePage = () => {
         </p>
       </Show>
 
-      {/* Keyed: a change of `:acct` alone does not remount this page, so the
-          body — and the posts store inside it — is recreated by this `Show`
-          instead. Nothing here resets the store by hand.
-
-          The key is the fetched object's identity, so any revalidation of
-          `profileQuery` while the body is mounted rebuilds it too, dropping
-          the pages loaded so far and the reader's place among them. No caller
-          does that today (the account-error Retry revalidates with no body on
-          screen); one that refreshes counts after a follow would, and the key
-          has to become the acct string before it exists. */}
-      <Show when={loadedAccount()} keyed>
-        {(loaded) => <ProfileBody account={loaded} acct={params.acct} />}
+      <Show when={loadedAccount()}>
+        {(loaded) => (
+          // Keyed on the acct string: a change of `:acct` alone does not
+          // remount this route, so the body is recreated here instead — and
+          // the outlet sits inside, so the leaf's posts store goes with it.
+          // Nothing resets that store by hand. The key is the string rather
+          // than the account object so a revalidation of `profileQuery`
+          // (fresh counts after a follow, later) only re-renders the header.
+          <Show when={params.acct} keyed>
+            <ProfileHeader account={loaded()} />
+            <nav aria-label="Profile sections" class={tabBar}>
+              <For each={profileTabs}>
+                {(tab) => (
+                  <A href={profileTabPath(params.acct, tab)} class={tabLink}>
+                    {tab.label}
+                  </A>
+                )}
+              </For>
+            </nav>
+            {props.children}
+          </Show>
+        )}
       </Show>
     </section>
   );

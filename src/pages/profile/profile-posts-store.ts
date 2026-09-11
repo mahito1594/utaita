@@ -2,6 +2,7 @@ import { type Accessor, batch, createSignal } from "solid-js";
 import type { ApiError } from "../../api/client";
 import type { Status } from "../../entities/status/types";
 import { fetchAccountPosts, POSTS_PAGE_LIMIT } from "./profile-api";
+import type { ProfileTab } from "./profile-tabs";
 
 export type ProfilePostsStore = {
   statuses: Accessor<readonly Status[]>;
@@ -35,11 +36,14 @@ export type ProfilePostsStore = {
  * refreshes it and nothing streams into it — so a run of statuses and one
  * cursor is the whole model.
  *
- * Created per mounted profile body and never reset: a different `acct` gets a
- * different store because the page recreates the component holding it
+ * Created per mounted posts list and never reset: a different `acct` or tab
+ * gets a different store because the page recreates the component holding it
  * (ProfilePage.tsx).
  */
-export const createProfilePostsStore = (acct: string): ProfilePostsStore => {
+export const createProfilePostsStore = (
+  acct: string,
+  tab: ProfileTab,
+): ProfilePostsStore => {
   const [statuses, setStatuses] = createSignal<readonly Status[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<ApiError>();
@@ -56,7 +60,7 @@ export const createProfilePostsStore = (acct: string): ProfilePostsStore => {
     if (initialInFlight) return;
     initialInFlight = true;
     setLoading(true);
-    const result = await fetchAccountPosts(acct, {});
+    const result = await fetchAccountPosts(acct, { filter: tab.filter });
     initialInFlight = false;
     setLoading(false);
 
@@ -82,7 +86,10 @@ export const createProfilePostsStore = (acct: string): ProfilePostsStore => {
     // flag is what keeps its Retry button mounted across the gap
     // (ProfilePage.tsx).
     setLoadOlderError(undefined);
-    const result = await fetchAccountPosts(acct, { maxId: cursor });
+    const result = await fetchAccountPosts(acct, {
+      maxId: cursor,
+      filter: tab.filter,
+    });
 
     if (!result.ok) {
       // One update, not two: effects run between separate writes, and an
