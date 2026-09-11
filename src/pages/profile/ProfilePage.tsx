@@ -11,6 +11,7 @@ import {
 } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
+import { acctFromPath } from "../../entities/status/mention";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { ProfileHeader } from "./ProfileHeader";
@@ -278,7 +279,7 @@ const PostsSentinel = (props: {
  */
 export const ProfilePosts = (props: { tab: ProfileTab }) => {
   const params = useParams<{ acct: string }>();
-  const store = createProfilePostsStore(params.acct, props.tab);
+  const store = createProfilePostsStore(acctFromPath(params.acct), props.tab);
   onMount(() => void store.loadInitial());
 
   // The store's dedupe absorbs re-fires on its own; this gate is what keeps an
@@ -368,6 +369,7 @@ export const ProfilePage = (props: ParentProps) => {
   // Untyped useParams is an index signature — bracket access then trips
   // useLiteralKeys, dot access noPropertyAccessFromIndexSignature.
   const params = useParams<{ acct: string }>();
+  const acct = () => acctFromPath(params.acct);
 
   // `createAsync` keeps answering with the previous account's value while a
   // new `:acct` loads, so the acct travels with the answer: pairing it with
@@ -376,12 +378,12 @@ export const ProfilePage = (props: ParentProps) => {
   // calling listener, which an await would lose, and with it `revalidate`'s
   // hold.
   const account = createAsync(async () => {
-    const acct = params.acct;
-    return { acct, result: await profileQuery(acct) };
+    const requested = acct();
+    return { acct: requested, result: await profileQuery(requested) };
   });
   const answer = () => {
     const current = account();
-    return current === undefined || current.acct !== params.acct
+    return current === undefined || current.acct !== acct()
       ? undefined
       : current.result;
   };
@@ -394,7 +396,7 @@ export const ProfilePage = (props: ParentProps) => {
     const result = answer();
     return result === undefined || result.ok ? undefined : result.error;
   };
-  const retry = () => void revalidate(profileQuery.keyFor(params.acct));
+  const retry = () => void revalidate(profileQuery.keyFor(acct()));
 
   return (
     <section class={plane}>
@@ -430,13 +432,15 @@ export const ProfilePage = (props: ParentProps) => {
           // the outlet sits inside, so the leaf's posts store goes with it.
           // Nothing resets that store by hand. The key is the string rather
           // than the account object so a revalidation of `profileQuery`
-          // (fresh counts after a follow, later) only re-renders the header.
-          <Show when={params.acct} keyed>
+          // (fresh counts after a follow, later) only re-renders the header,
+          // and the decoded string rather than the raw segment so a tab click
+          // that only canonicalizes the spelling keeps the list.
+          <Show when={acct()} keyed>
             <ProfileHeader account={loaded()} />
             <nav aria-label="Profile sections" class={tabBar}>
               <For each={profileTabs}>
                 {(tab) => (
-                  <A href={profileTabPath(params.acct, tab)} class={tabLink}>
+                  <A href={profileTabPath(acct(), tab)} class={tabLink}>
                     {tab.label}
                   </A>
                 )}

@@ -766,3 +766,45 @@ test("activating a tab refetches under its filter, keeps the account, and keeps 
   expect(document.activeElement).toBe(mediaTab);
   expect(await findByRole("link", { name: "Media" })).toBe(mediaTab);
 });
+
+test("a percent-encoded :acct names the same account as the raw one", async () => {
+  // `/users/alice%40remote` is the same URL as `/users/alice@remote`, but
+  // solid-router hands the segment over undecoded and openapi-fetch encodes
+  // path params, so without a decode the API would be asked for
+  // `alice%2540remote` (acctFromPath, mention.ts).
+  const accountPaths: string[] = [];
+  server.use(
+    http.get("*/api/v1/accounts/:id", ({ request }) => {
+      accountPaths.push(new URL(request.url).pathname);
+      return HttpResponse.json(alice);
+    }),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      accountPaths.push(new URL(request.url).pathname);
+      return HttpResponse.json(alicePosts);
+    }),
+  );
+  const { findByText, findByRole } = renderProfile(
+    `/users/${encodeURIComponent(ALICE_ACCT)}/media`,
+  );
+
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+  expect(accountPaths).toEqual([
+    `/api/v1/accounts/${encodeURIComponent(ALICE_ACCT)}`,
+    `/api/v1/accounts/${encodeURIComponent(ALICE_ACCT)}/statuses`,
+  ]);
+  // The tab bar links the canonical form, not the spelling the URL arrived in.
+  const nav = await findByRole("navigation", { name: "Profile sections" });
+  expect(nav.querySelector("a")?.getAttribute("href")).toBe(
+    `/users/${ALICE_ACCT}`,
+  );
+  // Following one of those links only canonicalizes the URL; the body is keyed
+  // on the decoded acct, so the list is not thrown away for it.
+  const accountRequestsBefore = accountPaths.length;
+  await userEvent.click(await findByRole("link", { name: "Media" }));
+  await settle();
+  expect(accountPaths).toHaveLength(accountRequestsBefore);
+  expect(await findByRole("link", { name: "Media" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+});
