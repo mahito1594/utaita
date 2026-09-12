@@ -293,9 +293,10 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
     profileTabPath(acct, props.tab),
   );
   const store = createProfilePostsStore(acct, props.tab, slot.restored);
-  onMount(() => {
-    if (slot.restored === undefined) void store.loadInitial();
-  });
+  // Unconditional: whether a first page is still owed is the store's state,
+  // and a second reading of it here would be free to disagree with it
+  // (ADR-0004 amendment 2026-08-09).
+  onMount(() => void store.loadInitial());
   onCleanup(() => {
     // An empty list is not a reading position, and resuming from one would
     // strand the page: the store would consider its first load done and settle

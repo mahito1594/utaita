@@ -36,7 +36,11 @@ export type ProfilePostsStore = {
    * resuming from a snapshot inherits the verdict that snapshot carried.
    */
   exhausted: Accessor<boolean>;
-  /** Mount-time entry point, and the initial-error Retry. */
+  /**
+   * Mount-time entry point, and the initial-error Retry. A no-op once the
+   * first page is no longer owed — a store resuming from a snapshot owes none
+   * to begin with.
+   */
   loadInitial: () => Promise<void>;
   loadOlder: () => Promise<void>;
 };
@@ -55,7 +59,9 @@ export type ProfilePostsStore = {
  * tab gets a different store because the page recreates the component holding
  * it (ProfilePage.tsx). `resume` is what a reader popping back onto this
  * profile's history entry left behind; what outlives the page is that snapshot,
- * never a live store (src/entities/retention/retention.tsx).
+ * never a live store (src/entities/retention/retention.tsx). Whether a first
+ * page is still owed after that is this store's own business, not a condition
+ * the page re-derives (ADR-0004 amendment 2026-08-09).
  */
 export const createProfilePostsStore = (
   acct: string,
@@ -66,7 +72,7 @@ export const createProfilePostsStore = (
     resume?.statuses ?? [],
   );
   // Starting true with a snapshot would strand the list on "Loading…": it has
-  // content already and no fetch is coming.
+  // content already, and the first load it would be waiting for is not owed.
   const [loading, setLoading] = createSignal(resume === undefined);
   const [error, setError] = createSignal<ApiError>();
   const [loadingOlder, setLoadingOlder] = createSignal(false);
@@ -78,8 +84,13 @@ export const createProfilePostsStore = (
   // has started, precisely so the empty row cannot flash.
   let initialInFlight = false;
 
+  // Whether the very first page is still owed. Cleared on success rather than
+  // before the fetch, because the initial-error Retry comes back through this
+  // same entry point: a failed first load leaves the page owing one still.
+  let initialLoadOwed = resume === undefined;
+
   const loadInitial = async (): Promise<void> => {
-    if (initialInFlight) return;
+    if (!initialLoadOwed || initialInFlight) return;
     initialInFlight = true;
     setLoading(true);
     const result = await fetchAccountPosts(acct, { filter: tab.filter });
@@ -90,6 +101,7 @@ export const createProfilePostsStore = (
       setError(result.error);
       return;
     }
+    initialLoadOwed = false;
     setError(undefined);
     setStatuses(result.value);
     setExhausted(result.value.length < POSTS_PAGE_LIMIT);
