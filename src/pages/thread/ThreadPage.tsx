@@ -7,13 +7,23 @@ import {
   useParams,
 } from "@solidjs/router";
 import ArrowLeft from "lucide-solid/icons/arrow-left";
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createRenderEffect,
+  createSignal,
+  For,
+  on,
+  Show,
+} from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import type { Result } from "../../api/result";
+import { markRetentionFrame } from "../../entities/retention/retention";
 import { takeThreadRequest } from "../../entities/status/open-thread";
 import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
+import { statusPath } from "../../entities/status/url";
 import { outlineButton } from "../../ui/outline-button";
 import { resolveStatus } from "./thread-api";
 import { type Thread, type ThreadArrival, threadQuery } from "./thread-query";
@@ -309,6 +319,18 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
       ? undefined
       : current.result;
   };
+
+  // A conversation keeps nothing of its own, but it still takes a place in the
+  // retention stack so that a pop past it lands where the reader's history says
+  // it should (src/entities/retention/retention.tsx). Per arrival rather than
+  // per mount: opening a post from inside a conversation moves `:id` without
+  // recreating the page.
+  createRenderEffect(
+    on(
+      () => params.id,
+      (id) => markRetentionFrame(statusPath(id)),
+    ),
+  );
 
   // One value per arrival, whether the route was matched afresh or only `:id`
   // moved. Reading the request is what consumes it, so this belongs in a

@@ -1,21 +1,27 @@
 // @vitest-environment happy-dom
 // What the timeline keeps while the reader is off reading a conversation —
-// the excursion the retention slot was actually built for, rather than the
+// the excursion the retention stack was actually built for, rather than the
 // profile stub TimelinePage.retention.test.tsx makes the round trip through.
 // The difference is that the thread route waits on data: the router holds the
 // timeline page mounted for the whole transition, so the two pages' lifetimes
 // overlap instead of meeting end to end.
-import { A, MemoryRouter, query, Route } from "@solidjs/router";
+import {
+  A,
+  createMemoryHistory,
+  MemoryRouter,
+  query,
+  Route,
+} from "@solidjs/router";
 import { cleanup, render } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { type ParentProps, Suspense } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
+import { Retention } from "../../entities/retention/retention";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
 import { TimelinePage } from "../timeline/TimelinePage";
-import { TimelineRetention } from "../timeline/TimelineRetention";
 import { TimelineShell } from "../timeline/TimelineShell";
 import { home, local } from "../timeline/timelines";
 import { ThreadPage } from "./ThreadPage";
@@ -120,19 +126,16 @@ afterAll(() => {
 const AppChrome = (props: ParentProps) => (
   <>
     <A href={statusPath(THREAD_ID)}>Open thread</A>
-    <A href={home.path} end>
-      Back to home
-    </A>
     <Suspense fallback={<p>Loading…</p>}>{props.children}</Suspense>
   </>
 );
 
-const renderApp = () => {
+const renderApp = (history = createMemoryHistory()) => {
   const RetainingRoutes = (props: ParentProps) => (
-    <TimelineRetention signedIn={true}>{props.children}</TimelineRetention>
+    <Retention signedIn={true}>{props.children}</Retention>
   );
   return render(() => (
-    <MemoryRouter root={AppChrome}>
+    <MemoryRouter history={history} root={AppChrome}>
       <Route component={RetainingRoutes}>
         <Route component={TimelineShell}>
           <Route
@@ -156,7 +159,8 @@ const renderApp = () => {
 
 test("returning from a conversation shows the accumulated pages again, without refetching", async () => {
   server.use(...handlers);
-  const { findByText, findByRole, queryByText } = renderApp();
+  const history = createMemoryHistory();
+  const { findByText, findByRole, queryByText } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   currentSentinel().fireVisible();
@@ -168,7 +172,7 @@ test("returning from a conversation shows the accumulated pages again, without r
   expect(await findByText("The post that was opened")).toBeInTheDocument();
   expect(queryByText("Post 40")).not.toBeInTheDocument();
 
-  await userEvent.click(await findByRole("link", { name: "Back to home" }));
+  history.back();
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   expect(await findByText("Post 1")).toBeInTheDocument();
@@ -182,14 +186,15 @@ test("the timeline resumed after a conversation still loads older pages", async 
   // would come back frozen, and the resumed sentinel would either stall or
   // fire without limit.
   server.use(...handlers);
-  const { findByText, findByRole } = renderApp();
+  const history = createMemoryHistory();
+  const { findByText, findByRole } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   expect(homeRequests).toHaveLength(1);
 
   await userEvent.click(await findByRole("link", { name: "Open thread" }));
   expect(await findByText("The post that was opened")).toBeInTheDocument();
-  await userEvent.click(await findByRole("link", { name: "Back to home" }));
+  history.back();
   expect(await findByText("Post 40")).toBeInTheDocument();
   expect(homeRequests).toHaveLength(1);
 

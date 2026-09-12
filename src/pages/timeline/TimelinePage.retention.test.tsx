@@ -1,20 +1,26 @@
 // @vitest-environment happy-dom
-// What survives leaving the timeline and coming back. The retention slot is
+// What survives leaving the timeline and coming back. The retention stack is
 // only observable through the page rebuilt on return, so these are page-level
 // tests (ADR-0009): the accumulated pages are still on screen, no request was
 // re-issued, and the resumed page can still load older content — the last one
 // being the canary for a store held across the disposal of the page that
 // created it, whose memos would come back frozen.
-import { A, MemoryRouter, Route, useParams } from "@solidjs/router";
+import {
+  A,
+  createMemoryHistory,
+  MemoryRouter,
+  Route,
+  useParams,
+} from "@solidjs/router";
 import { cleanup, render } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { createSignal, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
+import { Retention } from "../../entities/retention/retention";
 import type { Status } from "../../entities/status/StatusCard";
 import { TimelinePage } from "./TimelinePage";
-import { TimelineRetention } from "./TimelineRetention";
 import { TimelineShell } from "./TimelineShell";
 import { home, local } from "./timelines";
 
@@ -114,9 +120,9 @@ afterAll(() => {
 });
 
 // Stands in for the app chrome around the router outlet: a way out of the
-// timeline (a mention tap, in the real app) and a way back that does not
-// live inside the timeline shell — the shell is gone while a detail route is
-// showing.
+// timeline (a mention tap, in the real app) and a link back to it, which is a
+// push — the reader's own way back is the browser's, driven here through the
+// memory history.
 const AppChrome = (props: ParentProps) => (
   <>
     <A href="/users/alice">Open profile</A>
@@ -140,14 +146,15 @@ const ProfileStub = () => {
 // route wrapping both the timeline shell and the detail route, so leaving for
 // a profile and coming back takes the same path through the router the app
 // takes.
-const renderApp = (signedIn: () => boolean = () => true) => {
+const renderApp = (
+  history = createMemoryHistory(),
+  signedIn: () => boolean = () => true,
+) => {
   const RetainingRoutes = (props: ParentProps) => (
-    <TimelineRetention signedIn={signedIn()}>
-      {props.children}
-    </TimelineRetention>
+    <Retention signedIn={signedIn()}>{props.children}</Retention>
   );
   return render(() => (
-    <MemoryRouter root={AppChrome}>
+    <MemoryRouter history={history} root={AppChrome}>
       <Route component={RetainingRoutes}>
         <Route component={TimelineShell}>
           <Route
@@ -167,7 +174,8 @@ const renderApp = (signedIn: () => boolean = () => true) => {
 
 test("returning from a profile shows the accumulated pages again, without refetching", async () => {
   server.use(...timelineHandlers);
-  const { findByText, findByRole, queryByText } = renderApp();
+  const history = createMemoryHistory();
+  const { findByText, findByRole, queryByText } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   currentSentinel().fireVisible();
@@ -181,7 +189,7 @@ test("returning from a profile shows the accumulated pages again, without refetc
   expect(await findByText("@alice")).toBeInTheDocument();
   expect(queryByText("Post 40")).not.toBeInTheDocument();
 
-  await userEvent.click(await findByRole("link", { name: "Back to home" }));
+  history.back();
 
   // Both pages are back, in order, and nothing went to the network for them.
   expect(await findByText("Post 40")).toBeInTheDocument();
@@ -199,14 +207,15 @@ test("the resumed timeline still loads older pages", async () => {
   // sentinel would read a stale `loadingOlder` and either stall forever or
   // fire without limit.
   server.use(...timelineHandlers);
-  const { findByText, findByRole } = renderApp();
+  const history = createMemoryHistory();
+  const { findByText, findByRole } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   expect(homeRequests).toHaveLength(1);
 
   await userEvent.click(await findByRole("link", { name: "Open profile" }));
   expect(await findByText("@alice")).toBeInTheDocument();
-  await userEvent.click(await findByRole("link", { name: "Back to home" }));
+  history.back();
   expect(await findByText("Post 40")).toBeInTheDocument();
   expect(homeRequests).toHaveLength(1);
 
@@ -221,10 +230,33 @@ test("the resumed timeline still loads older pages", async () => {
   );
 });
 
+test("walking back to the timeline by a link fetches it from the top again", async () => {
+  // A link to the timeline is a push, and a push is a fresh visit however
+  // often the path has been visited before: `<Router scrollRestoration>`
+  // restores no offset for one, so resuming here would hand the reader old
+  // content scrolled to the top.
+  server.use(...timelineHandlers);
+  const { findByText, findByRole, queryByText } = renderApp();
+
+  expect(await findByText("Post 40")).toBeInTheDocument();
+  currentSentinel().fireVisible();
+  expect(await findByText("Older post")).toBeInTheDocument();
+  expect(homeRequests).toHaveLength(2);
+
+  await userEvent.click(await findByRole("link", { name: "Open profile" }));
+  expect(await findByText("@alice")).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("link", { name: "Back to home" }));
+
+  expect(await findByText("Post 40")).toBeInTheDocument();
+  expect(homeRequests).toHaveLength(3);
+  // Only the head is on screen: the accumulated tail was not carried over.
+  expect(queryByText("Older post")).not.toBeInTheDocument();
+});
+
 test("switching tabs still starts the timeline switched to from a fresh fetch", async () => {
-  // One slot, replaced on a switch: a per-path map would answer the return
-  // trip with old content and no fetch, which for a push navigation (no
-  // scroll restoration) is worse than the refetch it replaced.
+  // A tab is a push too, and the switch back lands on a frame of its own
+  // rather than on the one the first visit left behind.
   server.use(...timelineHandlers);
   const { findByText, findByRole, queryByText } = renderApp();
 
@@ -243,18 +275,19 @@ test("switching tabs still starts the timeline switched to from a fresh fetch", 
 
 test("a timeline retained on the way out is dropped when the session ends", async () => {
   // The gate above the provider is a non-keyed `<Show>`, so structural
-  // disposal is not what may be relied on to clear the slot: the provider
+  // disposal is not what may be relied on to clear the stack: the provider
   // drops it on the session signal itself.
   server.use(...timelineHandlers);
   const [signedIn, setSignedIn] = createSignal(true);
-  const { findByText, findByRole } = renderApp(signedIn);
+  const history = createMemoryHistory();
+  const { findByText, findByRole } = renderApp(history, signedIn);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   await userEvent.click(await findByRole("link", { name: "Open profile" }));
   expect(await findByText("@alice")).toBeInTheDocument();
 
   setSignedIn(false);
-  await userEvent.click(await findByRole("link", { name: "Back to home" }));
+  history.back();
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   expect(homeRequests).toHaveLength(2);
