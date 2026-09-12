@@ -57,9 +57,52 @@ boundaries.
   module-graph rules. Boundary rules must not be duplicated on the Biome
   side.
 
+## Amendment (2026-09-12): TypeScript 7 and the empty cruise
+
+dependency-cruiser parses TypeScript through whatever `require("typescript")`
+resolves, and only accepts `>=2 <7`. After the project moved to TypeScript 7
+(for its native type checker), `pnpm check:deps` found no usable compiler,
+cruised 0 modules, printed a `missing-typescript-transpiler` warning — which
+is fixed at severity `warn` — and exited 0. The check passed in CI while
+checking nothing. Upstream support waits on a public TypeScript 7 compiler
+API, with no date.
+
+- **dependency-cruiser gets its own TypeScript 6.** `packageExtensions` in
+  `pnpm-workspace.yaml` adds `typescript: ^6` as a dependency of
+  dependency-cruiser only. The project's `typescript` stays on 7; nothing
+  else changes which compiler it sees.
+- **A missing compiler fails.** After the usual `depcruise src` run,
+  `check:deps` cruises again with the JSON reporter and pipes it into
+  `scripts/check-deps.mjs`, which exits non-zero unless the summary lists
+  TypeScript as an available transpiler and at least one module was
+  cruised. Checking the transpiler, not just the module count, keeps a stray
+  `.js` file in `src/` from masking a skipped TypeScript tree. The second
+  run costs under a second and leaves the `err` reporter's output (cycle
+  paths included) untouched.
+- **Removal is tied to the upstream release.** Renovate does not see
+  `packageExtensions`, so a `renovate.json` rule takes dependency-cruiser
+  out of the non-major group, turns off its automerge, and adds a PR note:
+  once a release supports TypeScript 7, delete the `packageExtensions`
+  entry. Until then the `^6` range moves only by hand; TypeScript 6 is the
+  last JavaScript-based line, so little is lost.
+
+Options considered:
+
+- Aliasing `typescript` to `@typescript/typescript6` (the side-by-side setup
+  from the TypeScript 7 announcement, suggested upstream) — rebinds
+  `typescript` for every tool and the editor, not just dependency-cruiser.
+- Staying on TypeScript 6 — dependencies are kept on their latest majors so
+  upgrades never pile up.
+- dependency-cruiser's `swc` parser — experimental, marked for removal, and
+  not documented to support `tsPreCompilationDeps`.
+
 ## References
 
 - [ADR-0010](./0010-directory-structure.md) — the boundary rules being
   enforced
 - Convention audit discussion, 2026-07-13 (Biome limitation verified
   empirically against Biome 2.5.2)
+- [sverweij/dependency-cruiser#1069](https://github.com/sverweij/dependency-cruiser/issues/1069),
+  [#1048](https://github.com/sverweij/dependency-cruiser/issues/1048) —
+  TypeScript 7 support waits on a public compiler API
+- [Announcing TypeScript 7.0 — running side by side with TypeScript 6.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0)
