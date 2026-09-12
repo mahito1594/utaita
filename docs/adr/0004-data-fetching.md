@@ -147,6 +147,67 @@ false in both of its claims and is superseded here; the fourth bullet
   pure function; it waits for dogfooding evidence that deep-reading days
   actually feel slow.
 
+## Amendment (2026-09-12): the slot becomes a history stack
+
+The profile page is the second route with an accumulated list, and it sits
+at both ends of the same excursion the 2026-08-09 amendment covered: a reader
+opens a profile from the timeline, a post from the profile, and walks back
+twice. With one slot, the profile's claim evicts the timeline's snapshot and
+the second step back refetches — a regression on the one path that already
+restored. The retention component is now a stack of `{path, snapshot}`
+frames (`src/entities/retention/retention.tsx`) and a page resumes only
+when the reader pops back onto its entry.
+
+- **The invariant was "never restore on a push"; one slot was only its
+  means.** The 2026-08-09 amendment's third bullet ("One slot, not a map")
+  is superseded. Its argument stands — a push gets no scroll restoration,
+  so answering a push with old content would hand back a stale list
+  scrolled to the top — but the stack meets it directly: a push appends a
+  fresh frame however often the path has been visited, and a pop truncates
+  the stack down to the newest frame for the landing path, dropping the
+  entries the reader can no longer reach. The tab switch the old bullet
+  worried about is a push and still starts from the top.
+- **Push and pop are told apart through `useBeforeLeave`.** The router
+  confirms a push or a replace with a string `to` (`navigateFromRoute`),
+  a browser back/forward with a number (the history delta, from the
+  browser history's `init`), and a memory history traverses without
+  confirming at all — so "no push was announced for the pathname the reader
+  landed on" identifies a pop on both integrations, and every misjudgement
+  falls on the safe side (fetch instead of resume). The announced target is
+  compared with the landing pathname rather than kept as a bare flag: a
+  route that claims no frame (a profile left before its account resolves)
+  would otherwise leave the flag set for whichever page arrives next, and a
+  pop back to the timeline would be read as a push. Route `preload`'s
+  `intent` was rejected as the signal because preload does not rerun when
+  only the params of the same route change, so a profile-to-profile push
+  would go unannounced.
+- **A page with nothing to keep still marks a frame.** The thread route
+  holds no snapshot, but if it took no place in the stack the history and
+  the stack would drift: profile A → thread → A pushed again from inside
+  the thread → back → back would land on the newer A frame instead of the
+  one the reader is returning to. Marking is per arrival, not per mount,
+  because opening a post from inside a conversation moves `:id` without
+  recreating the page.
+- **Rejected: keep one slot and let the profile refetch.** That walk
+  is the ordinary way to read a profile; refetch on the second step back is
+  the failure the 2026-08-09 amendment already ruled out for timelines.
+- **Rejected: a map keyed by path without pop detection.** This is the
+  2026-08-09 amendment's rejected alternative under a new name — a push to a
+  path in the map would resume stale content scrolled to the top.
+- **Rejected: a fixed two-deep slot (timeline + profile).** It encodes the
+  current route tree into the retention component; profile → thread →
+  profile already breaks it, and the follow list adds a third list.
+- **The stack lives in `src/entities/`**, not in `src/pages/timeline/`
+  where the slot was: three pages use it and pages may not import each
+  other (ADR-0010), and `src/app/` wires it as a layout route. It imports
+  no other entity and holds snapshots as `unknown`, so it depends on no
+  page's content shape. The empty-snapshot rejection moved to the pages
+  for the same reason: the stack does not interpret what it holds.
+- Snapshots stay by reference, unbounded, and dropped on the session
+  signal, as before. Scroll stays with `<Router scrollRestoration>`: the
+  content comes back synchronously from the frame, so the router's offset
+  restore has a rendered page to land on.
+
 ## References
 
 - https://docs.solidjs.com/solid-router/reference/data-apis/query

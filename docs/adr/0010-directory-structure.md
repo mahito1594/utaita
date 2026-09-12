@@ -99,6 +99,18 @@ Two adjacent placements, recorded at the same time:
   `Result` convention as `toResult`. The Decision's "api/: nothing more"
   reads as "transport only", not "generated calls only".
 
+## Amendment (2026-09-12): entities also hold what several pages share without a URL
+
+The retention stack (`src/entities/retention/`, ADR-0004 amendment of the
+same date) is the first resident of `entities/` that renders no domain
+object: three pages claim frames from it and `app/` mounts it as a layout
+route. It fails the "does it have a URL?" test the same way status does, and
+no other layer can take it — pages may not import each other, and pages
+may not import `app`. The Decision's `entities/` line therefore reads as
+"shared by pages, URL-less": domain rendering and interpretation, and
+page-spanning machinery that has no page of its own. The sideways rule is
+unchanged; the retention module imports no other entity.
+
 ## References
 
 - Server-state primitives and pagination ownership: [ADR-0004](./0004-data-fetching.md)
