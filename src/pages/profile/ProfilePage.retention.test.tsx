@@ -11,7 +11,7 @@ import {
   query,
   Route,
 } from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { cleanup, render, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -325,5 +325,94 @@ test("pushing the same profile again from inside a conversation leaves the first
 
   expect(await findByText("Post from the first visit")).toBeInTheDocument();
   expect(queryByText("Post from the second visit")).not.toBeInTheDocument();
+  expect(postsRequests).toHaveLength(2);
+});
+
+test("walking deeper into a conversation still leaves the profile visit it started from reachable", async () => {
+  // Opening a post from inside a conversation moves `:id` without recreating
+  // the page, so the second conversation takes a frame of its own only because
+  // ThreadPage.tsx marks one per arrival rather than per mount. Without that
+  // frame the three steps back run out of stack an entry early and the pop
+  // meant for the first profile visit lands on the second.
+  const DEEPER_ID = "120000000000009998";
+  const opened = post(THREAD_ID, "The post that was opened");
+  const deeper: Status = {
+    ...post(DEEPER_ID, "The reply it was walked into"),
+    in_reply_to_id: THREAD_ID,
+  };
+  let visits = 0;
+  server.use(
+    accountHandler,
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      postsRequests.push(new URL(request.url));
+      visits += 1;
+      return HttpResponse.json([
+        visits === 1
+          ? post(idOf(120), "Post from the first visit")
+          : post(idOf(119), "Post from the second visit"),
+      ]);
+    }),
+    http.get<{ id: string }>("*/api/v1/statuses/:id/context", ({ params }) =>
+      HttpResponse.json(
+        params.id === THREAD_ID
+          ? { ancestors: [], descendants: [deeper] }
+          : { ancestors: [opened], descendants: [] },
+      ),
+    ),
+    http.get<{ id: string }>("*/api/v1/statuses/:id", ({ params }) =>
+      HttpResponse.json(params.id === THREAD_ID ? opened : deeper),
+    ),
+  );
+  const history = onProfile();
+  const view = renderApp(history);
+  // Both conversations draw both posts — one as the subject, the other as a
+  // neighbouring row — so only the landing mark says which one is on screen.
+  const landedOn = (body: string) =>
+    waitFor(() =>
+      expect(
+        view.container.querySelector('[aria-current="true"]'),
+      ).toHaveTextContent(body),
+    );
+
+  expect(
+    await view.findByText("Post from the first visit"),
+  ).toBeInTheDocument();
+
+  await userEvent.click(
+    await view.findByRole("link", { name: "Open conversation" }),
+  );
+  await landedOn("The post that was opened");
+
+  const row = [...view.container.querySelectorAll("li")].find((item) =>
+    item.textContent?.includes("The reply it was walked into"),
+  );
+  if (row === undefined) throw new Error("the reply row is missing");
+  await userEvent.click(
+    within(row).getByRole("link", { name: /Conversation/ }),
+  );
+  await landedOn("The reply it was walked into");
+
+  await userEvent.click(
+    await view.findByRole("link", { name: "Open profile" }),
+  );
+  expect(
+    await view.findByText("Post from the second visit"),
+  ).toBeInTheDocument();
+  expect(postsRequests).toHaveLength(2);
+
+  history.back();
+  await landedOn("The reply it was walked into");
+
+  history.back();
+  await landedOn("The post that was opened");
+
+  history.back();
+
+  expect(
+    await view.findByText("Post from the first visit"),
+  ).toBeInTheDocument();
+  expect(
+    view.queryByText("Post from the second visit"),
+  ).not.toBeInTheDocument();
   expect(postsRequests).toHaveLength(2);
 });
