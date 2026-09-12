@@ -10,12 +10,12 @@ import {
 } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
+import { claimRetentionFrame } from "../../entities/retention/retention";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
-import { claimTimelineSlot } from "./TimelineRetention";
 import { publishTimelineControls } from "./TimelineShell";
-import { createTimelineStore } from "./timeline-store";
+import { createTimelineStore, type TimelineSnapshot } from "./timeline-store";
 import type { TimelineDefinition } from "./timelines";
 
 // The list's unit of rhythm (docs/design/timeline-density.md): a status is a
@@ -340,19 +340,25 @@ const visuallyHidden = css({
 });
 
 export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
-  // Claimed before the store exists, because what the slot hands back is what
+  // Claimed before the store exists, because what the frame hands back is what
   // the store starts from: the accumulated pages of this same timeline when
-  // the reader is coming back from a detail route, nothing otherwise. The
-  // store is still created here, per page — only the snapshot outlives the
-  // page (TimelineRetention.tsx).
-  const slot = claimTimelineSlot(props.timeline.path);
+  // the reader pops back onto this entry, nothing otherwise. The store is
+  // still created here, per page — only the snapshot outlives the page
+  // (src/entities/retention/retention.tsx).
+  const slot = claimRetentionFrame<TimelineSnapshot>(props.timeline.path);
   const store = createTimelineStore(props.timeline.fetchPage, slot.restored);
-  // `segments`/`exhausted` are the store's own signals, so this read yields
-  // the content as it stands at disposal; a derived memo could hand back a
-  // value it had already stopped recomputing.
-  onCleanup(() =>
-    slot.retain({ segments: store.segments(), exhausted: store.exhausted() }),
-  );
+  onCleanup(() => {
+    // `segments`/`exhausted` are the store's own signals, so this reads the
+    // content as it stands at disposal; a derived memo could hand back a value
+    // it had already stopped recomputing.
+    const segments = store.segments();
+    // An empty snapshot is not a reading position, and resuming from one would
+    // strand the page: the store would consider its first load already done and
+    // settle on the empty-success row with no fetch coming. Failed and
+    // still-loading pages leave the frame as it was.
+    if (segments.length === 0) return;
+    slot.retain({ segments, exhausted: store.exhausted() });
+  });
   const [refreshAnnouncement, setRefreshAnnouncement] = createSignal("");
 
   // Wraps `store.refresh()` to count net new statuses and hand the outcome

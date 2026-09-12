@@ -1,6 +1,7 @@
 import { Route, type RoutePreloadFunc, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
+import { Retention } from "../entities/retention/retention";
 import { statusPath } from "../entities/status/url";
 import { ProfilePage, ProfilePosts } from "../pages/profile/ProfilePage";
 import { preloadProfile } from "../pages/profile/profile-query";
@@ -11,7 +12,6 @@ import {
   type ThreadArrival,
 } from "../pages/thread/thread-query";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
-import { TimelineRetention } from "../pages/timeline/TimelineRetention";
 import { TimelineShell } from "../pages/timeline/TimelineShell";
 import { bubble, federated, home, local } from "../pages/timeline/timelines";
 import { outlineButton } from "../ui/outline-button";
@@ -130,13 +130,11 @@ const ProfileRepliesTab = () => <ProfilePosts tab={postsAndReplies} />;
 const ProfileMediaTab = () => <ProfilePosts tab={media} />;
 
 // The session is passed in rather than read inside the retention component:
-// src/pages must not depend on src/app (.dependency-cruiser.cjs), and the
-// slot has to be dropped on sign-out by an explicit signal rather than by
+// src/entities must not depend on src/app (.dependency-cruiser.cjs), and the
+// stack has to be dropped on sign-out by an explicit signal rather than by
 // trusting the gate to dispose it.
 const RetainingRoutes = (props: ParentProps) => (
-  <TimelineRetention signedIn={authenticated()}>
-    {props.children}
-  </TimelineRetention>
+  <Retention signedIn={authenticated()}>{props.children}</Retention>
 );
 
 // `scrollRestoration`: the router records `window.scrollY` per history entry
