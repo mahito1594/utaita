@@ -11,12 +11,16 @@ import {
 } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
+import { claimRetentionFrame } from "../../entities/retention/retention";
 import { acctFromPath } from "../../entities/status/mention";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { ProfileHeader } from "./ProfileHeader";
 import type { Account } from "./profile-api";
-import { createProfilePostsStore } from "./profile-posts-store";
+import {
+  createProfilePostsStore,
+  type ProfileSnapshot,
+} from "./profile-posts-store";
 import { profileQuery } from "./profile-query";
 import { type ProfileTab, profileTabPath, profileTabs } from "./profile-tabs";
 
@@ -275,12 +279,32 @@ const PostsSentinel = (props: {
 /**
  * The list under the tab bar, one tab's filter over one account's posts. The
  * leaf of the profile route (App.tsx): a new `acct` or a new tab is a new
- * mount, so the store it owns starts empty and is never reset.
+ * mount, so the store it owns is never reset by hand.
  */
 export const ProfilePosts = (props: { tab: ProfileTab }) => {
   const params = useParams<{ acct: string }>();
-  const store = createProfilePostsStore(acctFromPath(params.acct), props.tab);
-  onMount(() => void store.loadInitial());
+  // The decoded acct, so `/users/alice%40remote.example` and the raw spelling
+  // the tabs link to claim one frame rather than two.
+  const acct = acctFromPath(params.acct);
+  // Claimed before the store exists, because what the frame hands back is what
+  // the store starts from: this list as the reader left it when they pop back
+  // onto this entry, nothing otherwise.
+  const slot = claimRetentionFrame<ProfileSnapshot>(
+    profileTabPath(acct, props.tab),
+  );
+  const store = createProfilePostsStore(acct, props.tab, slot.restored);
+  onMount(() => {
+    if (slot.restored === undefined) void store.loadInitial();
+  });
+  onCleanup(() => {
+    // An empty list is not a reading position, and resuming from one would
+    // strand the page: the store would consider its first load done and settle
+    // on the empty-success row with no fetch coming. Failed and still-loading
+    // lists leave the frame as it was.
+    const statuses = store.statuses();
+    if (statuses.length === 0) return;
+    slot.retain({ statuses, exhausted: store.exhausted() });
+  });
 
   // The store's dedupe absorbs re-fires on its own; this gate is what keeps an
   // IntersectionObserver re-fire (any scroll jiggle while the error row is on
