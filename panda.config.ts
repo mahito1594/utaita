@@ -10,6 +10,10 @@ export default defineConfig({
       // Light-only UI: keeps native widgets (scrollbars, form controls) light
       // even when the OS prefers dark. See docs/design/tokens.md.
       colorScheme: "light",
+      // Reserve the scrollbar's column even before a page is long enough to
+      // need one, so the centered column does not shift sideways as content
+      // arrives.
+      scrollbarGutter: "stable",
     },
     body: {
       bg: "bg.canvas",

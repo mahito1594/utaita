@@ -1,4 +1,4 @@
-import { Route, type RoutePreloadFunc, Router } from "@solidjs/router";
+import { A, Route, type RoutePreloadFunc, Router } from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { Retention } from "../entities/retention/retention";
@@ -67,7 +67,11 @@ const Layout = (props: ParentProps) => (
             color: "text.brand",
           })}
         >
-          utaita
+          {/* The way back to the top of the home timeline from anywhere,
+              wearing the heading's own colour rather than a link's. */}
+          <A href="/" class={css({ color: "inherit", textDecoration: "none" })}>
+            utaita
+          </A>
         </h1>
         <Show when={authenticated()}>
           <button

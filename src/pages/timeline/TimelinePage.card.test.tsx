@@ -648,6 +648,27 @@ test("a tap anywhere on the card opens the post's conversation", async () => {
   expect(await findByText(`Reading ${plainStatus.id}`)).toBeInTheDocument();
 });
 
+test("the author's name leads to their profile, not to the conversation", async () => {
+  servePlain();
+  const { findByRole, findByText, queryByText, container } = renderApp();
+
+  const name = await findByRole("link", { name: "Alice Example" });
+  const profileHref = "/users/alice@fixture.example";
+  expect(name).toHaveAttribute("href", profileHref);
+  // The avatar repeats the destination as a second anchor; only the name is
+  // in the accessibility tree and the tab order, so the role query above
+  // finds exactly one of the two.
+  expect(container.querySelectorAll(`a[href="${profileHref}"]`)).toHaveLength(
+    2,
+  );
+
+  await userEvent.click(name);
+
+  expect(await findByText("@alice@fixture.example")).toBeInTheDocument();
+  // The card-wide tap did not take the name's destination away from it.
+  expect(queryByText(/^Reading /)).not.toBeInTheDocument();
+});
+
 test("the timestamp is the card's link to the conversation", async () => {
   // The card-wide tap is a pointer shortcut; this link is what a keyboard
   // reaches, what announces where the card leads, and what a modified click

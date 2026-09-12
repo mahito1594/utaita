@@ -341,6 +341,38 @@ test("counts the account withholds are absent, not zeroes", async () => {
   expect(header).not.toHaveTextContent("0");
 });
 
+test("a remote account offers its page on the origin server", async () => {
+  const remote: Account = {
+    ...alice,
+    url: "https://fixture.example/users/alice",
+  };
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(remote)),
+    http.get("*/api/v1/accounts/:id/statuses", () =>
+      HttpResponse.json(alicePosts),
+    ),
+  );
+  const { findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+
+  const link = await findByRole("link", { name: "View on fixture.example" });
+  expect(link).toHaveAttribute("href", remote.url);
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link).toHaveAttribute("rel", "noopener noreferrer");
+});
+
+test("a local account has no such link — its page is this app", async () => {
+  server.use(
+    http.get("*/api/v1/accounts/:id", () =>
+      HttpResponse.json({ ...bob, url: "https://instance.test/users/bob" }),
+    ),
+    http.get("*/api/v1/accounts/:id/statuses", () => HttpResponse.json([])),
+  );
+  const { findByRole, queryByRole } = renderProfile(`/users/${BOB_ACCT}`);
+
+  await findByRole("heading", { level: 2 });
+  expect(queryByRole("link", { name: /^View on / })).not.toBeInTheDocument();
+});
+
 test("renders an empty-success row and no sentinel when the account has no posts", async () => {
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),

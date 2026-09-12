@@ -2,6 +2,7 @@ import { For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import { EmojiText } from "../../entities/status/EmojiText";
 import { StatusContent } from "../../entities/status/StatusContent";
+import { safeExternalHref } from "../../entities/status/url";
 import type { Account } from "./profile-api";
 
 // A band across the top of the plane, not a framed image: the account's own
@@ -67,6 +68,19 @@ const displayNameStyle = css({
 
 const acctStyle = css({ ...truncated, fontSize: "sm", color: "text.muted" });
 
+// Under the handle it qualifies and in the same muted key: this page is where
+// the account is read, and the origin server is only the way out to what this
+// instance cannot show.
+const originLinkStyle = css({
+  ...truncated,
+  display: "inline-block",
+  maxWidth: "100%",
+  mt: "1",
+  fontSize: "xs",
+  color: "text.muted",
+  textDecoration: "underline",
+});
+
 const badgeRow = css({ display: "flex", gap: "1.5", mt: "1" });
 
 // Same pill as a reaction chip (ReactionChips.tsx); second occurrence, so not
@@ -131,6 +145,14 @@ export const ProfileHeader = (props: { account: Account }) => {
   // Present because the fetch asks for it (profile-api.ts); all-false for an
   // anonymous viewer, so nothing shows. Acting on it is Phase 2.
   const relationship = () => props.account.pleroma?.relationship;
+  // Remote accounts only — a local acct's own page is this app. The scheme
+  // gate is the one every API-provided URL passes (entities/status/url.ts),
+  // and it is also what makes the host safe to read back off the parsed URL.
+  const origin = (): { href: string; host: string } | null => {
+    const href = safeExternalHref(props.account.url);
+    if (href === null || !(props.account.acct ?? "").includes("@")) return null;
+    return { href, host: new URL(href).host };
+  };
 
   return (
     <header>
@@ -170,6 +192,18 @@ export const ProfileHeader = (props: { account: Account }) => {
             {/* Always the full acct, domain included: a remote handle without
                 its domain names a different account on this instance. */}
             <p class={acctStyle}>@{props.account.acct}</p>
+            <Show when={origin()}>
+              {(link) => (
+                <a
+                  href={link().href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class={originLinkStyle}
+                >
+                  View on {link().host}
+                </a>
+              )}
+            </Show>
             <Show
               when={relationship()?.following || relationship()?.followed_by}
             >
