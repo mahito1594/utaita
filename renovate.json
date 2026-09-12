@@ -16,6 +16,14 @@
     {
       "matchDatasources": ["npm"],
       "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchPackageNames": ["dependency-cruiser"],
+      "groupName": null,
+      "automerge": false,
+      "prBodyNotes": [
+        "If this release supports TypeScript 7, remove the dependency-cruiser entry from packageExtensions in pnpm-workspace.yaml (sverweij/dependency-cruiser#1069)."
+      ]
     }
   ]
 }
