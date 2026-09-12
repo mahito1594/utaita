@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "@solidjs/router";
+import { A, useLocation, useNavigate } from "@solidjs/router";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import Globe from "lucide-solid/icons/globe";
 import House from "lucide-solid/icons/house";
@@ -15,6 +15,7 @@ import { ActionBar } from "./ActionBar";
 import { EmojiText } from "./EmojiText";
 import { LinkPreview } from "./LinkPreview";
 import { MediaGrid } from "./MediaGrid";
+import { profilePath } from "./mention";
 import { opensThread, requestThread } from "./open-thread";
 import { PollView } from "./PollView";
 import { parseEmojiReactions } from "./parse";
@@ -43,13 +44,24 @@ const VISIBILITY_ICONS: Record<VisibilityScope, typeof Globe> = {
   direct: Mail,
 };
 
-// The permalink carries the timestamp and nothing else, so it borrows the
-// header's muted colour instead of announcing itself as a link in every card.
-const permalinkStyle = css({
+// Both links in the header lead out of the card rather than decorating it —
+// the author's profile and the post's permalink — so they borrow the colour of
+// the text they sit in instead of announcing themselves in every row.
+const headerLinkStyle = css({
   color: "inherit",
   textDecoration: "none",
   _hover: { textDecoration: "underline" },
 });
+
+const avatarShape = {
+  width: "10",
+  height: "10",
+  borderRadius: "full",
+  flexShrink: 0,
+} as const;
+
+const avatarFallback = css({ ...avatarShape, bg: "bg.subtle" });
+const avatarImage = css({ ...avatarShape, objectFit: "cover" });
 
 export const StatusCard = (props: {
   status: Status;
@@ -82,6 +94,31 @@ export const StatusCard = (props: {
     const path = statusPath(subjectId());
     return path === location.pathname ? null : path;
   };
+
+  // The author's profile, or null when the account arrived without an acct
+  // to name it: nothing in the header is worth an anchor leading nowhere.
+  const authorPath = (): string | null => {
+    const acct = subject().account?.acct;
+    return acct ? profilePath(acct) : null;
+  };
+
+  const Avatar = () => (
+    <Show
+      when={subject().account?.avatar}
+      fallback={<div class={avatarFallback} />}
+    >
+      {(avatar) => (
+        <img src={avatar()} alt="" loading="lazy" class={avatarImage} />
+      )}
+    </Show>
+  );
+
+  const AuthorName = () => (
+    <EmojiText
+      text={displayName(subject().account)}
+      emojis={subject().account?.emojis ?? []}
+    />
+  );
 
   let permalink: HTMLAnchorElement | undefined;
   // One navigation for both affordances: the permalink is a real anchor, so a
@@ -163,33 +200,19 @@ export const StatusCard = (props: {
           minWidth: 0,
         })}
       >
-        <Show
-          when={subject().account?.avatar}
-          fallback={
-            <div
-              class={css({
-                width: "10",
-                height: "10",
-                borderRadius: "full",
-                bg: "bg.subtle",
-                flexShrink: 0,
-              })}
-            />
-          }
-        >
-          {(avatar) => (
-            <img
-              src={avatar()}
-              alt=""
-              loading="lazy"
-              class={css({
-                width: "10",
-                height: "10",
-                borderRadius: "full",
-                objectFit: "cover",
-                flexShrink: 0,
-              })}
-            />
+        <Show when={authorPath()} fallback={<Avatar />}>
+          {(path) => (
+            // A second anchor to the destination the name already announces:
+            // hidden from assistive tech and from the tab order, since one
+            // anchor around both would have to wrap the whole header row.
+            <A
+              href={path()}
+              tabIndex={-1}
+              aria-hidden="true"
+              class={css({ display: "flex", flexShrink: 0 })}
+            >
+              <Avatar />
+            </A>
           )}
         </Show>
         <div class={css({ flex: 1, minWidth: 0 })}>
@@ -202,10 +225,13 @@ export const StatusCard = (props: {
               whiteSpace: "nowrap",
             })}
           >
-            <EmojiText
-              text={displayName(subject().account)}
-              emojis={subject().account?.emojis ?? []}
-            />
+            <Show when={authorPath()} fallback={<AuthorName />}>
+              {(path) => (
+                <A href={path()} class={headerLinkStyle}>
+                  <AuthorName />
+                </A>
+              )}
+            </Show>
           </div>
           <div
             class={css({
@@ -232,7 +258,7 @@ export const StatusCard = (props: {
         >
           <Show when={threadPath()} fallback={<Timestamp />}>
             {(path) => (
-              <a ref={permalink} href={path()} class={permalinkStyle}>
+              <a ref={permalink} href={path()} class={headerLinkStyle}>
                 {/* Keeps the visible text inside the accessible name (WCAG
                     2.5.3) while saying what the link is for: on its own, a
                     relative time names no destination. */}
