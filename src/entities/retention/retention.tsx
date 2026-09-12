@@ -71,8 +71,10 @@ export const markRetentionFrame = (path: string): void =>
  * fresh visit and starts from the top — the same verdict `<Router
  * scrollRestoration>` reaches, which restores nothing for a push, so a
  * resuming push would hand back old content scrolled to the top. Pops
- * truncate the stack down to the frame they land on, dropping the entries the
- * reader can no longer reach along with it.
+ * truncate the stack down to the frame they land on. Forward entries keep
+ * their history slot but lose their frame, so a forward traversal refetches —
+ * the safe side of the trade, and the verdict the no-match branch of `enter`
+ * reaches for it.
  *
  * What a frame keeps is a snapshot — content by reference plus whatever
  * verdict rode along with it — and never a live store. A store builds memos,

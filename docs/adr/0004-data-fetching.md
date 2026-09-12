@@ -164,9 +164,17 @@ when the reader pops back onto its entry.
   so answering a push with old content would hand back a stale list
   scrolled to the top — but the stack meets it directly: a push appends a
   fresh frame however often the path has been visited, and a pop truncates
-  the stack down to the newest frame for the landing path, dropping the
-  entries the reader can no longer reach. The tab switch the old bullet
-  worried about is a push and still starts from the top.
+  the stack down to the newest frame for the landing path. The tab switch
+  the old bullet worried about is a push and still starts from the top.
+  Two traversals the stack does not model: a forward traversal finds no
+  frame (the pop that preceded it truncated the frame away while the
+  history entry stayed) and refetches, and a multi-entry pop from the
+  browser's history menu onto a path visited more than once resumes the
+  newest of those visits — the same list, accumulated to a different
+  depth. Tracking the history delta
+  would cover both at the price of a second history model to keep in step
+  with the browser's; neither gesture is part of reading, so the stack
+  stays a stack.
 - **Push and pop are told apart through `useBeforeLeave`.** The router
   confirms a push or a replace with a string `to` (`navigateFromRoute`),
   a browser back/forward with a number (the history delta, from the
