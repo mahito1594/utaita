@@ -4,12 +4,26 @@ import type { Status } from "../../entities/status/types";
 import { fetchAccountPosts, POSTS_PAGE_LIMIT } from "./profile-api";
 import type { ProfileTab } from "./profile-tabs";
 
+/**
+ * Content a posts list can resume from instead of fetching its first page: the
+ * statuses it had accumulated and the `exhausted` verdict they were left with.
+ * Held by reference (never serialised) — `Status` object identity is what keeps
+ * the rendered cards, and with them the browser's scroll anchors, stable across
+ * the resume. The `max_id` cursor is the tail's own id, so it needs no room
+ * here.
+ */
+export type ProfileSnapshot = {
+  readonly statuses: readonly Status[];
+  readonly exhausted: boolean;
+};
+
 export type ProfilePostsStore = {
   statuses: Accessor<readonly Status[]>;
   /**
-   * True while the first page is in flight, and from creation until
-   * `loadInitial` starts that fetch — an empty list would otherwise flash the
-   * empty-success row before the mount effect fires.
+   * True while the first page is in flight, and, for a store that has to fetch
+   * that page at all, from creation until `loadInitial` starts it — an empty
+   * list would otherwise flash the empty-success row before the mount effect
+   * fires.
    */
   loading: Accessor<boolean>;
   /** Last first-page failure; the list is empty whenever this is set. */
@@ -18,7 +32,8 @@ export type ProfilePostsStore = {
   loadOlderError: Accessor<ApiError | undefined>;
   /**
    * True once a short page proves nothing older exists. Sticky: this list only
-   * ever grows at the tail, so the verdict has no reason to flip back.
+   * ever grows at the tail, so the verdict has no reason to flip back. A store
+   * resuming from a snapshot inherits the verdict that snapshot carried.
    */
   exhausted: Accessor<boolean>;
   /** Mount-time entry point, and the initial-error Retry. */
@@ -36,20 +51,27 @@ export type ProfilePostsStore = {
  * refreshes it and nothing streams into it — so a run of statuses and one
  * cursor is the whole model.
  *
- * Created per mounted posts list and never reset: a different `acct` or tab
- * gets a different store because the page recreates the component holding it
- * (ProfilePage.tsx).
+ * Created per mounted posts list and never reset by hand: a different `acct` or
+ * tab gets a different store because the page recreates the component holding
+ * it (ProfilePage.tsx). `resume` is what a reader popping back onto this
+ * profile's history entry left behind; what outlives the page is that snapshot,
+ * never a live store (src/entities/retention/retention.tsx).
  */
 export const createProfilePostsStore = (
   acct: string,
   tab: ProfileTab,
+  resume?: ProfileSnapshot,
 ): ProfilePostsStore => {
-  const [statuses, setStatuses] = createSignal<readonly Status[]>([]);
-  const [loading, setLoading] = createSignal(true);
+  const [statuses, setStatuses] = createSignal<readonly Status[]>(
+    resume?.statuses ?? [],
+  );
+  // Starting true with a snapshot would strand the list on "Loading…": it has
+  // content already and no fetch is coming.
+  const [loading, setLoading] = createSignal(resume === undefined);
   const [error, setError] = createSignal<ApiError>();
   const [loadingOlder, setLoadingOlder] = createSignal(false);
   const [loadOlderError, setLoadOlderError] = createSignal<ApiError>();
-  const [exhausted, setExhausted] = createSignal(false);
+  const [exhausted, setExhausted] = createSignal(resume?.exhausted ?? false);
 
   // Reentry guard shared by the mount call and the initial-error Retry.
   // `loading` cannot serve as one: it is true from creation, before any fetch
