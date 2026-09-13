@@ -139,6 +139,15 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   2/2 で再現)。子の `in_reply_to_id` は正しく実 ID に変わるので、リンク自体は張れている。
   ancestors + descendants + 起点の和集合を取り、`in_reply_to_id` だけからツリーを
   組み立てて祖先/子孫はクライアント側で導出すること。
+- **status の `pinned` は閲覧者を問わず常に付く。** spec の説明「pinnable のときのみ
+  現れる」に反し、`StatusView` の `pin_data/2` は閲覧者ではなく作者の
+  `pinned_objects` を見る (2026-09-13 に Akkoma ソースで確認、匿名取得でも
+  `pinned: true` が返る)。本人判定には使えない。
+- **リモートアカウントの pinned は `max_pinned_statuses` を超えて複数入る。**
+  既定値 1 はローカルの pin 操作の上限で、連合で届く featured コレクションは
+  そのまま取り込まれる (2026-09-13 に実測: misskey.io のアカウントで 3 件)。
+  `?pinned=true` は `exclude_replies` / `only_media` と AND で結ばれ、ページネーションも
+  通常どおり効く。
 - **ID の辞書順が時系列順に一致するのは「タイムラインに流れてくる投稿」に限られる。**
   flake ID はローカル DB への挿入順なので、後から取り込んだ古い投稿は新しい ID を
   持つ (2026-08-09 に実測: 親の `created_at` が 1〜2 分古いのに ID は子より大きい)。
