@@ -40,7 +40,8 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
       (2026-08-09。会話ツリーは [ADR-0014](./adr/0014-thread-view.md)、未取得親の
       明示的な取り込みは ADR-0011 amendment、詳細ルートへの往復での保持は
       ADR-0004 amendment。ストーリーのチェックはスマホ実機確認待ち)
-- [ ] Phase 1 進行中 (残り: プロフィールの pinned 表示、「誰が」一覧。通知は
+- [ ] Phase 1 進行中 (ストーリーの実装は 2026-09-13 に出揃った — プロフィールの
+      pinned 表示と「誰が」一覧が最後。残りは dogfooding とスマホ実機確認。通知は
       2026-09-13 に Phase 2 へ — 既読管理が write scope を要するため。
       根拠は [stories.ja.md](./stories.ja.md) の Phase 2 冒頭)
 
@@ -182,6 +183,19 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   200 で `[]` が返る。数の非公開 (`hide_*_count`) で `following_count` /
   `followers_count` が 0 になるのは両方のフラグが立っているときだけで、
   `hide_*_count` 単独では実数が来る — 値ではなくフラグを見ること。
+- **`/statuses/:id/favourited_by`、`/reblogged_by`、`/pleroma/statuses/:id/reactions`
+  はページネーションしない** (`status_controller.ex` は likes / announcements の全
+  ap_id を `Repo.all` で引き、`add_link_headers` を呼ばない。`emoji_reaction_controller.ex`
+  も同様。2026-09-13 に Akkoma ソースで確認)。`limit` / `max_id` は受けず、全件が
+  1 応答で来る。見えない投稿への応答は揃っていない: favourited_by / reblogged_by は
+  **404**、reactions は **403**。`show_reactions: false` のインスタンスでは
+  favourited_by と reactions が `200 []` (reblogged_by は無条件)。
+- **status に埋め込まれる `emoji_reactions` と `/pleroma/statuses/:id/reactions` は
+  形が違う**: 埋め込みは `account_ids` (id の配列) のみ、専用エンドポイントは
+  `accounts` (Account の配列)。また spec の `EmojiReactionController.index` は
+  `/reactions/{emoji}` のパラメータ定義を写しているため、生成型がパスに無い `emoji`
+  を要求する。openapi-fetch はテンプレートにある `{name}` しか置換しないので、
+  空文字を渡せば無害 (`src/pages/thread/who-lists-api.ts`)。
 - Bearer 認証されたリクエストに対して Akkoma は httpOnly のセッション Cookie も
   `Set-Cookie` で返す。dev proxy 越しだとこの Cookie が localhost に保存され、
   proxy のトークン注入を外してもブラウザは認証されたままになる (2026-07-06 に
