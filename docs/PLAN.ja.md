@@ -40,7 +40,9 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
       (2026-08-09。会話ツリーは [ADR-0014](./adr/0014-thread-view.md)、未取得親の
       明示的な取り込みは ADR-0011 amendment、詳細ルートへの往復での保持は
       ADR-0004 amendment。ストーリーのチェックはスマホ実機確認待ち)
-- [ ] Phase 1 進行中 (残り: プロフィールページ、通知、「誰が」一覧)
+- [ ] Phase 1 進行中 (残り: プロフィールの pinned 表示、「誰が」一覧。通知は
+      2026-09-13 に Phase 2 へ — 既読管理が write scope を要するため。
+      根拠は [stories.ja.md](./stories.ja.md) の Phase 2 冒頭)
 
 ## Phase 0 — 基盤
 
@@ -73,7 +75,6 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [ ] スレッド (会話ツリー) 表示 ([ADR-0014](./adr/0014-thread-view.md)。未取得の親は
       自動 resolve ではなく明示的な取り込み操作で — ADR-0011 amendment)
 - [ ] プロフィールページ (ヘッダ、投稿/返信/メディアのタブ、フォロー関係の表示)
-- [ ] 通知 (閲覧のみ。`pleroma:emoji_reaction`, `move` など未知の type で落ちない)
 
 学びの目標: OAuth2 authorization code フローの手実装。カーソルページネーション
 (`max_id`/`min_id`、Link ヘッダ、辞書順ソート可能な 128bit ID)。API レスポンスと
@@ -84,6 +85,9 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 
 ## Phase 2 — 書き込み
 
+- [ ] 通知 (既読管理込み。`pleroma:emoji_reaction`, `move` など未知の type で
+      落ちない。トークン scope を `read write` に広げた直後に着手 — 既読を付ける
+      API がすべて write scope のため。2026-09-13 に Phase 1 から移動)
 - [ ] Compose: テキスト、CW、公開範囲 (Akkoma の `local` 含む)、カスタム絵文字補完
 - [ ] alt text 付きメディアアップロード (見た目より重いので独立タスク)
 - [ ] ファボ / ブースト / ブックマーク / 絵文字リアクション
