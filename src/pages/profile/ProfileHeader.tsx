@@ -1,8 +1,16 @@
+import { A } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import { EmojiText } from "../../entities/status/EmojiText";
 import { StatusContent } from "../../entities/status/StatusContent";
 import { safeExternalHref } from "../../entities/status/url";
+import {
+  type FollowList,
+  followers,
+  following,
+  followListPath,
+  listHidden,
+} from "./follow-list";
 import type { Account } from "./profile-api";
 
 // A band across the top of the plane, not a framed image: the account's own
@@ -115,18 +123,44 @@ const fieldValue = css({ minWidth: 0 });
 
 const countsRow = css({ display: "flex", gap: "4", fontSize: "sm" });
 
-// Display-only this session: the counts become entry points into the tab bar
-// and the follow lists once those exist (docs/design/profile-page-20260830.html).
-// A count that is absent — withheld by the account or simply not in the payload
-// — renders nothing: a zero would be a claim the instance never made.
-const Count = (props: { value: number | undefined; label: string }) => (
-  <Show when={props.value !== undefined}>
-    <span>
-      <b>{props.value}</b>{" "}
-      <span class={css({ color: "text.muted" })}>{props.label}</span>
-    </span>
-  </Show>
-);
+// Router-driven active styling, as in the tab bar (ProfilePage.tsx): `<A>`
+// sets `aria-current="page"` on an exact match, so a count is only marked
+// while its own list is the page below.
+const countLink = css({ "&[aria-current=page]": { color: "text.brand" } });
+
+const countLabel = css({ color: "text.muted" });
+
+// One count, with or without the list behind it. A withheld number is shown as
+// the word instead: Akkoma sends a number either way — the real one, or 0 once
+// the list is hidden too — so the flag, not the value, is what can be read. A
+// count the payload omits renders nothing; a zero would be a claim the
+// instance never made.
+const Count = (props: {
+  value: number | undefined;
+  label: string;
+  withheld: boolean;
+  href: string | undefined;
+}) => {
+  const body = () => (
+    <>
+      <Show when={props.withheld} fallback={<b>{props.value}</b>}>
+        hidden
+      </Show>{" "}
+      <span class={countLabel}>{props.label}</span>
+    </>
+  );
+  return (
+    <Show when={props.withheld || props.value !== undefined}>
+      <Show when={props.href} fallback={<span>{body()}</span>}>
+        {(href) => (
+          <A href={href()} class={countLink}>
+            {body()}
+          </A>
+        )}
+      </Show>
+    </Show>
+  );
+};
 
 /**
  * The profile's identity block: header image, avatar, names, bio, fields and
@@ -145,6 +179,13 @@ export const ProfileHeader = (props: { account: Account }) => {
   // Present because the fetch asks for it (profile-api.ts); all-false for an
   // anonymous viewer, so nothing shows. Acting on it is Phase 2.
   const relationship = () => props.account.pleroma?.relationship;
+  // No link into a list the account withholds: Akkoma answers that one with an
+  // empty page to every reader but the owner (follow-list.ts).
+  const listHref = (list: FollowList): string | undefined => {
+    const acct = props.account.acct;
+    if (!acct || listHidden(props.account, list)) return undefined;
+    return followListPath(acct, list);
+  };
   // Remote accounts only — a local acct's own page is this app. The scheme
   // gate is the one every API-provided URL passes (entities/status/url.ts),
   // and it is also what makes the host safe to read back off the parsed URL.
@@ -254,26 +295,27 @@ export const ProfileHeader = (props: { account: Account }) => {
           </dl>
         </Show>
 
-        {/* An account can hide its follow stats from everyone; the post count
-            has no such switch. Hidden here means shown as nothing at all —
-            Akkoma still sends the number. */}
+        {/* Each follow count carries two independent switches of the account's
+            own: `hide_*_count` withholds the number, `hide_*` withholds the
+            list it leads to. Posts has neither and no list to open. */}
         <div class={countsRow}>
-          <Count value={props.account.statuses_count} label="posts" />
           <Count
-            value={
-              props.account.pleroma?.hide_follows_count
-                ? undefined
-                : props.account.following_count
-            }
-            label="following"
+            value={props.account.statuses_count}
+            label="posts"
+            withheld={false}
+            href={undefined}
           />
           <Count
-            value={
-              props.account.pleroma?.hide_followers_count
-                ? undefined
-                : props.account.followers_count
-            }
+            value={props.account.following_count}
+            label="following"
+            withheld={props.account.pleroma?.hide_follows_count === true}
+            href={listHref(following)}
+          />
+          <Count
+            value={props.account.followers_count}
             label="followers"
+            withheld={props.account.pleroma?.hide_followers_count === true}
+            href={listHref(followers)}
           />
         </div>
       </div>
