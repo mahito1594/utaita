@@ -1,12 +1,9 @@
 import { type ApiError, client, toResult } from "../../api/client";
 import type { Result } from "../../api/result";
+import { PAGE_LIMIT } from "./cursor-list-store";
 import type { FollowList } from "./follow-list";
 import type { Account } from "./profile-api";
 import { profileQuery } from "./profile-query";
-
-// Same server-side clamp as every list endpoint (ADR-0004 amendment): a page
-// that comes back exactly this long cannot rule out more accounts below it.
-export const FOLLOW_LIST_PAGE_LIMIT = 40;
 
 /**
  * One page of the accounts on `list`'s side of `acct`'s graph, oldest-bound by
@@ -30,7 +27,7 @@ export const fetchFollowList = async (
   if (!account.ok) return account;
 
   const query = {
-    limit: FOLLOW_LIST_PAGE_LIMIT,
+    limit: PAGE_LIMIT,
     // Spread rather than `max_id: params.maxId`: under
     // exactOptionalPropertyTypes an optional key does not accept an explicit
     // undefined, so the first page omits the key instead.

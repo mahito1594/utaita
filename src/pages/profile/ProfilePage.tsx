@@ -14,13 +14,14 @@ import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { acctFromPath } from "../../entities/status/mention";
 import { StatusCard } from "../../entities/status/StatusCard";
+import type { Status } from "../../entities/status/types";
 import { outlineButton } from "../../ui/outline-button";
-import { ProfileHeader } from "./ProfileHeader";
-import type { Account } from "./profile-api";
 import {
-  createProfilePostsStore,
-  type ProfileSnapshot,
-} from "./profile-posts-store";
+  type CursorListSnapshot,
+  createCursorListStore,
+} from "./cursor-list-store";
+import { ProfileHeader } from "./ProfileHeader";
+import { type Account, fetchAccountPosts } from "./profile-api";
 import { profileQuery } from "./profile-query";
 import { type ProfileTab, profileTabPath, profileTabs } from "./profile-tabs";
 
@@ -214,7 +215,7 @@ export const PostsSentinel = (props: {
 
   // Keeps the error row (and its Retry button) mounted through a retry cycle.
   // `props.error` goes undefined the instant Retry dispatches — the store
-  // clears it before the fetch starts (profile-posts-store.ts) — so gating the
+  // clears it before the fetch starts (cursor-list-store.ts) — so gating the
   // row on `props.error` alone would swap it for the plain "Loading more…" row
   // mid-click and drop focus to `<body>`. `retrying` bridges that gap.
   const [retrying, setRetrying] = createSignal(false);
@@ -289,10 +290,19 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
   // Claimed before the store exists, because what the frame hands back is what
   // the store starts from: this list as the reader left it when they pop back
   // onto this entry, nothing otherwise.
-  const slot = claimRetentionFrame<ProfileSnapshot>(
+  const slot = claimRetentionFrame<CursorListSnapshot<Status>>(
     profileTabPath(acct, props.tab),
   );
-  const store = createProfilePostsStore(acct, props.tab, slot.restored);
+  const store = createCursorListStore(
+    // Spread rather than `maxId`: under exactOptionalPropertyTypes an optional
+    // key does not accept an explicit undefined (profile-api.ts).
+    (maxId) =>
+      fetchAccountPosts(acct, {
+        ...(maxId === undefined ? {} : { maxId }),
+        filter: props.tab.filter,
+      }),
+    slot.restored,
+  );
   // Unconditional: whether a first page is still owed is the store's state,
   // and a second reading of it here would be free to disagree with it
   // (ADR-0004 amendment 2026-08-09).
@@ -302,9 +312,9 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
     // strand the page: the store would consider its first load done and settle
     // on the empty-success row with no fetch coming. Failed and still-loading
     // lists leave the frame as it was.
-    const statuses = store.statuses();
-    if (statuses.length === 0) return;
-    slot.retain({ statuses, exhausted: store.exhausted() });
+    const items = store.items();
+    if (items.length === 0) return;
+    slot.retain({ items, exhausted: store.exhausted() });
   });
 
   // The store's dedupe absorbs re-fires on its own; this gate is what keeps an
@@ -347,7 +357,7 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
         when={
           !store.loading() &&
           store.error() === undefined &&
-          store.statuses().length === 0
+          store.items().length === 0
         }
       >
         <p role="status" class={noticeRow}>
@@ -355,7 +365,7 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
         </p>
       </Show>
 
-      <For each={store.statuses()}>
+      <For each={store.items()}>
         {(status) => (
           <div class={postRow}>
             <StatusCard status={status} class={postRowBody} />
@@ -363,7 +373,7 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
         )}
       </For>
 
-      <Show when={store.statuses().length > 0}>
+      <Show when={store.items().length > 0}>
         <Show
           when={!store.exhausted()}
           fallback={

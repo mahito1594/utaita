@@ -10,7 +10,7 @@ import { fetchAccount } from "./profile-api";
  * `revalidate(profileQuery.keyFor(acct))` rather than calling again.
  *
  * The posts under the header are not part of this: they are paged from a
- * mounted store (profile-posts-store.ts), which a cache entry the router may
+ * mounted store (cursor-list-store.ts), which a cache entry the router may
  * revalidate on its own schedule cannot hold.
  */
 export const profileQuery = query(fetchAccount, "profile");

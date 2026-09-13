@@ -6,15 +6,17 @@ import { claimRetentionFrame } from "../../entities/retention/retention";
 import { acctFromPath } from "../../entities/status/mention";
 import { AccountRow } from "./AccountRow";
 import {
+  type CursorListSnapshot,
+  createCursorListStore,
+} from "./cursor-list-store";
+import {
   followListPath,
   type FollowList as ListDefinition,
   listHidden,
 } from "./follow-list";
-import {
-  createFollowListStore,
-  type FollowListSnapshot,
-} from "./follow-list-store";
+import { fetchFollowList } from "./follow-list-api";
 import { ErrorCard, noticeRow, PostsSentinel } from "./ProfilePage";
+import type { Account } from "./profile-api";
 import { profileQuery } from "./profile-query";
 
 // Body of the plane below the header: no padding and no gap of its own, so the
@@ -50,10 +52,16 @@ export const FollowList = (props: { list: ListDefinition }) => {
   // Claimed before the store exists, because what the frame hands back is what
   // the store starts from: this list as the reader left it when they pop back
   // onto this entry, nothing otherwise.
-  const slot = claimRetentionFrame<FollowListSnapshot>(
+  const slot = claimRetentionFrame<CursorListSnapshot<Account>>(
     followListPath(acct, props.list),
   );
-  const store = createFollowListStore(acct, props.list, slot.restored);
+  const store = createCursorListStore(
+    // Spread rather than `maxId`: under exactOptionalPropertyTypes an optional
+    // key does not accept an explicit undefined (follow-list-api.ts).
+    (maxId) =>
+      fetchFollowList(acct, props.list, maxId === undefined ? {} : { maxId }),
+    slot.restored,
+  );
   // Unconditional: whether a first page is still owed is the store's state,
   // and a second reading of it here would be free to disagree with it
   // (ADR-0004 amendment 2026-08-09).
@@ -62,9 +70,9 @@ export const FollowList = (props: { list: ListDefinition }) => {
     // An empty list is not a reading position, and resuming from one would
     // strand the page: the store would consider its first load done and settle
     // on the empty-success row with no fetch coming.
-    const accounts = store.accounts();
-    if (accounts.length === 0) return;
-    slot.retain({ accounts, exhausted: store.exhausted() });
+    const items = store.items();
+    if (items.length === 0) return;
+    slot.retain({ items, exhausted: store.exhausted() });
   });
 
   // A cache hit on the account the route already loaded (profile-query.ts).
@@ -120,7 +128,7 @@ export const FollowList = (props: { list: ListDefinition }) => {
         when={
           !store.loading() &&
           store.error() === undefined &&
-          store.accounts().length === 0
+          store.items().length === 0
         }
       >
         <p role="status" class={noticeRow}>
@@ -128,10 +136,10 @@ export const FollowList = (props: { list: ListDefinition }) => {
         </p>
       </Show>
 
-      <Show when={store.accounts().length > 0}>
+      <Show when={store.items().length > 0}>
         {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
         <ol class={accountList} role="list">
-          <For each={store.accounts()}>
+          <For each={store.items()}>
             {(account) => <AccountRow account={account} />}
           </For>
         </ol>

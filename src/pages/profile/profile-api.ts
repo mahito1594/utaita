@@ -2,16 +2,13 @@ import { type ApiError, client, toResult } from "../../api/client";
 import type { Result } from "../../api/result";
 import type { components } from "../../api/schema";
 import type { Status } from "../../entities/status/types";
+import { PAGE_LIMIT } from "./cursor-list-store";
 import type { ProfileTab } from "./profile-tabs";
 
 // Named here rather than in an entity module: the profile page is the only
 // consumer, and `Status["account"]` (the card's abbreviated author) is a
 // different need from the full profile (entities/status/types.ts).
 export type Account = components["schemas"]["Account"];
-
-// Same server-side clamp as every list endpoint (ADR-0004 amendment): a page
-// that comes back exactly this long cannot rule out more posts below it.
-export const POSTS_PAGE_LIMIT = 40;
 
 /**
  * The account `acct` names. The `{id}` slot takes a nickname as well as a
@@ -53,7 +50,7 @@ export const fetchAccountPosts = (
         path: { id: acct },
         query: {
           ...params.filter,
-          limit: POSTS_PAGE_LIMIT,
+          limit: PAGE_LIMIT,
           // Spread rather than `max_id: params.maxId`: under
           // exactOptionalPropertyTypes an optional key does not accept an
           // explicit undefined, so the first page omits the key instead.

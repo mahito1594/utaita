@@ -1,24 +1,25 @@
 import { type Accessor, batch, createSignal } from "solid-js";
 import type { ApiError } from "../../api/client";
-import type { FollowList } from "./follow-list";
-import { FOLLOW_LIST_PAGE_LIMIT, fetchFollowList } from "./follow-list-api";
-import type { Account } from "./profile-api";
+import type { Result } from "../../api/result";
+
+// Same server-side clamp as every list endpoint (ADR-0004 amendment): a page
+// that comes back exactly this long cannot rule out more items below it.
+export const PAGE_LIMIT = 40;
 
 /**
- * Content a follow list can resume from instead of fetching its first page:
- * the accounts it had accumulated and the `exhausted` verdict they were left
- * with. Held by reference (never serialised) — `Account` object identity is
- * what keeps the rendered rows, and with them the browser's scroll anchors,
- * stable across the resume. The `max_id` cursor is the tail's own id, so it
- * needs no room here.
+ * Content a list can resume from instead of fetching its first page: the items
+ * it had accumulated and the `exhausted` verdict they were left with. Held by
+ * reference (never serialised) — item object identity is what keeps the
+ * rendered rows, and with them the browser's scroll anchors, stable across the
+ * resume. The `max_id` cursor is the tail's own id, so it needs no room here.
  */
-export type FollowListSnapshot = {
-  readonly accounts: readonly Account[];
+export type CursorListSnapshot<T> = {
+  readonly items: readonly T[];
   readonly exhausted: boolean;
 };
 
-export type FollowListStore = {
-  accounts: Accessor<readonly Account[]>;
+export type CursorListStore<T> = {
+  items: Accessor<readonly T[]>;
   /**
    * True while the first page is in flight, and, for a store that has to fetch
    * that page at all, from creation until `loadInitial` starts it — an empty
@@ -46,26 +47,31 @@ export type FollowListStore = {
 };
 
 /**
- * One side of an account's social graph: a flat, append-only list paged by a
- * single `max_id` cursor (the tail account's id).
+ * A flat, append-only list paged by a single `max_id` cursor (the tail item's
+ * own id): the posts under a profile header (ProfilePage.tsx) and either side
+ * of an account's social graph (FollowList.tsx).
  *
- * Created per mounted list and never reset by hand: a different `acct` or side
- * gets a different store because the page recreates the component holding it
- * (ProfilePage.tsx keys the profile body on the acct, App.tsx gives each side
- * its own leaf). `resume` is what a reader popping back onto this history
- * entry left behind; what outlives the page is that snapshot, never a live
- * store (src/entities/retention/retention.tsx). Whether a first page is still
- * owed after that is this store's own business, not a condition the page
- * re-derives (ADR-0004 amendment 2026-08-09).
+ * Deliberately not the timeline's store: segments, gap markers and refresh
+ * exist there because a timeline grows at the front while the reader is in it
+ * (ADR-0004 amendment). These lists have no front to grow from — nothing
+ * refreshes them and nothing streams into them — so a run of items and one
+ * cursor is the whole model.
+ *
+ * Created per mounted list and never reset by hand: a different account, tab
+ * or side gets a different store because the route recreates the component
+ * holding it (App.tsx gives each its own leaf, ProfilePage.tsx keys the body
+ * on the acct), which is also why the page to fetch is a closure handed in
+ * here rather than parameters this store re-reads. `resume` is what a reader
+ * popping back onto this history entry left behind; what outlives the page is
+ * that snapshot, never a live store (src/entities/retention/retention.tsx).
+ * Whether a first page is still owed after that is this store's own business,
+ * not a condition the page re-derives (ADR-0004 amendment 2026-08-09).
  */
-export const createFollowListStore = (
-  acct: string,
-  list: FollowList,
-  resume?: FollowListSnapshot,
-): FollowListStore => {
-  const [accounts, setAccounts] = createSignal<readonly Account[]>(
-    resume?.accounts ?? [],
-  );
+export const createCursorListStore = <T extends { id?: string }>(
+  fetchPage: (maxId?: string) => Promise<Result<T[], ApiError>>,
+  resume?: CursorListSnapshot<T>,
+): CursorListStore<T> => {
+  const [items, setItems] = createSignal<readonly T[]>(resume?.items ?? []);
   // Starting true with a snapshot would strand the list on "Loading…": it has
   // content already, and the first load it would be waiting for is not owed.
   const [loading, setLoading] = createSignal(resume === undefined);
@@ -88,7 +94,7 @@ export const createFollowListStore = (
     if (!initialLoadOwed || initialInFlight) return;
     initialInFlight = true;
     setLoading(true);
-    const result = await fetchFollowList(acct, list, {});
+    const result = await fetchPage();
     initialInFlight = false;
     setLoading(false);
 
@@ -98,16 +104,16 @@ export const createFollowListStore = (
     }
     initialLoadOwed = false;
     setError(undefined);
-    setAccounts(result.value);
-    setExhausted(result.value.length < FOLLOW_LIST_PAGE_LIMIT);
+    setItems(result.value);
+    setExhausted(result.value.length < PAGE_LIMIT);
   };
 
   const loadOlder = async (): Promise<void> => {
     if (loadingOlder()) return;
-    // `id` is optional in the generated type even though every real account
-    // carries one; an idless tail simply ends the list rather than paging from
-    // `undefined`.
-    const cursor = accounts().at(-1)?.id;
+    // `id` is optional in the generated types even though every real status
+    // and account carries one (segments.ts holds the same line); an idless
+    // tail simply ends the list rather than paging from `undefined`.
+    const cursor = items().at(-1)?.id;
     if (cursor === undefined) return;
 
     setLoadingOlder(true);
@@ -115,7 +121,7 @@ export const createFollowListStore = (
     // flag is what keeps its Retry button mounted across the gap
     // (ProfilePage.tsx).
     setLoadOlderError(undefined);
-    const result = await fetchFollowList(acct, list, { maxId: cursor });
+    const result = await fetchPage(cursor);
 
     if (!result.ok) {
       // One update, not two: effects run between separate writes, and an
@@ -130,21 +136,18 @@ export const createFollowListStore = (
     }
     setLoadingOlder(false);
     const page = result.value;
-    if (page.length < FOLLOW_LIST_PAGE_LIMIT) setExhausted(true);
-    setAccounts((current) => {
-      // The cursor account itself comes back in some instances' pages, and an
-      // unfollow between requests can shift a page's window over what is
-      // already held.
-      const known = new Set(current.map((account) => account.id ?? ""));
-      return [
-        ...current,
-        ...page.filter((account) => !known.has(account.id ?? "")),
-      ];
+    if (page.length < PAGE_LIMIT) setExhausted(true);
+    setItems((current) => {
+      // The cursor item itself comes back in some instances' pages, and a
+      // delete or an unfollow between requests can shift a page's window over
+      // what is already held.
+      const known = new Set(current.map((item) => item.id ?? ""));
+      return [...current, ...page.filter((item) => !known.has(item.id ?? ""))];
     });
   };
 
   return {
-    accounts,
+    items,
     loading,
     error,
     loadingOlder,
