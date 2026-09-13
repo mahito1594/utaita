@@ -1,8 +1,8 @@
 import { type ApiError, client, toResult } from "../../api/client";
+import { PAGE_LIMIT } from "../../api/pagination";
 import type { Result } from "../../api/result";
 import type { components } from "../../api/schema";
 import type { Status } from "../../entities/status/types";
-import { PAGE_LIMIT } from "./cursor-list-store";
 import type { ProfileTab } from "./profile-tabs";
 
 // Named here rather than in an entity module: the profile page is the only

@@ -1,12 +1,8 @@
 import { type Accessor, createMemo, createSignal } from "solid-js";
 import type { ApiError } from "../../api/client";
+import { PAGE_LIMIT } from "../../api/pagination";
 import { appendOlder, applyRefresh, type Segment } from "./segments";
 import type { FetchTimelinePage } from "./timelines";
-
-// Every timeline's page size is clamped to 40 server-side (measured against
-// the reference instance, see ADR-0004 amendment); a page that comes back
-// exactly this long cannot rule out more statuses beyond it.
-const PAGE_LIMIT = 40;
 
 /**
  * Content a store can resume from instead of fetching its first page: the

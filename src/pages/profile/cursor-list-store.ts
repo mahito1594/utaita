@@ -1,10 +1,7 @@
 import { type Accessor, batch, createSignal } from "solid-js";
 import type { ApiError } from "../../api/client";
+import { PAGE_LIMIT } from "../../api/pagination";
 import type { Result } from "../../api/result";
-
-// Same server-side clamp as every list endpoint (ADR-0004 amendment): a page
-// that comes back exactly this long cannot rule out more items below it.
-export const PAGE_LIMIT = 40;
 
 /**
  * Content a list can resume from instead of fetching its first page: the items
