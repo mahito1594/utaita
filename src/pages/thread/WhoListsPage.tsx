@@ -19,6 +19,7 @@ import type { ApiError } from "../../api/client";
 import { markRetentionFrame } from "../../entities/retention/retention";
 import { EmojiText } from "../../entities/status/EmojiText";
 import { parseEmojiReactions } from "../../entities/status/parse";
+import { ReactionChip } from "../../entities/status/ReactionChips";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
 import { ghostIconButton } from "../../ui/ghost-icon-button";
@@ -28,10 +29,15 @@ import { threadQuery } from "./thread-query";
 import {
   type AccountWhoList,
   type WhoList as ListDefinition,
+  reactions,
   whoListPath,
   whoLists,
 } from "./who-lists";
-import { accountListQuery, type WhoListsArrival } from "./who-lists-query";
+import {
+  accountListQuery,
+  reactionsQuery,
+  type WhoListsArrival,
+} from "./who-lists-query";
 
 const headerRow = css({
   display: "flex",
@@ -93,15 +99,10 @@ const accountList = css({
 
 // The list failing is one region of a page that otherwise arrived, so the copy
 // names the region rather than the page (FollowList.tsx holds the same line).
-const listErrorMessage = (list: AccountWhoList, error: ApiError): string => {
-  const what =
-    list.kind === "favourites"
-      ? "who favourited this post"
-      : "who boosted this post";
-  return error.kind === "network"
+const listErrorMessage = (what: string, error: ApiError): string =>
+  error.kind === "network"
     ? `Couldn't load ${what} — check your network.`
     : `Couldn't load ${what} (${error.status}).`;
-};
 
 /**
  * Everyone who favourited or boosted the post, one flat list of accounts. A
@@ -111,6 +112,10 @@ const listErrorMessage = (list: AccountWhoList, error: ApiError): string => {
  */
 export const WhoList = (props: { list: AccountWhoList }) => {
   const params = useParams<{ id: string }>();
+  const what = () =>
+    props.list.kind === "favourites"
+      ? "who favourited this post"
+      : "who boosted this post";
 
   // The page keeps nothing of its own, but it still takes a place in the
   // retention stack so that a pop past it lands where the reader's history
@@ -159,7 +164,7 @@ export const WhoList = (props: { list: AccountWhoList }) => {
       <Show when={error()}>
         {(failure) => (
           <ErrorCard
-            message={listErrorMessage(props.list, failure())}
+            message={listErrorMessage(what(), failure())}
             onRetry={retry}
           />
         )}
@@ -191,8 +196,104 @@ export const WhoList = (props: { list: AccountWhoList }) => {
   );
 };
 
-/** Placeholder leaf: the reactions tab is grouped per emoji, not a flat list. */
-export const ReactionsList = () => null;
+// The band naming one group, built like the follow lists' (FollowList.tsx)
+// and the detached posts' (ThreadPage.tsx): same inset and rule, but what it
+// holds is the chip the post's own card draws, not a line of text.
+const groupHeading = css({
+  display: "flex",
+  alignItems: "center",
+  px: "3",
+  py: "2",
+  borderBottomWidth: "1px",
+  borderColor: "border.default",
+});
+
+/**
+ * Everyone who reacted to the post, one section per emoji. The endpoint
+ * returns the groups already assembled, accounts included (who-lists-api.ts),
+ * so the whole tab is one request and, like its siblings, one page.
+ */
+export const ReactionsList = () => {
+  const params = useParams<{ id: string }>();
+
+  createRenderEffect(
+    on(
+      () => params.id,
+      (id) => markRetentionFrame(whoListPath(id, reactions)),
+    ),
+  );
+
+  // Same shape as the flat lists above, for the same reason: the answer
+  // carries the id it was asked for, and both statements stay ahead of the
+  // first await so `query` sees the calling listener.
+  const answer = createAsync(async () => {
+    const id = params.id;
+    return { id, result: await reactionsQuery(id) };
+  });
+  const result = () => {
+    const current = answer();
+    return current === undefined || current.id !== params.id
+      ? undefined
+      : current.result;
+  };
+  const groups = () => {
+    const settled = result();
+    return settled?.ok === true ? settled.value : [];
+  };
+  const error = () => {
+    const settled = result();
+    return settled === undefined || settled.ok ? undefined : settled.error;
+  };
+  const retry = () => void revalidate(reactionsQuery.keyFor(params.id));
+
+  return (
+    <div>
+      {/* A post the caller may not see is a 403 here, where the two lists
+          beside it answer 404 (who-lists-api.ts); neither is distinguished
+          from a transient failure, so both get a Retry. */}
+      <Show when={error()}>
+        {(failure) => (
+          <ErrorCard
+            message={listErrorMessage("who reacted to this post", failure())}
+            onRetry={retry}
+          />
+        )}
+      </Show>
+
+      {/* Also the answer of an instance running with `show_reactions: false`,
+          which withholds the list as an empty one rather than as an error. */}
+      <Show
+        when={
+          result() !== undefined &&
+          error() === undefined &&
+          groups().length === 0
+        }
+      >
+        <p role="status" class={noticeRow}>
+          {reactions.empty}
+        </p>
+      </Show>
+
+      <For each={groups()}>
+        {(group) => (
+          // Named by the emoji, which is all that tells one group of rows from
+          // the next — the chip drawing it is an image for a custom emoji.
+          <section aria-label={group.name}>
+            <div class={groupHeading}>
+              <ReactionChip reaction={group} />
+            </div>
+            {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
+            <ol class={accountList} role="list">
+              <For each={group.accounts}>
+                {(account) => <AccountRow account={account} />}
+              </For>
+            </ol>
+          </section>
+        )}
+      </For>
+    </div>
+  );
+};
 
 /**
  * The three lists behind one post's counts, under a header naming the post

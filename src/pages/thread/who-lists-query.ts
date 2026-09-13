@@ -1,7 +1,11 @@
 import { query, type RoutePreloadFunc } from "@solidjs/router";
 import { threadQuery } from "./thread-query";
 import type { AccountWhoList } from "./who-lists";
-import { fetchFavouritedBy, fetchRebloggedBy } from "./who-lists-api";
+import {
+  fetchFavouritedBy,
+  fetchReactions,
+  fetchRebloggedBy,
+} from "./who-lists-api";
 
 /**
  * The accounts behind one of a post's counts, cached by the router's data
@@ -14,6 +18,7 @@ import { fetchFavouritedBy, fetchRebloggedBy } from "./who-lists-api";
  */
 export const favouritedByQuery = query(fetchFavouritedBy, "who-favourites");
 export const rebloggedByQuery = query(fetchRebloggedBy, "who-boosts");
+export const reactionsQuery = query(fetchReactions, "who-reactions");
 
 /** The cached fetch behind a list, and the `keyFor` a Retry revalidates. */
 export const accountListQuery = (list: AccountWhoList) =>
