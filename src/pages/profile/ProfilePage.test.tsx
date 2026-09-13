@@ -12,6 +12,8 @@ import { setupServer } from "msw/node";
 import { type ParentProps, Suspense } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/types";
+import { FollowList } from "./FollowList";
+import { followers, following, followListPath } from "./follow-list";
 import { ProfilePage, ProfilePosts } from "./ProfilePage";
 import type { Account } from "./profile-api";
 import { preloadProfile } from "./profile-query";
@@ -166,6 +168,14 @@ const renderProfile = (path: string) => {
             path={media.path}
             component={() => <ProfilePosts tab={media} />}
           />
+          <Route
+            path={following.path}
+            component={() => <FollowList list={following} />}
+          />
+          <Route
+            path={followers.path}
+            component={() => <FollowList list={followers} />}
+          />
         </Route>
       </MemoryRouter>
     )),
@@ -312,21 +322,14 @@ test("no relationship, or an all-false one, shows no badge", async () => {
   }
 });
 
-test("counts the account withholds are absent, not zeroes", async () => {
-  // `hide_follows_count` / `hide_followers_count` are the account's own
-  // settings; Akkoma still sends the numbers next to them. `statuses_count`
-  // has no such switch, so its absence here is the payload simply not carrying
-  // one.
-  const shy: Account = {
+test("a count the payload does not carry is absent, not a zero", async () => {
+  const countless: Account = {
     id: "900000000000000001",
     acct: ALICE_ACCT,
     display_name: "Alice Example",
-    following_count: 7,
-    followers_count: 13,
-    pleroma: { hide_follows_count: true, hide_followers_count: true },
   };
   server.use(
-    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(shy)),
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(countless)),
     http.get("*/api/v1/accounts/:id/statuses", () =>
       HttpResponse.json(alicePosts),
     ),
@@ -339,6 +342,74 @@ test("counts the account withholds are absent, not zeroes", async () => {
   expect(header).not.toHaveTextContent("followers");
   expect(header).not.toHaveTextContent("posts");
   expect(header).not.toHaveTextContent("0");
+});
+
+test("the follow counts open their lists, and each of the account's two switches moves one thing", async () => {
+  // `hide_follows_count` withholds the number, `hide_follows` withholds the
+  // list; Akkoma sends both flags and a number regardless.
+  const followingHref = followListPath(ALICE_ACCT, following);
+  const cases: [string, Account, string, string | null][] = [
+    ["neither flag", alice, "7 following", followingHref],
+    [
+      "hide_follows_count",
+      { ...alice, pleroma: { hide_follows_count: true } },
+      "hidden following",
+      followingHref,
+    ],
+    [
+      "hide_follows",
+      { ...alice, pleroma: { hide_follows: true } },
+      "7 following",
+      null,
+    ],
+  ];
+
+  for (const [flags, account, text, href] of cases) {
+    server.use(
+      http.get("*/api/v1/accounts/:id", () => HttpResponse.json(account)),
+      http.get("*/api/v1/accounts/:id/statuses", () =>
+        HttpResponse.json(alicePosts),
+      ),
+    );
+    const { container, findByText, unmount } = renderProfile(
+      `/users/${ALICE_ACCT}`,
+    );
+    expect(await findByText("Alice's newer post")).toBeInTheDocument();
+    const header = container.querySelector("header");
+    expect(header, flags).toHaveTextContent(text);
+    // Either the whole count is the link, or there is no link at all.
+    const link = header?.querySelector("a[href$='/following']");
+    expect(link?.getAttribute("href") ?? null, flags).toBe(href);
+    expect(link?.textContent ?? null, flags).toBe(href === null ? null : text);
+    // The other side has its own flags and is untouched by these.
+    expect(
+      header?.querySelector("a[href$='/followers']")?.getAttribute("href") ??
+        null,
+      flags,
+    ).toBe(followListPath(ALICE_ACCT, followers));
+
+    unmount();
+    query.clear();
+  }
+});
+
+test("the count of the list on screen is the current link, and no tab is", async () => {
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+    http.get("*/api/v1/accounts/:id/following", () => HttpResponse.json([])),
+  );
+  const { container, findByText } = renderProfile(
+    `/users/${ALICE_ACCT}${following.path}`,
+  );
+
+  expect(await findByText(following.empty)).toBeInTheDocument();
+  const header = container.querySelector("header");
+  expect(header?.querySelector("a[aria-current=page]")?.textContent).toBe(
+    "7 following",
+  );
+  // The tab bar names the post lists only, so none of it is current here.
+  const nav = container.querySelector("nav");
+  expect(nav?.querySelector("a[aria-current=page]")).toBeNull();
 });
 
 test("a remote account offers its page on the origin server", async () => {
