@@ -339,6 +339,33 @@ test("the thread the sign-in came back to offers no back out of the app", async 
   expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
 });
 
+test("a list under a post the sign-in came back to offers no back out of the app", async () => {
+  // The landing record is keyed by the whole pathname, so the tab segment has
+  // to be part of what the who-lists route asks about (App.tsx).
+  await signIn();
+  sessionStorage.setItem("utaita:return_path", `${THREAD_PATH}/favourited_by`);
+  server.use(
+    ...threadOk(),
+    http.get("*/api/v1/statuses/:id/favourited_by", () =>
+      HttpResponse.json([]),
+    ),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=stale&state=stale",
+  );
+  const { findByRole, queryByRole } = render(() => <App />);
+
+  // The way out is a link to the post the list belongs to; a history back
+  // would land on the instance's own authorize page.
+  expect(await findByRole("link", { name: "Back" })).toHaveAttribute(
+    "href",
+    THREAD_PATH,
+  );
+  expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+});
+
 test("a thread opened after the sign-in has landed still offers the way back", async () => {
   // The landing is one arrival, not a mode: the record is spent by the
   // destination it named, and every thread after it is an ordinary push.

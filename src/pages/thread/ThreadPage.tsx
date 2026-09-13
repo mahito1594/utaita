@@ -24,6 +24,7 @@ import { takeThreadRequest } from "../../entities/status/open-thread";
 import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { ghostIconButton } from "../../ui/ghost-icon-button";
 import { outlineButton } from "../../ui/outline-button";
 import { resolveStatus } from "./thread-api";
 import { type Thread, type ThreadArrival, threadQuery } from "./thread-query";
@@ -275,22 +276,6 @@ const ThreadRowItem = (props: {
     </li>
   );
 };
-
-// 40px ghost icon button, the shape the timeline bar's refresh control uses
-// (TimelineShell.tsx). The label the reader reads is the arrow, so the
-// accessible name is carried by `aria-label` and the icon is hidden from it.
-const backButton = css({
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "10",
-  height: "10",
-  borderRadius: "md",
-  bg: "transparent",
-  color: "accent.default",
-  cursor: "pointer",
-  _hover: { bg: "bg.subtle" },
-});
 
 /**
  * The conversation around one status, as a flat list: ancestors above the post
@@ -558,7 +543,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
           <button
             type="button"
             aria-label="Back"
-            class={backButton}
+            class={ghostIconButton}
             onClick={() => navigate(-1)}
           >
             <ArrowLeft size={20} aria-hidden="true" />

@@ -1,0 +1,363 @@
+// @vitest-environment happy-dom
+// The accounts behind a post's favourite and boost counts, as a reader opens
+// them: the tab bar over the three lists, the rows, the empty answer, the
+// failure path, and the way back to the post. Page-level with MSW as the only
+// seam (ADR-0009).
+import {
+  A,
+  createMemoryHistory,
+  MemoryRouter,
+  query,
+  Route,
+} from "@solidjs/router";
+import { cleanup, render } from "@solidjs/testing-library";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
+import { type ParentProps, Suspense } from "solid-js";
+import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
+import { Retention } from "../../entities/retention/retention";
+import type { Status } from "../../entities/status/types";
+import { statusPath } from "../../entities/status/url";
+import type { Account } from "../profile/profile-api";
+import { ReactionsList, WhoList, WhoListsPage } from "./WhoListsPage";
+import { boosts, favourites, reactions, whoListPath } from "./who-lists";
+import { preloadWhoLists } from "./who-lists-query";
+
+// Hand-written, anonymized fixtures typed against the generated schema — the
+// type system vouches for their shape, and no real instance data enters the
+// repo (ADR-0002 amendment).
+const SUBJECT_ID = "110000000000000002";
+
+const subject: Status = {
+  id: SUBJECT_ID,
+  content: "<p>The post that was opened</p>",
+  created_at: "2026-08-01T12:01:00.000Z",
+  in_reply_to_id: null,
+  favourites_count: 2,
+  reblogs_count: 1,
+  account: {
+    id: "900000000000000001",
+    acct: "alice@fixture.example",
+    display_name: "Alice Example",
+  },
+};
+
+const zoe: Account = {
+  id: "900000000000000009",
+  acct: "zoe",
+  display_name: "Zoe :party:",
+  emojis: [{ shortcode: "party", url: "https://fixture.example/party.png" }],
+};
+
+const bob: Account = {
+  id: "900000000000000008",
+  acct: "bob",
+  display_name: "Bob Example",
+};
+
+// Every list request, in order: whether a list was refetched is only visible
+// here.
+const listRequests: URL[] = [];
+
+// MSW is the only mock seam (ADR-0009): tests exercise the real client,
+// toResult, query and page rendering; only HTTP is simulated.
+const server = setupServer();
+
+// The heading and the tab counts come from the conversation's own cache entry
+// (thread-query.ts), so the page asks for the subject and its context.
+const subjectHandlers = [
+  http.get("*/api/v1/statuses/:id/context", () =>
+    HttpResponse.json({ ancestors: [], descendants: [] }),
+  ),
+  http.get("*/api/v1/statuses/:id", () => HttpResponse.json(subject)),
+];
+
+const listHandler = (segment: string, accounts: Account[]) =>
+  http.get(`*/api/v1/statuses/:id/${segment}`, ({ request }) => {
+    listRequests.push(new URL(request.url));
+    return HttpResponse.json(accounts);
+  });
+
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: "error" });
+});
+afterEach(() => {
+  server.resetHandlers();
+  cleanup();
+  listRequests.length = 0;
+  // The query cache lives in the router module, not in the render tree, so a
+  // list fetched by one test would answer the next one without a request.
+  query.clear();
+});
+afterAll(() => {
+  server.close();
+});
+
+// Mirrors App.tsx: the lists are leaves of a layout route sharing the thread's
+// path, retention is the pathless route above, and the Suspense boundary the
+// page's loading falls into belongs to the layout. The fallback is
+// deliberately not the page's own "Loading…" row, so the two are
+// distinguishable in assertions.
+const Chrome = (props: ParentProps) => (
+  <>
+    <A href={whoListPath(SUBJECT_ID, favourites)}>Open favourites</A>
+    <Suspense fallback={<p>Routing…</p>}>{props.children}</Suspense>
+  </>
+);
+
+const RetainingRoutes = (props: ParentProps) => (
+  <Retention signedIn={true}>{props.children}</Retention>
+);
+
+const renderApp = (history = createMemoryHistory()) =>
+  render(() => (
+    <MemoryRouter history={history} root={Chrome}>
+      <Route path="/" component={() => <p>Home timeline</p>} />
+      <Route path="/users/:acct" component={() => <p>A profile</p>} />
+      <Route component={RetainingRoutes}>
+        <Route path="/statuses/:id" component={() => <p>The conversation</p>} />
+        <Route
+          path="/statuses/:id"
+          component={WhoListsPage}
+          preload={preloadWhoLists}
+        >
+          <Route
+            path={favourites.path}
+            component={() => <WhoList list={favourites} />}
+          />
+          <Route
+            path={boosts.path}
+            component={() => <WhoList list={boosts} />}
+          />
+          <Route path={reactions.path} component={ReactionsList} />
+        </Route>
+      </Route>
+    </MemoryRouter>
+  ));
+
+/** Renders straight at a list URL, the way a shared link opens it. */
+const renderListDirectly = (path: string) => {
+  const history = createMemoryHistory();
+  history.set({ value: path, replace: true });
+  return renderApp(history);
+};
+
+test("the favourites tab names the post, marks its own tab current, and lists each account as a link to its profile", async () => {
+  server.use(...subjectHandlers, listHandler("favourited_by", [zoe, bob]));
+  const { findByRole, findAllByRole, findByAltText, getByRole } =
+    renderListDirectly(whoListPath(SUBJECT_ID, favourites));
+
+  expect(
+    await findByRole("heading", { name: "Post by Alice Example" }),
+  ).toBeInTheDocument();
+
+  expect(
+    getByRole("navigation", { name: "Post sections" }),
+  ).toBeInTheDocument();
+
+  // Three tabs, and `aria-current="page"` — what an `<A>` puts on an exact
+  // path match — is the only marker of which one is open.
+  const tabs = await findAllByRole("link", {
+    name: /^(Favourites|Boosts|Reactions)/,
+  });
+  expect(tabs).toHaveLength(3);
+  expect(tabs[0]).toHaveAttribute("href", whoListPath(SUBJECT_ID, favourites));
+  expect(tabs[0]).toHaveAttribute("aria-current", "page");
+  expect(tabs[1]).toHaveAttribute("href", whoListPath(SUBJECT_ID, boosts));
+  expect(tabs[1]).not.toHaveAttribute("aria-current");
+  expect(tabs[2]).toHaveAttribute("href", whoListPath(SUBJECT_ID, reactions));
+  expect(tabs[2]).not.toHaveAttribute("aria-current");
+
+  const row = await findByRole("link", { name: /Zoe/ });
+  expect(row).toHaveAttribute("href", "/users/zoe");
+  // The display name's custom emoji is rendered, not left as a shortcode.
+  expect(await findByAltText(":party:")).toBeInTheDocument();
+  expect(await findByRole("link", { name: /Bob Example/ })).toHaveAttribute(
+    "href",
+    "/users/bob",
+  );
+
+  expect(listRequests).toHaveLength(1);
+  expect(listRequests[0]?.pathname).toBe(
+    `/api/v1/statuses/${SUBJECT_ID}/favourited_by`,
+  );
+});
+
+test("the boosts tab asks the reblogged_by endpoint and lists who boosted the post", async () => {
+  server.use(...subjectHandlers, listHandler("reblogged_by", [bob]));
+  const { findByRole, findAllByRole } = renderListDirectly(
+    whoListPath(SUBJECT_ID, boosts),
+  );
+
+  expect(await findByRole("link", { name: /Bob Example/ })).toHaveAttribute(
+    "href",
+    "/users/bob",
+  );
+  const tabs = await findAllByRole("link", {
+    name: /^(Favourites|Boosts|Reactions)/,
+  });
+  expect(tabs[1]).toHaveAttribute("aria-current", "page");
+  expect(listRequests[0]?.pathname).toBe(
+    `/api/v1/statuses/${SUBJECT_ID}/reblogged_by`,
+  );
+});
+
+test("an empty answer shows the tab's empty copy", async () => {
+  server.use(...subjectHandlers, listHandler("favourited_by", []));
+  const { findByText } = renderListDirectly(
+    whoListPath(SUBJECT_ID, favourites),
+  );
+
+  expect(await findByText(favourites.empty)).toBeInTheDocument();
+});
+
+test("a 404 shows an error row, and its Retry fetches the list again", async () => {
+  let attempts = 0;
+  server.use(
+    ...subjectHandlers,
+    http.get("*/api/v1/statuses/:id/favourited_by", ({ request }) => {
+      listRequests.push(new URL(request.url));
+      attempts += 1;
+      return attempts === 1
+        ? HttpResponse.json({ error: "Record not found" }, { status: 404 })
+        : HttpResponse.json([zoe]);
+    }),
+  );
+  const { findByRole } = renderListDirectly(
+    whoListPath(SUBJECT_ID, favourites),
+  );
+
+  const retry = await findByRole("button", { name: "Retry" });
+  expect(await findByRole("alert")).toHaveTextContent(
+    "Couldn't load who favourited this post (404).",
+  );
+
+  await userEvent.click(retry);
+
+  expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+  expect(listRequests).toHaveLength(2);
+});
+
+test("Back is a button when the list was opened from inside the app", async () => {
+  server.use(...subjectHandlers, listHandler("favourited_by", [zoe]));
+  const { findByRole, findByText } = renderApp();
+
+  await userEvent.click(await findByRole("link", { name: "Open favourites" }));
+  expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("button", { name: "Back" }));
+
+  expect(await findByText("Home timeline")).toBeInTheDocument();
+});
+
+test("Back is a link to the post when the list was opened directly", async () => {
+  // Nothing of this app is behind the first entry, so a history back would
+  // leave it; the conversation the list belongs to is where the reader goes.
+  server.use(...subjectHandlers, listHandler("favourited_by", [zoe]));
+  const { findByRole, findByText, queryByRole } = renderListDirectly(
+    whoListPath(SUBJECT_ID, favourites),
+  );
+
+  expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+  expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+
+  const back = await findByRole("link", { name: "Back" });
+  expect(back).toHaveAttribute("href", statusPath(SUBJECT_ID));
+
+  await userEvent.click(back);
+  expect(await findByText("The conversation")).toBeInTheDocument();
+});
+
+test("Back returns to the conversation after a tab switch, when the list was opened from inside the app", async () => {
+  server.use(
+    ...subjectHandlers,
+    listHandler("favourited_by", [zoe]),
+    listHandler("reblogged_by", [bob]),
+  );
+  const history = createMemoryHistory();
+  history.set({ value: statusPath(SUBJECT_ID), replace: true });
+  const { findByRole, findByText } = renderApp(history);
+
+  await userEvent.click(await findByRole("link", { name: "Open favourites" }));
+  expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("link", { name: /^Boosts/ }));
+  expect(await findByRole("link", { name: /Bob Example/ })).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("button", { name: "Back" }));
+
+  expect(await findByText("The conversation")).toBeInTheDocument();
+});
+
+test("Back stays a link to the post after a tab switch, when the list was opened directly", async () => {
+  server.use(
+    ...subjectHandlers,
+    listHandler("favourited_by", [zoe]),
+    listHandler("reblogged_by", [bob]),
+  );
+  const { findByRole, queryByRole } = renderListDirectly(
+    whoListPath(SUBJECT_ID, favourites),
+  );
+
+  await userEvent.click(await findByRole("link", { name: /^Boosts/ }));
+  expect(await findByRole("link", { name: /Bob Example/ })).toBeInTheDocument();
+
+  expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  expect(await findByRole("link", { name: "Back" })).toHaveAttribute(
+    "href",
+    statusPath(SUBJECT_ID),
+  );
+});
+
+test("a direct arrival draws the heading, the tabs and a Loading row while the list is still out", async () => {
+  // Held answers, so the page can be read in the state a direct arrival puts
+  // it in: nothing fetched yet, everything the page owns already drawn.
+  let answerThread!: () => void;
+  const threadHeld = new Promise<void>((resolve) => {
+    answerThread = resolve;
+  });
+  let answerList!: () => void;
+  const listHeld = new Promise<void>((resolve) => {
+    answerList = resolve;
+  });
+  server.use(
+    // Ahead of `subjectHandlers`, whose `/context` answer is still wanted:
+    // MSW takes the first handler that matches.
+    http.get("*/api/v1/statuses/:id", async () => {
+      await threadHeld;
+      return HttpResponse.json(subject);
+    }),
+    ...subjectHandlers,
+    http.get("*/api/v1/statuses/:id/favourited_by", async ({ request }) => {
+      listRequests.push(new URL(request.url));
+      await listHeld;
+      return HttpResponse.json([zoe]);
+    }),
+  );
+  const { findByRole, getByRole, getAllByRole, queryByText } =
+    renderListDirectly(whoListPath(SUBJECT_ID, favourites));
+
+  expect(await findByRole("heading", { name: "Post" })).toBeInTheDocument();
+  expect(
+    getAllByRole("link", { name: /^(Favourites|Boosts|Reactions)/ }),
+  ).toHaveLength(3);
+
+  // Under the tab bar, inside the page — not the layout's fallback, which
+  // would have hidden the heading and the tabs with it.
+  const loading = getByRole("status");
+  expect(loading).toHaveTextContent("Loading…");
+  expect(loading.previousElementSibling).toBe(
+    getByRole("navigation", { name: "Post sections" }),
+  );
+  expect(queryByText("Routing…")).not.toBeInTheDocument();
+
+  answerThread();
+  expect(
+    await findByRole("heading", { name: "Post by Alice Example" }),
+  ).toBeInTheDocument();
+  expect(getByRole("status")).toHaveTextContent("Loading…");
+
+  answerList();
+  expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+});
