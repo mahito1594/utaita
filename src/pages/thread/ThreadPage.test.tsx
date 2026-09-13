@@ -547,3 +547,63 @@ test("retries a thread that failed to load", async () => {
 
   expect(await findByText("The post that was opened")).toBeInTheDocument();
 });
+
+// One post with something to count in every zone the lists hang off: the two
+// counted actions and a reaction chip.
+const counted = (status: Status): Status => ({
+  ...status,
+  reblogs_count: 5,
+  favourites_count: 12,
+  pleroma: { emoji_reactions: [{ name: "😸", count: 3, me: false }] },
+});
+
+/** The row of the post the thread is about, the one marked as current. */
+const subjectRowOf = (container: HTMLElement): HTMLElement => {
+  const row = container.querySelector<HTMLElement>('[aria-current="true"]');
+  if (row === null) throw new Error("the thread drew no subject row");
+  return row;
+};
+
+test("the subject row's favourite count, boost count and reaction chips are links to the matching list", async () => {
+  server.use(
+    ...threadHandlers(counted(subject), { ancestors: [], descendants: [] }),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  const row = within(subjectRowOf(container));
+  const base = statusPath(SUBJECT_ID);
+  expect(row.getByTitle("favourites")).toHaveAttribute(
+    "href",
+    `${base}/favourited_by`,
+  );
+  expect(row.getByTitle("boosts")).toHaveAttribute(
+    "href",
+    `${base}/reblogged_by`,
+  );
+  expect(row.getByTitle("😸")).toHaveAttribute("href", `${base}/reactions`);
+});
+
+test("the same counts and chips on ancestor and descendant rows are not links", async () => {
+  server.use(
+    ...threadHandlers(counted(subject), {
+      ancestors: [counted(root)],
+      descendants: [counted(reply)],
+    }),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("A reply to the opened post")).toBeInTheDocument();
+
+  const others = Array.from(container.querySelectorAll("li")).filter(
+    (row) => row.getAttribute("aria-current") === null,
+  );
+  expect(others).toHaveLength(2);
+  for (const row of others) {
+    const zone = within(row);
+    expect(zone.getByTitle("favourites").tagName).toBe("SPAN");
+    expect(zone.getByTitle("boosts").tagName).toBe("SPAN");
+    expect(zone.getByTitle("😸").tagName).toBe("SPAN");
+  }
+});

@@ -1,4 +1,4 @@
-import { statusPath } from "../../entities/status/url";
+import { whoListPaths, whoListSegments } from "../../entities/status/url";
 
 /**
  * One of the three lists behind a post's counts: a path under
@@ -8,8 +8,9 @@ import { statusPath } from "../../entities/status/url";
  * none of them can name a path another lacks.
  */
 export type WhoList = {
-  kind: "favourites" | "boosts" | "reactions";
-  path: "/favourited_by" | "/reblogged_by" | "/reactions";
+  kind: keyof typeof whoListSegments;
+  /** Route segment under `/statuses/:id`, as `whoListSegments` spells it. */
+  path: (typeof whoListSegments)[keyof typeof whoListSegments];
   label: string;
   /**
    * Copy for a settled answer with no rows. It does not claim the count is
@@ -28,21 +29,21 @@ export type AccountWhoList = WhoList & { kind: "favourites" | "boosts" };
 
 export const favourites: AccountWhoList = {
   kind: "favourites",
-  path: "/favourited_by",
+  path: whoListSegments.favourites,
   label: "Favourites",
   empty: "No favourites to show.",
 };
 
 export const boosts: AccountWhoList = {
   kind: "boosts",
-  path: "/reblogged_by",
+  path: whoListSegments.boosts,
   label: "Boosts",
   empty: "No boosts to show.",
 };
 
 export const reactions: WhoList = {
   kind: "reactions",
-  path: "/reactions",
+  path: whoListSegments.reactions,
   label: "Reactions",
   empty: "No reactions to show.",
 };
@@ -50,6 +51,6 @@ export const reactions: WhoList = {
 /** Tab order, read by both the route table and the tab bar. */
 export const whoLists: readonly WhoList[] = [favourites, boosts, reactions];
 
-/** The list's absolute URL; `statusPath` stays the one source of the shape. */
+/** The list's absolute URL; `whoListPaths` stays the one source of the shape. */
 export const whoListPath = (id: string, list: WhoList): string =>
-  `${statusPath(id)}${list.path}`;
+  whoListPaths(id)[list.kind];

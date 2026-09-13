@@ -819,3 +819,31 @@ test("a quote mini-card leads to the quoted post, not to the post quoting it", a
 
   expect(await findByText(`Reading ${quoted.id}`)).toBeInTheDocument();
 });
+
+test("a timeline card's counts and reaction chips are not links", async () => {
+  // Who favourited, boosted or reacted is reachable from the thread's subject
+  // only (src/pages/thread/WhoListsPage.tsx); a card in a list stays a card.
+  const countedStatus: Status = {
+    id: "110000000000000044",
+    content: "<p>popular in the timeline</p>",
+    created_at: "2026-07-05T12:00:00.000Z",
+    reblogs_count: 5,
+    favourites_count: 12,
+    pleroma: { emoji_reactions: [{ name: "😸", count: 3, me: false }] },
+    account: {
+      id: "900000000000000001",
+      acct: "alice@fixture.example",
+      display_name: "Alice Example",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/timelines/home", () =>
+      HttpResponse.json([countedStatus]),
+    ),
+  );
+  const { findByTitle } = renderApp();
+
+  expect((await findByTitle("favourites")).tagName).toBe("SPAN");
+  expect((await findByTitle("boosts")).tagName).toBe("SPAN");
+  expect((await findByTitle("😸")).tagName).toBe("SPAN");
+});
