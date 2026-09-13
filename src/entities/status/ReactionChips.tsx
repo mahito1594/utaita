@@ -14,10 +14,57 @@ const customReaction = css({ height: "8", width: "auto" });
 // image). `lineHeight` 1 keeps the chip from growing a leading of its own.
 const unicodeReaction = css({ fontSize: "2xl", lineHeight: "1" });
 
+// The chip carries its own text size rather than inheriting one, so it looks
+// the same wherever it is placed — on a card and as the heading of a list of
+// who reacted (src/pages/thread/WhoListsPage.tsx).
+const chip = css({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "1",
+  px: "2",
+  py: "0.5",
+  fontSize: "xs",
+  borderWidth: "1px",
+  borderRadius: "full",
+  borderColor: "border.default",
+  color: "text.muted",
+  "&[data-me]": {
+    borderColor: "accent.default",
+    color: "accent.default",
+  },
+});
+
 /**
- * Display-only reaction chips (reacting is Phase 2; the who-reacted list
- * belongs to the thread view). Unicode reactions have url: null and render
- * as text; custom emoji render their image; `me` gets the accent outline.
+ * One reaction: the emoji and how many accounts used it. Unicode reactions
+ * have url: null and render as text; custom emoji render their image; `me`
+ * gets the accent outline.
+ */
+export const ReactionChip = (props: { reaction: EmojiReaction }) => (
+  <span
+    title={props.reaction.name}
+    class={chip}
+    {...(props.reaction.me ? { "data-me": "" } : {})}
+  >
+    <Show
+      when={props.reaction.url}
+      fallback={<span class={unicodeReaction}>{props.reaction.name}</span>}
+    >
+      {(url) => (
+        <img
+          src={url()}
+          alt={props.reaction.name}
+          loading="lazy"
+          class={customReaction}
+        />
+      )}
+    </Show>
+    {props.reaction.count}
+  </span>
+);
+
+/**
+ * Display-only reaction chips (reacting is Phase 2; who reacted is a list
+ * under the thread, src/pages/thread/WhoListsPage.tsx).
  */
 export const ReactionChips = (props: {
   reactions: readonly EmojiReaction[];
@@ -28,46 +75,10 @@ export const ReactionChips = (props: {
         display: "flex",
         gap: "1.5",
         flexWrap: "wrap",
-        fontSize: "xs",
       })}
     >
       <For each={props.reactions}>
-        {(reaction) => (
-          <span
-            title={reaction.name}
-            class={css({
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "1",
-              px: "2",
-              py: "0.5",
-              borderWidth: "1px",
-              borderRadius: "full",
-              borderColor: "border.default",
-              color: "text.muted",
-              "&[data-me]": {
-                borderColor: "accent.default",
-                color: "accent.default",
-              },
-            })}
-            {...(reaction.me ? { "data-me": "" } : {})}
-          >
-            <Show
-              when={reaction.url}
-              fallback={<span class={unicodeReaction}>{reaction.name}</span>}
-            >
-              {(url) => (
-                <img
-                  src={url()}
-                  alt={reaction.name}
-                  loading="lazy"
-                  class={customReaction}
-                />
-              )}
-            </Show>
-            {reaction.count}
-          </span>
-        )}
+        {(reaction) => <ReactionChip reaction={reaction} />}
       </For>
     </div>
   </Show>
