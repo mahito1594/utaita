@@ -10,6 +10,7 @@ import {
   useContext,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
+import { ghostIconButton } from "../../ui/ghost-icon-button";
 import { bubble, federated, home, local } from "./timelines";
 
 // Panel enclosure (wireframe: docs/design/timeline-refresh-20260719.html —
@@ -126,24 +127,6 @@ const timelineNavLink = css({
   },
 });
 
-// 40px ghost icon button (wireframe): borderless, transparent until
-// hovered, so it reads as part of the strip rather than a separate control.
-// `aria-label` carries the accessible name so it stays "Refresh" regardless
-// of the icon shown.
-const refreshButton = css({
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "10",
-  height: "10",
-  borderRadius: "md",
-  bg: "transparent",
-  color: "accent.default",
-  cursor: "pointer",
-  _hover: { bg: "bg.subtle" },
-  _disabled: { color: "text.muted", cursor: "default" },
-});
-
 // Rotates while a refresh is in flight; Panda's built-in `spin` keyframe
 // (bundled by the default preset-panda preset, confirmed in
 // styled-system/tokens) covers it. `_motionReduce` swaps the spin for a
@@ -245,7 +228,7 @@ export const TimelineShell = (props: ParentProps) => {
             aria-busy={loading() ? "true" : undefined}
             aria-disabled={loading() ? "true" : undefined}
             onClick={handleRefreshClick}
-            class={refreshButton}
+            class={ghostIconButton}
           >
             <RotateCw
               size={20}

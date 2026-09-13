@@ -67,7 +67,13 @@ export const markRetentionFrame = (path: string): void =>
  * still has a history entry for (docs/adr/0004-data-fetching.md).
  *
  * The frames mirror that history, and a page resumes only when the reader
- * pops back onto its entry. Pushing a path that is already in the stack is a
+ * pops back onto its entry. A replace is announced like a push and adds a
+ * frame too, leaving the overwritten entry's frame behind; a pop truncates
+ * past it, which is harmless while no page reached by replace under this
+ * provider retains a snapshot. The only such replace is the tab switch under
+ * a post (src/pages/thread/WhoListsPage.tsx), which keeps none; the sign-in
+ * return leg (src/app/OAuthCallback.tsx) replaces from a route outside this
+ * provider, where no frame exists to overwrite. Pushing a path that is already in the stack is a
  * fresh visit and starts from the top — the same verdict `<Router
  * scrollRestoration>` reaches, which restores nothing for a push, so a
  * resuming push would hand back old content scrolled to the top. Pops

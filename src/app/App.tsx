@@ -13,6 +13,16 @@ import {
   preloadThread,
   type ThreadArrival,
 } from "../pages/thread/thread-query";
+import {
+  ReactionsList,
+  WhoList,
+  WhoListsPage,
+} from "../pages/thread/WhoListsPage";
+import { boosts, favourites, reactions } from "../pages/thread/who-lists";
+import {
+  preloadWhoLists,
+  type WhoListsArrival,
+} from "../pages/thread/who-lists-query";
 import { TimelinePage } from "../pages/timeline/TimelinePage";
 import { TimelineShell } from "../pages/timeline/TimelineShell";
 import { bubble, federated, home, local } from "../pages/timeline/timelines";
@@ -29,6 +39,16 @@ const preloadThreadRoute: RoutePreloadFunc<ThreadArrival> = (args) => {
   const arrival = preloadThread(args);
   const { id } = args.params;
   return id !== undefined && takeSignInLanding(statusPath(id))
+    ? { canGoBack: false }
+    : arrival;
+};
+
+// The same for the lists under a post, keyed by the whole path: the tab
+// segment is part of the URL the sign-in returns to, and the landing record
+// answers the arrival it names and no other (session.ts).
+const preloadWhoListsRoute: RoutePreloadFunc<WhoListsArrival> = (args) => {
+  const arrival = preloadWhoLists(args);
+  return takeSignInLanding(args.location.pathname)
     ? { canGoBack: false }
     : arrival;
 };
@@ -141,6 +161,10 @@ const ProfileMediaTab = () => <ProfilePosts tab={media} />;
 const ProfileFollowingList = () => <FollowList list={following} />;
 const ProfileFollowersList = () => <FollowList list={followers} />;
 
+// The same one-leaf-per-tab shape for the lists under a post (who-lists.ts).
+const FavouritedByList = () => <WhoList list={favourites} />;
+const RebloggedByList = () => <WhoList list={boosts} />;
+
 // The session is passed in rather than read inside the retention component:
 // src/entities must not depend on src/app (.dependency-cruiser.cjs), and the
 // stack has to be dropped on sign-out by an explicit signal rather than by
@@ -195,6 +219,19 @@ const App = () => (
           component={ThreadPage}
           preload={preloadThreadRoute}
         />
+        {/* The accounts behind the post's counts, on the same path with the
+            list as a further segment (who-lists.ts). A parent route with
+            children matches through them only, so the conversation above
+            keeps `/statuses/:id` to itself. */}
+        <Route
+          path="/statuses/:id"
+          component={WhoListsPage}
+          preload={preloadWhoListsRoute}
+        >
+          <Route path={favourites.path} component={FavouritedByList} />
+          <Route path={boosts.path} component={RebloggedByList} />
+          <Route path={reactions.path} component={ReactionsList} />
+        </Route>
       </Route>
     </Route>
   </Router>

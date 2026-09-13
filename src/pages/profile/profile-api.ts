@@ -5,9 +5,11 @@ import type { components } from "../../api/schema";
 import type { Status } from "../../entities/status/types";
 import type { ProfileTab } from "./profile-tabs";
 
-// Named here rather than in an entity module: the profile page is the only
-// consumer, and `Status["account"]` (the card's abbreviated author) is a
-// different need from the full profile (entities/status/types.ts).
+// Named here rather than in an entity module: the full account shape is what
+// the profile and the account lists (this page's follow lists and the lists
+// under a post, src/pages/thread/who-lists-api.ts) draw, while
+// `Status["account"]` (the card's abbreviated author) is a different need
+// (entities/status/types.ts).
 export type Account = components["schemas"]["Account"];
 
 /**
