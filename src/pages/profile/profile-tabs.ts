@@ -10,12 +10,15 @@ export type ProfileTab = {
   label: string;
   path: "/" | "/with_replies" | "/media";
   filter: { exclude_replies?: true; only_media?: true };
+  /** Whether the tab opens with the account's pinned posts (profile-api.ts). */
+  pinned?: true;
 };
 
 export const posts: ProfileTab = {
   label: "Posts",
   path: "/",
   filter: { exclude_replies: true },
+  pinned: true,
 };
 
 export const postsAndReplies: ProfileTab = {

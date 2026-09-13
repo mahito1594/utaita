@@ -59,3 +59,26 @@ export const fetchAccountPosts = (
       },
     }),
   );
+
+/**
+ * The account's pinned posts, the strip above the Posts tab's list. One
+ * request, not paged: Akkoma sends a Link header here like anywhere else, but
+ * a featured collection fits in a page.
+ *
+ * No tab filter, deliberately: Akkoma ANDs `pinned` with `exclude_replies`
+ * (measured 2026-09-13 against the reference instance), so passing the Posts
+ * tab's filter would hide a pinned reply. The count can exceed the instance's
+ * `max_pinned_statuses` — that limit governs local pin actions, while a remote
+ * account's federated featured collection arrives whole.
+ */
+export const fetchPinnedPosts = (
+  acct: string,
+): Promise<Result<Status[], ApiError>> =>
+  toResult(
+    client.GET("/api/v1/accounts/{id}/statuses", {
+      params: {
+        path: { id: acct },
+        query: { pinned: true, limit: PAGE_LIMIT },
+      },
+    }),
+  );

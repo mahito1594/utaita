@@ -116,6 +116,9 @@ const fullPageTailId = fullPage.at(-1)?.id;
 
 // MSW is the only mock seam (ADR-0009): tests exercise the real client,
 // toResult, and page rendering; only HTTP is simulated.
+//
+// The Posts tab asks `/statuses` for its pinned strip as well as for the list
+// (ProfilePage.tsx); these tests are about the list, so the strip gets nothing.
 const server = setupServer();
 
 beforeAll(() => {
@@ -206,6 +209,9 @@ test("renders the identity block over the account's posts", async () => {
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       postsUrl = new URL(request.url);
       return HttpResponse.json(alicePosts);
     }),
@@ -249,9 +255,11 @@ test("the account is fetched with the viewer's relationship and shows it as badg
       accountUrl = new URL(request.url);
       return HttpResponse.json(mutual);
     }),
-    http.get("*/api/v1/accounts/:id/statuses", () =>
-      HttpResponse.json(alicePosts),
-    ),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+      return HttpResponse.json(alicePosts);
+    }),
   );
   const { findByText, container } = renderProfile(`/users/${ALICE_ACCT}`);
 
@@ -280,9 +288,11 @@ test("each badge follows its own flag", async () => {
   for (const [account, shown, hidden] of cases) {
     server.use(
       http.get("*/api/v1/accounts/:id", () => HttpResponse.json(account)),
-      http.get("*/api/v1/accounts/:id/statuses", () =>
-        HttpResponse.json(alicePosts),
-      ),
+      http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+        if (new URL(request.url).searchParams.has("pinned"))
+          return HttpResponse.json([]);
+        return HttpResponse.json(alicePosts);
+      }),
     );
     const { findByText, container, unmount } = renderProfile(
       `/users/${ALICE_ACCT}`,
@@ -306,9 +316,11 @@ test("no relationship, or an all-false one, shows no badge", async () => {
   for (const stranger of strangers) {
     server.use(
       http.get("*/api/v1/accounts/:id", () => HttpResponse.json(stranger)),
-      http.get("*/api/v1/accounts/:id/statuses", () =>
-        HttpResponse.json(alicePosts),
-      ),
+      http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+        if (new URL(request.url).searchParams.has("pinned"))
+          return HttpResponse.json([]);
+        return HttpResponse.json(alicePosts);
+      }),
     );
     const { findByText, container, unmount } = renderProfile(
       `/users/${ALICE_ACCT}`,
@@ -330,9 +342,11 @@ test("a count the payload does not carry is absent, not a zero", async () => {
   };
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(countless)),
-    http.get("*/api/v1/accounts/:id/statuses", () =>
-      HttpResponse.json(alicePosts),
-    ),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+      return HttpResponse.json(alicePosts);
+    }),
   );
   const { findByRole, container } = renderProfile(`/users/${ALICE_ACCT}`);
 
@@ -367,9 +381,11 @@ test("the follow counts open their lists, and each of the account's two switches
   for (const [flags, account, text, href] of cases) {
     server.use(
       http.get("*/api/v1/accounts/:id", () => HttpResponse.json(account)),
-      http.get("*/api/v1/accounts/:id/statuses", () =>
-        HttpResponse.json(alicePosts),
-      ),
+      http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+        if (new URL(request.url).searchParams.has("pinned"))
+          return HttpResponse.json([]);
+        return HttpResponse.json(alicePosts);
+      }),
     );
     const { container, findByText, unmount } = renderProfile(
       `/users/${ALICE_ACCT}`,
@@ -420,9 +436,11 @@ test("a remote account offers its page on the origin server", async () => {
   };
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(remote)),
-    http.get("*/api/v1/accounts/:id/statuses", () =>
-      HttpResponse.json(alicePosts),
-    ),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+      return HttpResponse.json(alicePosts);
+    }),
   );
   const { findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
 
@@ -465,6 +483,9 @@ test("a scroll-triggered sentinel appends the next page and stops at a short one
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       const maxId = new URL(request.url).searchParams.get("max_id");
       if (maxId === null) return HttpResponse.json(fullPage);
       expect(maxId).toBe(fullPageTailId);
@@ -490,6 +511,9 @@ test("an older-page failure offers a retry that repeats the same request", async
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       const maxId = new URL(request.url).searchParams.get("max_id");
       if (maxId === null) return HttpResponse.json(fullPage);
       requestedMaxIds.push(maxId);
@@ -517,6 +541,9 @@ test("a retry that fails again leaves the reader's focus on the Retry button", a
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       const maxId = new URL(request.url).searchParams.get("max_id");
       return maxId === null
         ? HttpResponse.json(fullPage)
@@ -546,6 +573,7 @@ test("an account this instance does not have renders an error and asks for no po
     http.get("*/api/v1/accounts/:id", () =>
       HttpResponse.json({ error: "Record not found" }, { status: 404 }),
     ),
+    // The pinned strip included: neither caller of `/statuses` may fire.
     http.get("*/api/v1/accounts/:id/statuses", () => {
       postsRequestCount += 1;
       return HttpResponse.json([]);
@@ -572,9 +600,11 @@ test("a failed account fetch offers a retry that revalidates and succeeds", asyn
       if (accountRequestCount === 1) return HttpResponse.error();
       return HttpResponse.json(alice);
     }),
-    http.get("*/api/v1/accounts/:id/statuses", () =>
-      HttpResponse.json(alicePosts),
-    ),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+      return HttpResponse.json(alicePosts);
+    }),
   );
   const { findByText, findByRole, queryByText } = renderProfile(
     `/users/${ALICE_ACCT}`,
@@ -598,7 +628,10 @@ test("a first page of posts that fails leaves the header standing and recovers o
   let postsRequestCount = 0;
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
-    http.get("*/api/v1/accounts/:id/statuses", () => {
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       postsRequestCount += 1;
       if (postsRequestCount === 1) {
         return HttpResponse.json(
@@ -636,7 +669,10 @@ test("a first-page retry that fails again leaves focus on its Retry button", asy
   let postsRequestCount = 0;
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
-    http.get("*/api/v1/accounts/:id/statuses", () => {
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       postsRequestCount += 1;
       // A different status the second time, so the copy changing is what
       // proves the second answer has landed — the card shows no in-flight
@@ -694,12 +730,17 @@ test("changing only :acct leaves none of the previous account's posts behind", a
     http.get<{ id: string }>("*/api/v1/accounts/:id", ({ params }) =>
       HttpResponse.json(params.id === BOB_ACCT ? bob : alice),
     ),
-    http.get<{ id: string }>("*/api/v1/accounts/:id/statuses", ({ params }) =>
-      HttpResponse.json(
-        params.id === BOB_ACCT
-          ? [post("110000000000000003", "Bob's only post", bob)]
-          : alicePosts,
-      ),
+    http.get<{ id: string }>(
+      "*/api/v1/accounts/:id/statuses",
+      ({ request, params }) => {
+        if (new URL(request.url).searchParams.has("pinned"))
+          return HttpResponse.json([]);
+        return HttpResponse.json(
+          params.id === BOB_ACCT
+            ? [post("110000000000000003", "Bob's only post", bob)]
+            : alicePosts,
+        );
+      },
     ),
   );
   const { history, findByText, queryByText } = renderProfile(
@@ -735,7 +776,10 @@ test("a page of the previous account's posts that lands after the :acct changed 
     ),
     http.get<{ id: string }>(
       "*/api/v1/accounts/:id/statuses",
-      async ({ params }) => {
+      async ({ request, params }) => {
+        if (new URL(request.url).searchParams.has("pinned"))
+          return HttpResponse.json([]);
+
         if (params.id === BOB_ACCT) {
           return HttpResponse.json([
             post("110000000000000003", "Bob's only post", bob),
@@ -774,9 +818,11 @@ test("a page of the previous account's posts that lands after the :acct changed 
 test("the tab bar links every tab and marks only the current one", async () => {
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
-    http.get("*/api/v1/accounts/:id/statuses", () =>
-      HttpResponse.json(alicePosts),
-    ),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+      return HttpResponse.json(alicePosts);
+    }),
   );
   const { findByRole, findByText } = renderProfile(`/users/${ALICE_ACCT}`);
 
@@ -804,6 +850,9 @@ test("the replies and media tabs send their own filters", async () => {
   server.use(
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       requested.push(new URL(request.url));
       return HttpResponse.json(alicePosts);
     }),
@@ -835,6 +884,8 @@ test("activating a tab refetches under its filter, keeps the account, and keeps 
     }),
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
       const url = new URL(request.url);
+      if (url.searchParams.has("pinned")) return HttpResponse.json([]);
+
       requested.push(url);
       return HttpResponse.json(
         url.searchParams.get("only_media") === "true"
@@ -888,6 +939,9 @@ test("a percent-encoded :acct names the same account as the raw one", async () =
       return HttpResponse.json(alice);
     }),
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       accountPaths.push(new URL(request.url).pathname);
       return HttpResponse.json(alicePosts);
     }),

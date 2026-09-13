@@ -117,10 +117,14 @@ const accountHandler = http.get("*/api/v1/accounts/:id", () =>
   HttpResponse.json(alice),
 );
 
+// The Posts tab asks `/statuses` for its pinned strip as well as for the list
+// (ProfilePage.tsx); retention is about the list, so the strip gets nothing.
 const postsHandler = http.get(
   "*/api/v1/accounts/:id/statuses",
   ({ request }) => {
     const url = new URL(request.url);
+    if (url.searchParams.has("pinned")) return HttpResponse.json([]);
+
     postsRequests.push(url);
     const maxId = url.searchParams.get("max_id");
     if (maxId === null) return HttpResponse.json(firstPage);
@@ -293,6 +297,9 @@ test("pushing the same profile again from inside a conversation leaves the first
   server.use(
     accountHandler,
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       postsRequests.push(new URL(request.url));
       visits += 1;
       return HttpResponse.json([
@@ -344,6 +351,9 @@ test("walking deeper into a conversation still leaves the profile visit it start
   server.use(
     accountHandler,
     http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+
       postsRequests.push(new URL(request.url));
       visits += 1;
       return HttpResponse.json([
