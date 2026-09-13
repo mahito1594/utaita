@@ -1,6 +1,6 @@
 import { type ApiError, client, toResult } from "../../api/client";
+import { PAGE_LIMIT } from "../../api/pagination";
 import type { Result } from "../../api/result";
-import { PAGE_LIMIT } from "./cursor-list-store";
 import type { FollowList } from "./follow-list";
 import type { Account } from "./profile-api";
 import { profileQuery } from "./profile-query";
