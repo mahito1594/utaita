@@ -3,6 +3,8 @@ import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { Retention } from "../entities/retention/retention";
 import { statusPath } from "../entities/status/url";
+import { FollowList } from "../pages/profile/FollowList";
+import { followers, following } from "../pages/profile/follow-list";
 import { ProfilePage, ProfilePosts } from "../pages/profile/ProfilePage";
 import { preloadProfile } from "../pages/profile/profile-query";
 import { media, posts, postsAndReplies } from "../pages/profile/profile-tabs";
@@ -133,6 +135,12 @@ const ProfilePostsTab = () => <ProfilePosts tab={posts} />;
 const ProfileRepliesTab = () => <ProfilePosts tab={postsAndReplies} />;
 const ProfileMediaTab = () => <ProfilePosts tab={media} />;
 
+// The two follow lists are leaves of the same route for the same reason, even
+// though the tab bar does not name them: they are reached from the header's
+// counts (docs/design/profile-page-20260830.html).
+const ProfileFollowingList = () => <FollowList list={following} />;
+const ProfileFollowersList = () => <FollowList list={followers} />;
+
 // The session is passed in rather than read inside the retention component:
 // src/entities must not depend on src/app (.dependency-cruiser.cjs), and the
 // stack has to be dropped on sign-out by an explicit signal rather than by
@@ -176,6 +184,8 @@ const App = () => (
           <Route path={posts.path} component={ProfilePostsTab} />
           <Route path={postsAndReplies.path} component={ProfileRepliesTab} />
           <Route path={media.path} component={ProfileMediaTab} />
+          <Route path={following.path} component={ProfileFollowingList} />
+          <Route path={followers.path} component={ProfileFollowersList} />
         </Route>
         {/* The URL shape is statusPath's (src/entities/status/url.ts). Unlike
             the timelines, this route fetches through the router's own data

@@ -90,7 +90,7 @@ const postRowBody = css({ px: "3", py: "3" });
 
 // Whichever of the loading/empty states shows stands alone on the plane, so it
 // takes the row inset without the rule.
-const noticeRow = css({
+export const noticeRow = css({
   px: "3",
   py: "3",
   color: "text.muted",
@@ -139,7 +139,7 @@ const retryable = (error: ApiError): boolean =>
 // wording and whether recovery is offered at all belong to the call site: an
 // account that is not here says something different from a list that did not
 // arrive, and only one of the two can be worth a second request.
-const ErrorCard = (props: {
+export const ErrorCard = (props: {
   message: string;
   onRetry: (() => void) | undefined;
 }) => (
@@ -202,7 +202,7 @@ const endOfPostsRow = css({
 // and in the caller's `requestOlder` gate. happy-dom's IntersectionObserver
 // never actually calls back — page tests substitute a fake that captures this
 // callback for manual invocation instead.
-const PostsSentinel = (props: {
+export const PostsSentinel = (props: {
   loading: boolean;
   error: ApiError | undefined;
   onVisible: () => void;
