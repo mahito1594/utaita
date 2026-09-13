@@ -381,12 +381,13 @@ test("the follow counts open their lists, and each of the account's two switches
     const link = header?.querySelector("a[href$='/following']");
     expect(link?.getAttribute("href") ?? null, flags).toBe(href);
     expect(link?.textContent ?? null, flags).toBe(href === null ? null : text);
-    // The other side has its own flags and is untouched by these.
-    expect(
-      header?.querySelector("a[href$='/followers']")?.getAttribute("href") ??
-        null,
-      flags,
-    ).toBe(followListPath(ALICE_ACCT, followers));
+    // The other side has its own flags and is untouched by these — text as
+    // well as href, or a header reading the wrong flag would pass here.
+    const other = header?.querySelector("a[href$='/followers']");
+    expect(other?.getAttribute("href") ?? null, flags).toBe(
+      followListPath(ALICE_ACCT, followers),
+    );
+    expect(other?.textContent, flags).toBe("13 followers");
 
     unmount();
     query.clear();
