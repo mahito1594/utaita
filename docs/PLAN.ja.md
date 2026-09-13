@@ -161,6 +161,14 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 - 引用投稿の `content` にはサーバが `<span class="quote-inline">` で RE: リンクを
   自動付加する (投稿者ソースには無い)。引用カードを描画するときだけ除去する
   (ADR-0007)。
+- **`/api/v1/accounts/:id/followers` と `/following` の `:id` は flake id のみ**
+  (`assign_account_by_id` → `User.get_cached_by_id`)。`/accounts/:id` と
+  `/accounts/:id/statuses` が受ける nickname は 404 になる (2026-09-13 に実測)。
+  ページネーションは相手アカウント自身の id が `max_id` (Link ヘッダの next も
+  同じ)。非公開一覧 (`pleroma.hide_follows` / `hide_followers`) は本人以外に
+  200 で `[]` が返る。数の非公開 (`hide_*_count`) で `following_count` /
+  `followers_count` が 0 になるのは両方のフラグが立っているときだけで、
+  `hide_*_count` 単独では実数が来る — 値ではなくフラグを見ること。
 - Bearer 認証されたリクエストに対して Akkoma は httpOnly のセッション Cookie も
   `Set-Cookie` で返す。dev proxy 越しだとこの Cookie が localhost に保存され、
   proxy のトークン注入を外してもブラウザは認証されたままになる (2026-07-06 に
