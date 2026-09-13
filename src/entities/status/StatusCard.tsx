@@ -25,7 +25,7 @@ import { ReactionChips } from "./ReactionChips";
 import { StatusContent } from "./StatusContent";
 import { preciseTime, relativeTime } from "./time";
 import type { Status } from "./types";
-import { statusPath } from "./url";
+import { statusPath, whoListPaths } from "./url";
 
 export type { Status } from "./types";
 
@@ -85,6 +85,13 @@ export const StatusCard = (props: {
    * the same status without being a pinned row.
    */
   pinned?: boolean;
+  /**
+   * Makes the boost and favourite counts and the reaction chips the way into
+   * the lists of who did it (src/pages/thread/WhoListsPage.tsx). A caller's
+   * framing like `pinned`: the same post in a timeline reports the same
+   * numbers without being a way to open them.
+   */
+  lists?: boolean;
 }) => {
   // A boost (reblog) flattens into one card: the wrapper contributes only
   // the boost line, every other zone reads the boosted status (wireframe
@@ -110,6 +117,24 @@ export const StatusCard = (props: {
     if (subjectId() === "") return null;
     const path = statusPath(subjectId());
     return path === location.pathname ? null : path;
+  };
+
+  // Where the counts and chips lead when this card is a way into the lists,
+  // and nothing otherwise — including for a status that arrived without an id,
+  // which has no lists to name.
+  const listPaths = () =>
+    props.lists === true && subjectId() !== ""
+      ? whoListPaths(subjectId())
+      : null;
+  // `exactOptionalPropertyTypes`: an absent list is an absent key, not an
+  // `undefined` one, so each consumer's prop is spread in or left out.
+  const chipsHref = () => {
+    const paths = listPaths();
+    return paths === null ? {} : { href: paths.reactions };
+  };
+  const barLists = () => {
+    const paths = listPaths();
+    return paths === null ? {} : { listsAt: paths };
   };
 
   // The author's profile, or null when the account arrived without an acct
@@ -389,8 +414,11 @@ export const StatusCard = (props: {
       </div>
       {/* Reactions are reader metadata, not spoilable content — they stay
           visible while the CW is collapsed (wireframe zone order). */}
-      <ReactionChips reactions={parseEmojiReactions(subject())} />
-      <ActionBar status={subject()} />
+      <ReactionChips
+        reactions={parseEmojiReactions(subject())}
+        {...chipsHref()}
+      />
+      <ActionBar status={subject()} {...barLists()} />
     </article>
   );
 };

@@ -28,3 +28,23 @@ export const safeExternalHref = (
 // a status opened in-app is its conversation, so the route that draws the
 // thread is the status's own permalink.
 export const statusPath = (id: string): string => `/statuses/${id}`;
+
+// The three lists behind a post's counts hang off its permalink. The shape
+// lives here, next to `statusPath`, because a status card links into them and
+// `src/entities` may not import `src/pages` (.dependency-cruiser.cjs); the
+// tabs' labels and route table read the same values
+// (src/pages/thread/who-lists.ts).
+export const whoListSegments = {
+  favourites: "/favourited_by",
+  boosts: "/reblogged_by",
+  reactions: "/reactions",
+} as const;
+
+/** Absolute paths of a status's three who-did-it lists, keyed by list. */
+export const whoListPaths = (
+  id: string,
+): Record<keyof typeof whoListSegments, string> => ({
+  favourites: `${statusPath(id)}${whoListSegments.favourites}`,
+  boosts: `${statusPath(id)}${whoListSegments.boosts}`,
+  reactions: `${statusPath(id)}${whoListSegments.reactions}`,
+});

@@ -271,6 +271,9 @@ const ThreadRowItem = (props: {
         // minutes apart: "2d" on every row would say nothing about the
         // spacing the timeline's relative age is enough for.
         timeStyle="precise"
+        // Who favourited, boosted or reacted is read from the post the reader
+        // opened; the rest of the conversation is context around it.
+        lists={props.row.place === "subject"}
         class={placeholder() === undefined ? rowBody : rowBodyUnderPlaceholder}
       />
     </li>
