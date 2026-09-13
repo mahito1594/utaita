@@ -199,6 +199,11 @@ test("the following list names each account, links to its profile, and asks by t
     followListPath(ALICE_ACCT, following),
   );
 
+  // The page names its side of the graph itself: no tab is current here, and
+  // the header's count marks it by colour alone.
+  expect(
+    await findByRole("heading", { name: "Following" }),
+  ).toBeInTheDocument();
   const row = await findByRole("link", { name: /Zoe/ });
   expect(row).toHaveAttribute("href", "/users/zoe");
   expect(row).toHaveTextContent("@zoe");
@@ -234,17 +239,26 @@ test("a full page pages on from its tail account's id and stops asking once a sh
 // Akkoma answers a withheld list with an empty page rather than an error
 // (follow-list.ts), so the flag on the account is all that separates these two.
 test("an empty list from an account that hides it reads as withheld", async () => {
-  server.use(
-    http.get("*/api/v1/accounts/:id", () =>
-      HttpResponse.json({ ...alice, pleroma: { hide_follows: true } }),
-    ),
-    listHandler("following", [[]]),
-  );
-  const { findByText } = renderProfile(followListPath(ALICE_ACCT, following));
+  const cases = [
+    [following, { hide_follows: true }],
+    [followers, { hide_followers: true }],
+  ] as const;
+  for (const [list, pleroma] of cases) {
+    server.use(
+      http.get("*/api/v1/accounts/:id", () =>
+        HttpResponse.json({ ...alice, pleroma }),
+      ),
+      listHandler(list.kind, [[]]),
+    );
+    const { findByText, unmount } = renderProfile(
+      followListPath(ALICE_ACCT, list),
+    );
 
-  expect(
-    await findByText("This account doesn't show who they follow."),
-  ).toBeInTheDocument();
+    expect(await findByText(list.hidden)).toBeInTheDocument();
+
+    unmount();
+    query.clear();
+  }
 });
 
 test("an empty list from an account that hides nothing reads as empty", async () => {
@@ -281,8 +295,13 @@ test("a failed first page offers Retry, and Retry fetches it again", async () =>
 
 test("the followers list asks the followers endpoint and says so when it is empty", async () => {
   server.use(accountHandler, listHandler("followers", [[]]));
-  const { findByText } = renderProfile(followListPath(ALICE_ACCT, followers));
+  const { findByText, findByRole } = renderProfile(
+    followListPath(ALICE_ACCT, followers),
+  );
 
+  expect(
+    await findByRole("heading", { name: "Followers" }),
+  ).toBeInTheDocument();
   expect(await findByText("No followers yet.")).toBeInTheDocument();
   expect(listRequests[0]?.pathname).toBe(
     `/api/v1/accounts/${ALICE_ID}/followers`,
@@ -320,4 +339,40 @@ test("returning from a listed account's profile shows the list again, without re
   // Anchored at the retained tail, so the resumed list paged on from where the
   // disposed one left off rather than from a rebuilt head.
   expect(listRequests[1]?.searchParams.get("max_id")).toBe(fullPageTailId);
+});
+
+// The leaf reads `acct` once: a change of `:acct` alone has to reach it as a
+// remount (ProfilePage.tsx keys the body on the acct), or the second account's
+// list would be fetched under the first one's closure and retention key.
+test("the same list of another account is a fresh list, and Back restores the first without refetching", async () => {
+  server.use(
+    accountHandler,
+    http.get<{ id: string }>(
+      "*/api/v1/accounts/:id/following",
+      ({ params, request }) => {
+        listRequests.push(new URL(request.url));
+        return HttpResponse.json(params.id === ALICE_ID ? fullPage : [zoe]);
+      },
+    ),
+  );
+  const { history, findByText, findByRole, queryByText, queryByRole } =
+    renderProfile(followListPath(ALICE_ACCT, following));
+
+  expect(await findByText("User 80")).toBeInTheDocument();
+
+  // `history.set` announces no push, so retention reads it as a pop
+  // (retention.tsx). Fine for a path not yet on the stack, as here; a test
+  // that moves *forward* onto a path already on it must click a link instead.
+  history.set({ value: followListPath("bob", following) });
+
+  expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+  expect(queryByText("User 80")).not.toBeInTheDocument();
+  expect(listRequests).toHaveLength(2);
+  expect(listRequests[1]?.pathname).toBe("/api/v1/accounts/bob/following");
+
+  history.back();
+
+  expect(await findByText("User 80")).toBeInTheDocument();
+  expect(queryByRole("link", { name: /Zoe/ })).not.toBeInTheDocument();
+  expect(listRequests).toHaveLength(2);
 });

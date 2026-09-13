@@ -27,6 +27,18 @@ const accountList = css({
   listStyleType: "none",
 });
 
+// Which side of the graph this is: the tab bar names none of it, and the
+// header's count marks it by colour alone, so the list says so itself. Same
+// band as the detached rows' heading (ThreadPage.tsx).
+const listHeading = css({
+  px: "3",
+  py: "2",
+  borderBottomWidth: "1px",
+  borderColor: "border.default",
+  fontSize: "sm",
+  fontWeight: "semibold",
+});
+
 // The list failing is one region of a page that otherwise arrived, so the copy
 // names the region — the header above it is proof the account exists.
 const listErrorMessage = (list: ListDefinition, error: ApiError): string => {
@@ -104,6 +116,8 @@ export const FollowList = (props: { list: ListDefinition }) => {
 
   return (
     <div>
+      <h3 class={listHeading}>{props.list.label}</h3>
+
       <Show when={store.loading()}>
         <p role="status" class={noticeRow}>
           Loading…
