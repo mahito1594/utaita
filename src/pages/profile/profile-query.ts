@@ -1,6 +1,6 @@
 import { query, type RoutePreloadFunc } from "@solidjs/router";
 import { acctFromPath } from "../../entities/status/mention";
-import { fetchAccount } from "./profile-api";
+import { fetchAccount, fetchPinnedPosts } from "./profile-api";
 
 /**
  * The account a profile URL names, cached by the router's data layer.
@@ -23,3 +23,13 @@ export const preloadProfile: RoutePreloadFunc<void> = ({ params }) => {
   const { acct } = params;
   if (acct !== undefined) void profileQuery(acctFromPath(acct));
 };
+
+/**
+ * The pinned strip's statuses, cached by the router's data layer like the
+ * account. Retrying a failure is `revalidate(pinnedQuery.keyFor(acct))`.
+ *
+ * Not part of `preloadProfile`: only the Posts tab draws the strip
+ * (profile-tabs.ts), and warming it for the others would be a request nothing
+ * reads.
+ */
+export const pinnedQuery = query(fetchPinnedPosts, "profile-pinned");

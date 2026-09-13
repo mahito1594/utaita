@@ -8,6 +8,7 @@ import {
   onMount,
   type ParentProps,
   Show,
+  Suspense,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
@@ -22,7 +23,7 @@ import {
 } from "./cursor-list-store";
 import { ProfileHeader } from "./ProfileHeader";
 import { type Account, fetchAccountPosts } from "./profile-api";
-import { profileQuery } from "./profile-query";
+import { pinnedQuery, profileQuery } from "./profile-query";
 import { type ProfileTab, profileTabPath, profileTabs } from "./profile-tabs";
 
 // The plane the profile is drawn on, built like the timeline's panel
@@ -278,6 +279,56 @@ export const PostsSentinel = (props: {
 };
 
 /**
+ * The pinned posts an account chose to open its Posts tab with, above the
+ * chronological list (profile-tabs.ts decides which tab gets them).
+ *
+ * Outside the retention snapshot that the list below keeps: browser Back
+ * reuses the router's cached answer while it lives, and once the cache has
+ * dropped it the strip is re-fetched and lands above an already-restored list.
+ * Nothing is drawn while it is in flight — the list's own "Loading…" row is
+ * already saying so — and nothing for an account that pinned nothing; only a
+ * failure adds a row. The same post may well appear again in the list at its
+ * chronological place, undeduped and unmarked there, which is what the marker
+ * belonging to this strip rather than to `status.pinned` gets us.
+ */
+const PinnedPosts = (props: { acct: string }) => {
+  // `acct` is read ahead of the await: `query` registers against the calling
+  // listener, which an await would lose, and with it `revalidate`'s hold.
+  const pinned = createAsync(async () => {
+    const acct = props.acct;
+    return pinnedQuery(acct);
+  });
+  const items = (): Status[] => {
+    const answer = pinned();
+    return answer?.ok ? answer.value : [];
+  };
+  const error = () => {
+    const answer = pinned();
+    return answer === undefined || answer.ok ? undefined : answer.error;
+  };
+
+  return (
+    // Its own boundary so the strip's request suspends the strip alone,
+    // leaving the header and the list below it on screen while it resolves.
+    <Suspense>
+      <Show when={error() !== undefined}>
+        <ErrorCard
+          message="Couldn't load pinned posts."
+          onRetry={() => void revalidate(pinnedQuery.keyFor(props.acct))}
+        />
+      </Show>
+      <For each={items()}>
+        {(status) => (
+          <div class={postRow}>
+            <StatusCard status={status} pinned class={postRowBody} />
+          </div>
+        )}
+      </For>
+    </Suspense>
+  );
+};
+
+/**
  * The list under the tab bar, one tab's filter over one account's posts. The
  * leaf of the profile route (App.tsx): a new `acct` or a new tab is a new
  * mount, so the store it owns is never reset by hand.
@@ -333,6 +384,10 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
 
   return (
     <div class={postList}>
+      <Show when={props.tab.pinned}>
+        <PinnedPosts acct={acct} />
+      </Show>
+
       <Show when={store.loading()}>
         <p role="status" class={noticeRow}>
           Loading…
@@ -396,9 +451,8 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
 
 /**
  * One account's profile: the identity block, the tab bar, and below them the
- * outlet for whichever tab's list the URL names (profile-tabs.ts). Pinned
- * posts and the follow lists are later work; the wireframe
- * (docs/design/profile-page-20260830.html) shows where they go.
+ * outlet for whichever tab's list the URL names (profile-tabs.ts). The
+ * wireframe (docs/design/profile-page-20260830.html) is the layout.
  */
 export const ProfilePage = (props: ParentProps) => {
   // Untyped useParams is an index signature — bracket access then trips

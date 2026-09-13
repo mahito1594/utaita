@@ -5,6 +5,7 @@ import House from "lucide-solid/icons/house";
 import Lock from "lucide-solid/icons/lock";
 import LockOpen from "lucide-solid/icons/lock-open";
 import Mail from "lucide-solid/icons/mail";
+import Pin from "lucide-solid/icons/pin";
 import Repeat2 from "lucide-solid/icons/repeat-2";
 import Reply from "lucide-solid/icons/reply";
 import { createSignal, createUniqueId, Show } from "solid-js";
@@ -63,11 +64,27 @@ const avatarShape = {
 const avatarFallback = css({ ...avatarShape, bg: "bg.subtle" });
 const avatarImage = css({ ...avatarShape, objectFit: "cover" });
 
+// The lines that frame the post rather than being it — pinned, boosted by,
+// replying to — share one rhythm.
+const metaLine = {
+  fontSize: "xs",
+  color: "text.muted",
+  display: "flex",
+  gap: "1",
+  alignItems: "center",
+} as const;
+
 export const StatusCard = (props: {
   status: Status;
   class?: string;
   /** How the header renders the post's age; "relative" unless asked. */
   timeStyle?: "relative" | "precise";
+  /**
+   * Marks the card as one the author pinned. A caller's framing, not the
+   * post's own `pinned` field: the same post in its chronological place is
+   * the same status without being a pinned row.
+   */
+  pinned?: boolean;
 }) => {
   // A boost (reblog) flattens into one card: the wrapper contributes only
   // the boost line, every other zone reads the boosted status (wireframe
@@ -165,17 +182,14 @@ export const StatusCard = (props: {
         props.class,
       )}
     >
+      <Show when={props.pinned}>
+        <div class={css({ ...metaLine })}>
+          <Pin size={14} aria-hidden="true" />
+          <span>Pinned</span>
+        </div>
+      </Show>
       <Show when={props.status.reblog}>
-        <div
-          class={css({
-            fontSize: "xs",
-            color: "text.muted",
-            display: "flex",
-            gap: "1",
-            alignItems: "center",
-            minWidth: 0,
-          })}
-        >
+        <div class={css({ ...metaLine, minWidth: 0 })}>
           <Repeat2 size={14} aria-hidden="true" />
           <span
             class={css({
@@ -286,15 +300,7 @@ export const StatusCard = (props: {
         </div>
       </header>
       <Show when={subject().in_reply_to_id != null}>
-        <div
-          class={css({
-            fontSize: "xs",
-            color: "text.muted",
-            display: "flex",
-            gap: "1",
-            alignItems: "center",
-          })}
-        >
+        <div class={css({ ...metaLine })}>
           <Reply size={14} aria-hidden="true" />
           <span>
             replying to {replyTo() !== null ? `@${replyTo()}` : "a post"}
