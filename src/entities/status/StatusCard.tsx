@@ -8,7 +8,7 @@ import Mail from "lucide-solid/icons/mail";
 import Pin from "lucide-solid/icons/pin";
 import Repeat2 from "lucide-solid/icons/repeat-2";
 import Reply from "lucide-solid/icons/reply";
-import { createSignal, createUniqueId, Show } from "solid-js";
+import { createSignal, createUniqueId, For, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { css, cx } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
@@ -45,9 +45,10 @@ const VISIBILITY_ICONS: Record<VisibilityScope, typeof Globe> = {
   direct: Mail,
 };
 
-// Both links in the header lead out of the card rather than decorating it —
-// the author's profile and the post's permalink — so they borrow the colour of
-// the text they sit in instead of announcing themselves in every row.
+// The links that lead out of the card rather than decorating it — the
+// author's profile, the post's permalink, the stats row's lists — borrow the
+// colour of the text they sit in instead of announcing themselves in every
+// row; a count that leads somewhere is still a count.
 const headerLinkStyle = css({
   color: "inherit",
   textDecoration: "none",
@@ -86,10 +87,11 @@ export const StatusCard = (props: {
    */
   pinned?: boolean;
   /**
-   * Makes the boost and favourite counts and the reaction chips the way into
-   * the lists of who did it (src/pages/thread/WhoListsPage.tsx). A caller's
-   * framing like `pinned`: the same post in a timeline reports the same
-   * numbers without being a way to open them.
+   * Gives the card a stats row of linked counts, the way into the lists of who
+   * boosted, favourited and reacted (src/pages/thread/WhoListsPage.tsx); the
+   * action bar then shows its icons without numbers. A caller's framing like
+   * `pinned`: the same post in a timeline reports the same numbers beside the
+   * icons without being a way to open them.
    */
   lists?: boolean;
 }) => {
@@ -119,22 +121,31 @@ export const StatusCard = (props: {
     return path === location.pathname ? null : path;
   };
 
-  // Where the counts and chips lead when this card is a way into the lists,
-  // and nothing otherwise — including for a status that arrived without an id,
-  // which has no lists to name.
-  const listPaths = () =>
-    props.lists === true && subjectId() !== ""
-      ? whoListPaths(subjectId())
-      : null;
-  // `exactOptionalPropertyTypes`: an absent list is an absent key, not an
-  // `undefined` one, so each consumer's prop is spread in or left out.
-  const chipsHref = () => {
-    const paths = listPaths();
-    return paths === null ? {} : { href: paths.reactions };
-  };
-  const barLists = () => {
-    const paths = listPaths();
-    return paths === null ? {} : { listsAt: paths };
+  // The counts this card can open, largest scope first, with the empty ones
+  // left out so a "0 boosts" link can never lead to an empty list. Nothing to
+  // open for a status that arrived without an id, which has no lists to name.
+  // Reactions are counted, not reacting accounts — the same derivation as
+  // `counts()` in src/pages/thread/WhoListsPage.tsx, duplicated concretely
+  // (second occurrence).
+  const stats = () => {
+    if (props.lists !== true || subjectId() === "") return [];
+    const paths = whoListPaths(subjectId());
+    return [
+      { count: subject().reblogs_count ?? 0, noun: "boost", to: paths.boosts },
+      {
+        count: subject().favourites_count ?? 0,
+        noun: "favourite",
+        to: paths.favourites,
+      },
+      {
+        count: parseEmojiReactions(subject()).reduce(
+          (total, reaction) => total + reaction.count,
+          0,
+        ),
+        noun: "reaction",
+        to: paths.reactions,
+      },
+    ].filter((entry) => entry.count > 0);
   };
 
   // The author's profile, or null when the account arrived without an acct
@@ -414,11 +425,27 @@ export const StatusCard = (props: {
       </div>
       {/* Reactions are reader metadata, not spoilable content — they stay
           visible while the CW is collapsed (wireframe zone order). */}
-      <ReactionChips
-        reactions={parseEmojiReactions(subject())}
-        {...chipsHref()}
-      />
-      <ActionBar status={subject()} {...barLists()} />
+      <ReactionChips reactions={parseEmojiReactions(subject())} />
+      <Show when={stats().length > 0}>
+        <div class={css({ ...metaLine, flexWrap: "wrap" })}>
+          <For each={stats()}>
+            {(entry, index) => (
+              <>
+                {/* Out of the links' accessible names: the separator is
+                    punctuation between counts, not part of any of them. */}
+                <Show when={index() > 0}>
+                  <span aria-hidden="true">·</span>
+                </Show>
+                <A href={entry.to} class={headerLinkStyle}>
+                  {entry.count} {entry.noun}
+                  {entry.count === 1 ? "" : "s"}
+                </A>
+              </>
+            )}
+          </For>
+        </div>
+      </Show>
+      <ActionBar status={subject()} counts={props.lists !== true} />
     </article>
   );
 };
