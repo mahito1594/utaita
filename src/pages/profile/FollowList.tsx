@@ -1,6 +1,6 @@
 import { createAsync, useParams } from "@solidjs/router";
 import { For, onCleanup, onMount, Show } from "solid-js";
-import { css } from "../../../styled-system/css";
+import { css, cx } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { acctFromPath } from "../../entities/status/mention";
@@ -15,7 +15,7 @@ import {
   listHidden,
 } from "./follow-list";
 import { fetchFollowList } from "./follow-list-api";
-import { ErrorCard, noticeRow, PostsSentinel } from "./ProfilePage";
+import { ErrorCard, loadingRow, noticeRow, PostsSentinel } from "./ProfilePage";
 import type { Account } from "./profile-api";
 import { profileQuery } from "./profile-query";
 
@@ -119,7 +119,7 @@ export const FollowList = (props: { list: ListDefinition }) => {
       <h3 class={listHeading}>{props.list.label}</h3>
 
       <Show when={store.loading()}>
-        <p role="status" class={noticeRow}>
+        <p role="status" class={cx(noticeRow, loadingRow)}>
           Loading…
         </p>
       </Show>

@@ -154,7 +154,9 @@ const Count = (props: {
     <Show when={props.withheld || props.value !== undefined}>
       <Show when={props.href} fallback={<span>{body()}</span>}>
         {(href) => (
-          <A href={href()} class={countLink}>
+          // `noScroll` for the same reason as the tab bar's links
+          // (ProfilePage.tsx): the count leads inside the page it sits on.
+          <A href={href()} class={countLink} noScroll>
             {body()}
           </A>
         )}
