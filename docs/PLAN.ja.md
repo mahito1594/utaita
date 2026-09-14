@@ -44,6 +44,14 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
       pinned 表示と「誰が」一覧が最後。残りは dogfooding とスマホ実機確認。通知は
       2026-09-13 に Phase 2 へ — 既読管理が write scope を要するため。
       根拠は [stories.ja.md](./stories.ja.md) の Phase 2 冒頭)
+      - PC dogfooding は 2026-09-14 に開始 (local dev server)。指摘の修正は
+        stories.ja.md の各ストーリーに記録
+      - **Phase 3 の最小スライスを Phase 1 の締めに前倒し** (2026-09-14 決定):
+        Done 条件の「スマホ実機」と「pleroma-fe を開かずに 1 日」は localhost では
+        測れず、[ADR-0005](./adr/0005-deployment.md) も dogfooding を本番で行う前提。
+        `pnpm build` → `frontends/utaita/<ref>` レイアウトの zip → リファレンス
+        インスタンスへ手動インストール → 自分の `preferred_frontend` 切替、まで。
+        CI とリリース自動化は Phase 3 に残す
 
 ## Phase 0 — 基盤
 
