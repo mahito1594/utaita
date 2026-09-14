@@ -16,7 +16,7 @@ import {
   Show,
   Suspense,
 } from "solid-js";
-import { css } from "../../../styled-system/css";
+import { css, cx } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { acctFromPath } from "../../entities/status/mention";
@@ -104,6 +104,10 @@ export const noticeRow = css({
   py: "3",
   color: "text.muted",
 });
+
+// A one-line outlet while the list is out would let the browser clamp the
+// scroll position; a viewport's worth of height keeps the reader where they were.
+export const loadingRow = css({ minH: "100dvh" });
 
 const errorBox = css({
   bg: "error.subtle",
@@ -396,7 +400,7 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
       </Show>
 
       <Show when={store.loading()}>
-        <p role="status" class={noticeRow}>
+        <p role="status" class={cx(noticeRow, loadingRow)}>
           Loading…
         </p>
       </Show>
@@ -545,7 +549,14 @@ export const ProfilePage = (props: ParentProps) => {
               <nav aria-label="Profile sections" class={tabBar}>
                 <For each={profileTabs}>
                   {(tab) => (
-                    <A href={profileTabPath(acct(), tab)} class={tabLink}>
+                    // `noScroll`: a tab swaps a section of a page the reader
+                    // has not left, so the router's scroll-to-top on push is
+                    // out of place here. Back/forward restoration is unaffected.
+                    <A
+                      href={profileTabPath(acct(), tab)}
+                      class={tabLink}
+                      noScroll
+                    >
                       {tab.label}
                     </A>
                   )}
