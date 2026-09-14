@@ -564,7 +564,7 @@ const subjectRowOf = (container: HTMLElement): HTMLElement => {
   return row;
 };
 
-test("the subject row's favourite count, boost count and reaction chips are links to the matching list", async () => {
+test("the subject row carries a stats row whose items link to the matching lists, and its action bar shows icons only", async () => {
   server.use(
     ...threadHandlers(counted(subject), { ancestors: [], descendants: [] }),
   );
@@ -574,15 +574,65 @@ test("the subject row's favourite count, boost count and reaction chips are link
 
   const row = within(subjectRowOf(container));
   const base = statusPath(SUBJECT_ID);
-  expect(row.getByTitle("favourites")).toHaveAttribute(
-    "href",
-    `${base}/favourited_by`,
-  );
-  expect(row.getByTitle("boosts")).toHaveAttribute(
+  expect(row.getByRole("link", { name: "5 boosts" })).toHaveAttribute(
     "href",
     `${base}/reblogged_by`,
   );
-  expect(row.getByTitle("😸")).toHaveAttribute("href", `${base}/reactions`);
+  expect(row.getByRole("link", { name: "12 favourites" })).toHaveAttribute(
+    "href",
+    `${base}/favourited_by`,
+  );
+  expect(row.getByRole("link", { name: "3 reactions" })).toHaveAttribute(
+    "href",
+    `${base}/reactions`,
+  );
+  // The icons afford doing it, the stats row affords reading who did it, so
+  // the numbers sit in one place only.
+  expect(row.getByTitle("favourites")).not.toHaveTextContent(/\d/);
+  expect(row.getByTitle("boosts")).not.toHaveTextContent(/\d/);
+  expect(row.getByTitle("😸").tagName).toBe("SPAN");
+});
+
+test("a zero count is left out of the stats row, and one of exactly one reads singular", async () => {
+  server.use(
+    ...threadHandlers(
+      { ...counted(subject), reblogs_count: 0, favourites_count: 1 },
+      { ancestors: [], descendants: [] },
+    ),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  const row = within(subjectRowOf(container));
+  expect(row.queryByRole("link", { name: /boost/ })).toBeNull();
+  expect(row.getByRole("link", { name: "1 favourite" })).toHaveAttribute(
+    "href",
+    `${statusPath(SUBJECT_ID)}/favourited_by`,
+  );
+  expect(row.getByRole("link", { name: "3 reactions" })).toBeInTheDocument();
+});
+
+test("a subject nobody boosted, favourited or reacted to has no stats row", async () => {
+  server.use(
+    ...threadHandlers(
+      {
+        ...subject,
+        reblogs_count: 0,
+        favourites_count: 0,
+        pleroma: { emoji_reactions: [] },
+      },
+      { ancestors: [], descendants: [] },
+    ),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  const row = within(subjectRowOf(container));
+  expect(
+    row.queryByRole("link", { name: /boost|favourite|reaction/ }),
+  ).toBeNull();
 });
 
 test("the same counts and chips on ancestor and descendant rows are not links", async () => {
@@ -605,5 +655,11 @@ test("the same counts and chips on ancestor and descendant rows are not links", 
     expect(zone.getByTitle("favourites").tagName).toBe("SPAN");
     expect(zone.getByTitle("boosts").tagName).toBe("SPAN");
     expect(zone.getByTitle("😸").tagName).toBe("SPAN");
+    expect(
+      zone.queryByRole("link", { name: /boosts|favourites|reactions/ }),
+    ).toBeNull();
+    // Off the subject the numbers stay where they always were, beside the
+    // icons: only the way into the lists is the subject's.
+    expect(zone.getByTitle("favourites")).toHaveTextContent("12");
   }
 });

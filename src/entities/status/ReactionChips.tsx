@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { EmojiReaction } from "./parse";
@@ -25,7 +24,6 @@ const chip = css({
   px: "2",
   py: "0.5",
   fontSize: "xs",
-  textDecoration: "none",
   borderWidth: "1px",
   borderRadius: "full",
   borderColor: "border.default",
@@ -58,35 +56,18 @@ const ChipBody = (props: { reaction: EmojiReaction }) => (
 /**
  * One reaction: the emoji and how many accounts used it. Unicode reactions
  * have url: null and render as text; custom emoji render their image; `me`
- * gets the accent outline. With `href` the chip is the way to the list of who
- * reacted (one page for every emoji), and is an anchor rather than a span.
+ * gets the accent outline. Display-only: who reacted is read from the stats
+ * row under the thread's subject (StatusCard.tsx), not from the chip.
  */
-export const ReactionChip = (props: {
-  reaction: EmojiReaction;
-  href?: string;
-}) => {
-  const attrs = () => ({
-    title: props.reaction.name,
-    class: chip,
-    ...(props.reaction.me ? { "data-me": "" } : {}),
-  });
-  return (
-    <Show
-      when={props.href}
-      fallback={
-        <span {...attrs()}>
-          <ChipBody reaction={props.reaction} />
-        </span>
-      }
-    >
-      {(href) => (
-        <A href={href()} {...attrs()}>
-          <ChipBody reaction={props.reaction} />
-        </A>
-      )}
-    </Show>
-  );
-};
+export const ReactionChip = (props: { reaction: EmojiReaction }) => (
+  <span
+    title={props.reaction.name}
+    class={chip}
+    {...(props.reaction.me ? { "data-me": "" } : {})}
+  >
+    <ChipBody reaction={props.reaction} />
+  </span>
+);
 
 /**
  * Display-only reaction chips (reacting is Phase 2; who reacted is a list
@@ -94,8 +75,6 @@ export const ReactionChip = (props: {
  */
 export const ReactionChips = (props: {
   reactions: readonly EmojiReaction[];
-  /** Where every chip leads; unset leaves them display-only. */
-  href?: string;
 }) => (
   <Show when={props.reactions.length > 0}>
     <div
@@ -106,12 +85,7 @@ export const ReactionChips = (props: {
       })}
     >
       <For each={props.reactions}>
-        {(reaction) => (
-          <ReactionChip
-            reaction={reaction}
-            {...(props.href === undefined ? {} : { href: props.href })}
-          />
-        )}
+        {(reaction) => <ReactionChip reaction={reaction} />}
       </For>
     </div>
   </Show>
