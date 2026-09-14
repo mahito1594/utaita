@@ -410,23 +410,37 @@ test("the follow counts open their lists, and each of the account's two switches
   }
 });
 
-test("the count of the list on screen is the current link, and no tab is", async () => {
-  server.use(
-    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
-    http.get("*/api/v1/accounts/:id/following", () => HttpResponse.json([])),
-  );
-  const { container, findByText } = renderProfile(
-    `/users/${ALICE_ACCT}${following.path}`,
-  );
+test("the count of the list on screen is the current link, and the tab bar is gone", async () => {
+  const cases: [typeof following, string][] = [
+    [following, "7 following"],
+    [followers, "13 followers"],
+  ];
 
-  expect(await findByText(following.empty)).toBeInTheDocument();
-  const header = container.querySelector("header");
-  expect(header?.querySelector("a[aria-current=page]")?.textContent).toBe(
-    "7 following",
-  );
-  // The tab bar names the post lists only, so none of it is current here.
-  const nav = container.querySelector("nav");
-  expect(nav?.querySelector("a[aria-current=page]")).toBeNull();
+  for (const [list, count] of cases) {
+    server.use(
+      http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+      http.get(`*/api/v1/accounts/:id/${list.kind}`, () =>
+        HttpResponse.json([]),
+      ),
+    );
+    const { container, findByText, unmount } = renderProfile(
+      `/users/${ALICE_ACCT}${list.path}`,
+    );
+
+    expect(await findByText(list.empty)).toBeInTheDocument();
+    const header = container.querySelector("header");
+    expect(header?.querySelector("a[aria-current=page]")?.textContent).toBe(
+      count,
+    );
+    // The tab bar names the post lists only, and this list carries its own
+    // heading, so the bar is not drawn above it at all.
+    expect(
+      container.querySelector("nav[aria-label='Profile sections']"),
+    ).toBeNull();
+
+    unmount();
+    query.clear();
+  }
 });
 
 test("a remote account offers its page on the origin server", async () => {
@@ -843,6 +857,12 @@ test("the tab bar links every tab and marks only the current one", async () => {
     ["Posts & replies", null],
     ["Media", null],
   ]);
+
+  // The posts count leads to the same list as the first tab, so on that tab
+  // the router marks both.
+  const postsCount = await findByRole("link", { name: "42 posts" });
+  expect(postsCount).toHaveAttribute("href", profileTabPath(ALICE_ACCT, posts));
+  expect(postsCount).toHaveAttribute("aria-current", "page");
 });
 
 test("the replies and media tabs send their own filters", async () => {

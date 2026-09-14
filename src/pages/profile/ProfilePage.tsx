@@ -1,4 +1,10 @@
-import { A, createAsync, revalidate, useParams } from "@solidjs/router";
+import {
+  A,
+  createAsync,
+  revalidate,
+  useMatch,
+  useParams,
+} from "@solidjs/router";
 import {
   createEffect,
   createSignal,
@@ -21,6 +27,7 @@ import {
   type CursorListSnapshot,
   createCursorListStore,
 } from "./cursor-list-store";
+import { followers, following, followListPath } from "./follow-list";
 import { ProfileHeader } from "./ProfileHeader";
 import { type Account, fetchAccountPosts } from "./profile-api";
 import { pinnedQuery, profileQuery } from "./profile-query";
@@ -487,6 +494,14 @@ export const ProfilePage = (props: ParentProps) => {
   };
   const retry = () => void revalidate(profileQuery.keyFor(acct()));
 
+  // The tab bar names the post lists only, and a follow list carries its own
+  // heading, so the bar is left out while one is the leaf. Matched on the
+  // route pattern (`:acct` as written in App.tsx), not the location string.
+  const followingLeaf = useMatch(() => followListPath(":acct", following));
+  const followersLeaf = useMatch(() => followListPath(":acct", followers));
+  const onPostTab = () =>
+    followingLeaf() === undefined && followersLeaf() === undefined;
+
   return (
     <section class={plane}>
       {/* Not keyed, here and on the posts card: every failed request is a new
@@ -526,15 +541,17 @@ export const ProfilePage = (props: ParentProps) => {
           // that only canonicalizes the spelling keeps the list.
           <Show when={acct()} keyed>
             <ProfileHeader account={loaded()} />
-            <nav aria-label="Profile sections" class={tabBar}>
-              <For each={profileTabs}>
-                {(tab) => (
-                  <A href={profileTabPath(acct(), tab)} class={tabLink}>
-                    {tab.label}
-                  </A>
-                )}
-              </For>
-            </nav>
+            <Show when={onPostTab()}>
+              <nav aria-label="Profile sections" class={tabBar}>
+                <For each={profileTabs}>
+                  {(tab) => (
+                    <A href={profileTabPath(acct(), tab)} class={tabLink}>
+                      {tab.label}
+                    </A>
+                  )}
+                </For>
+              </nav>
+            </Show>
             {props.children}
           </Show>
         )}
