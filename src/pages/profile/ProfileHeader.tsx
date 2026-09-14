@@ -12,6 +12,7 @@ import {
   listHidden,
 } from "./follow-list";
 import type { Account } from "./profile-api";
+import { posts, profileTabPath } from "./profile-tabs";
 
 // A band across the top of the plane, not a framed image: the account's own
 // header when it has one, a plain field of `bg.subtle` when it doesn't (the
@@ -54,8 +55,8 @@ const avatarRow = css({
   alignItems: "flex-end",
   gap: "3",
   minWidth: 0,
-  // Half the avatar hangs over the band above; the row's own top padding is
-  // the plane's, so only this pull is needed.
+  // Only the avatar hangs over the band above, by half its height; the names
+  // cancel the pull with a matching `mt` so they start at the band's edge.
   mt: "-10",
 });
 
@@ -91,15 +92,14 @@ const originLinkStyle = css({
 
 const badgeRow = css({ display: "flex", gap: "1.5", mt: "1" });
 
-// Same pill as a reaction chip (ReactionChips.tsx); second occurrence, so not
-// yet shared (rule of three).
+// A state of the relationship, not something to press here: the filled,
+// borderless pill is what keeps it from reading as a control.
 const badge = css({
   display: "inline-flex",
   px: "2",
   py: "0.5",
-  borderWidth: "1px",
   borderRadius: "full",
-  borderColor: "border.default",
+  bg: "bg.subtle",
   color: "text.muted",
   fontSize: "xs",
 });
@@ -130,7 +130,8 @@ const countLink = css({ "&[aria-current=page]": { color: "text.brand" } });
 
 const countLabel = css({ color: "text.muted" });
 
-// One count, with or without the list behind it. A withheld number is shown as
+// One count, with or without the list behind it. On the page its list is
+// showing, `<A>` marks it `aria-current="page"`. A withheld number is shown as
 // the word instead: Akkoma sends a number either way — the real one, or 0 once
 // the list is hidden too — so the flag, not the value, is what can be read. A
 // count the payload omits renders nothing; a zero would be a claim the
@@ -153,7 +154,9 @@ const Count = (props: {
     <Show when={props.withheld || props.value !== undefined}>
       <Show when={props.href} fallback={<span>{body()}</span>}>
         {(href) => (
-          <A href={href()} class={countLink}>
+          // `noScroll` for the same reason as the tab bar's links
+          // (ProfilePage.tsx): the count leads inside the page it sits on.
+          <A href={href()} class={countLink} noScroll>
             {body()}
           </A>
         )}
@@ -179,6 +182,12 @@ export const ProfileHeader = (props: { account: Account }) => {
   // Present because the fetch asks for it (profile-api.ts); all-false for an
   // anonymous viewer, so nothing shows. Acting on it is Phase 2.
   const relationship = () => props.account.pleroma?.relationship;
+  // The posts count leads back to the profile's own default tab, which is
+  // where its list is drawn (profile-tabs.ts).
+  const postsHref = (): string | undefined => {
+    const acct = props.account.acct;
+    return acct ? profileTabPath(acct, posts) : undefined;
+  };
   // No link into a list the account withholds: Akkoma answers that one with an
   // empty page to every reader but the owner (follow-list.ts).
   const listHref = (list: FollowList): string | undefined => {
@@ -226,7 +235,7 @@ export const ProfileHeader = (props: { account: Account }) => {
               />
             )}
           </Show>
-          <div class={css({ flex: 1, minWidth: 0 })}>
+          <div class={css({ flex: 1, minWidth: 0, mt: "10" })}>
             <h2 class={displayNameStyle}>
               <EmojiText text={displayName()} emojis={emojis()} />
             </h2>
@@ -297,13 +306,14 @@ export const ProfileHeader = (props: { account: Account }) => {
 
         {/* Each follow count carries two independent switches of the account's
             own: `hide_*_count` withholds the number, `hide_*` withholds the
-            list it leads to. Posts has neither and no list to open. */}
+            list it leads to. Posts has neither switch; its list is the Posts
+            tab. */}
         <div class={countsRow}>
           <Count
             value={props.account.statuses_count}
             label="posts"
             withheld={false}
-            href={undefined}
+            href={postsHref()}
           />
           <Count
             value={props.account.following_count}

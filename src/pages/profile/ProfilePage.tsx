@@ -1,4 +1,10 @@
-import { A, createAsync, revalidate, useParams } from "@solidjs/router";
+import {
+  A,
+  createAsync,
+  revalidate,
+  useMatch,
+  useParams,
+} from "@solidjs/router";
 import {
   createEffect,
   createSignal,
@@ -10,7 +16,7 @@ import {
   Show,
   Suspense,
 } from "solid-js";
-import { css } from "../../../styled-system/css";
+import { css, cx } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { acctFromPath } from "../../entities/status/mention";
@@ -21,6 +27,7 @@ import {
   type CursorListSnapshot,
   createCursorListStore,
 } from "./cursor-list-store";
+import { followers, following, followListPath } from "./follow-list";
 import { ProfileHeader } from "./ProfileHeader";
 import { type Account, fetchAccountPosts } from "./profile-api";
 import { pinnedQuery, profileQuery } from "./profile-query";
@@ -97,6 +104,10 @@ export const noticeRow = css({
   py: "3",
   color: "text.muted",
 });
+
+// A one-line outlet while the list is out would let the browser clamp the
+// scroll position; a viewport's worth of height keeps the reader where they were.
+export const loadingRow = css({ minH: "100dvh" });
 
 const errorBox = css({
   bg: "error.subtle",
@@ -389,7 +400,7 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
       </Show>
 
       <Show when={store.loading()}>
-        <p role="status" class={noticeRow}>
+        <p role="status" class={cx(noticeRow, loadingRow)}>
           Loading…
         </p>
       </Show>
@@ -487,6 +498,14 @@ export const ProfilePage = (props: ParentProps) => {
   };
   const retry = () => void revalidate(profileQuery.keyFor(acct()));
 
+  // The tab bar names the post lists only, and a follow list carries its own
+  // heading, so the bar is left out while one is the leaf. Matched on the
+  // route pattern (`:acct` as written in App.tsx), not the location string.
+  const followingLeaf = useMatch(() => followListPath(":acct", following));
+  const followersLeaf = useMatch(() => followListPath(":acct", followers));
+  const onPostTab = () =>
+    followingLeaf() === undefined && followersLeaf() === undefined;
+
   return (
     <section class={plane}>
       {/* Not keyed, here and on the posts card: every failed request is a new
@@ -526,15 +545,24 @@ export const ProfilePage = (props: ParentProps) => {
           // that only canonicalizes the spelling keeps the list.
           <Show when={acct()} keyed>
             <ProfileHeader account={loaded()} />
-            <nav aria-label="Profile sections" class={tabBar}>
-              <For each={profileTabs}>
-                {(tab) => (
-                  <A href={profileTabPath(acct(), tab)} class={tabLink}>
-                    {tab.label}
-                  </A>
-                )}
-              </For>
-            </nav>
+            <Show when={onPostTab()}>
+              <nav aria-label="Profile sections" class={tabBar}>
+                <For each={profileTabs}>
+                  {(tab) => (
+                    // `noScroll`: a tab swaps a section of a page the reader
+                    // has not left, so the router's scroll-to-top on push is
+                    // out of place here. Back/forward restoration is unaffected.
+                    <A
+                      href={profileTabPath(acct(), tab)}
+                      class={tabLink}
+                      noScroll
+                    >
+                      {tab.label}
+                    </A>
+                  )}
+                </For>
+              </nav>
+            </Show>
             {props.children}
           </Show>
         )}

@@ -10,7 +10,15 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { type ParentProps, Suspense } from "solid-js";
-import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  expect,
+  onTestFinished,
+  test,
+  vi,
+} from "vitest";
 import type { Status } from "../../entities/status/types";
 import { FollowList } from "./FollowList";
 import { followers, following, followListPath } from "./follow-list";
@@ -410,23 +418,37 @@ test("the follow counts open their lists, and each of the account's two switches
   }
 });
 
-test("the count of the list on screen is the current link, and no tab is", async () => {
-  server.use(
-    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
-    http.get("*/api/v1/accounts/:id/following", () => HttpResponse.json([])),
-  );
-  const { container, findByText } = renderProfile(
-    `/users/${ALICE_ACCT}${following.path}`,
-  );
+test("the count of the list on screen is the current link, and the tab bar is gone", async () => {
+  const cases: [typeof following, string][] = [
+    [following, "7 following"],
+    [followers, "13 followers"],
+  ];
 
-  expect(await findByText(following.empty)).toBeInTheDocument();
-  const header = container.querySelector("header");
-  expect(header?.querySelector("a[aria-current=page]")?.textContent).toBe(
-    "7 following",
-  );
-  // The tab bar names the post lists only, so none of it is current here.
-  const nav = container.querySelector("nav");
-  expect(nav?.querySelector("a[aria-current=page]")).toBeNull();
+  for (const [list, count] of cases) {
+    server.use(
+      http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+      http.get(`*/api/v1/accounts/:id/${list.kind}`, () =>
+        HttpResponse.json([]),
+      ),
+    );
+    const { container, findByText, unmount } = renderProfile(
+      `/users/${ALICE_ACCT}${list.path}`,
+    );
+
+    expect(await findByText(list.empty)).toBeInTheDocument();
+    const header = container.querySelector("header");
+    expect(header?.querySelector("a[aria-current=page]")?.textContent).toBe(
+      count,
+    );
+    // The tab bar names the post lists only, and this list carries its own
+    // heading, so the bar is not drawn above it at all.
+    expect(
+      container.querySelector("nav[aria-label='Profile sections']"),
+    ).toBeNull();
+
+    unmount();
+    query.clear();
+  }
 });
 
 test("a remote account offers its page on the origin server", async () => {
@@ -843,6 +865,12 @@ test("the tab bar links every tab and marks only the current one", async () => {
     ["Posts & replies", null],
     ["Media", null],
   ]);
+
+  // The posts count leads to the same list as the first tab, so on that tab
+  // the router marks both.
+  const postsCount = await findByRole("link", { name: "42 posts" });
+  expect(postsCount).toHaveAttribute("href", profileTabPath(ALICE_ACCT, posts));
+  expect(postsCount).toHaveAttribute("aria-current", "page");
 });
 
 test("the replies and media tabs send their own filters", async () => {
@@ -970,4 +998,42 @@ test("a percent-encoded :acct names the same account as the raw one", async () =
     "aria-current",
     "page",
   );
+});
+
+test("a tab or a count switches sections without scrolling to the top, and a link out of the profile still scrolls", async () => {
+  // A push ends in `window.scrollTo(0, 0)` unless the anchor carries
+  // `noScroll` (node_modules/@solidjs/router/dist/index.js, `scrollToHash`),
+  // which is what this observes — happy-dom keeps no scroll position.
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  onTestFinished(() => scrollTo.mockRestore());
+
+  server.use(
+    http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
+    http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+      if (new URL(request.url).searchParams.has("pinned"))
+        return HttpResponse.json([]);
+      return HttpResponse.json(alicePosts);
+    }),
+    http.get("*/api/v1/accounts/:id/following", () => HttpResponse.json([])),
+  );
+  const { findAllByRole, findByRole, findByText } = renderProfile(
+    `/users/${ALICE_ACCT}`,
+  );
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("link", { name: "Media" }));
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+  await userEvent.click(await findByRole("link", { name: "7 following" }));
+  expect(await findByText(following.empty)).toBeInTheDocument();
+  await settle();
+  expect(scrollTo).not.toHaveBeenCalledWith(0, 0);
+
+  // Control on the same click path: a post's permalink leaves the profile, so
+  // it is an arrival and the router's scroll applies.
+  await userEvent.click(await findByRole("link", { name: "42 posts" }));
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+  const [permalink] = await findAllByRole("link", { name: /Conversation/ });
+  await userEvent.click(permalink as HTMLElement);
+  await settle();
+  expect(scrollTo).toHaveBeenCalledWith(0, 0);
 });
