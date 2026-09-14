@@ -51,11 +51,14 @@ const identity = css({
 
 const avatarRow = css({
   display: "flex",
-  alignItems: "flex-end",
+  // Top-aligned so the geometry does not depend on the names' height: with
+  // `flex-end`, a names block taller than the avatar (origin link, badges)
+  // would push the avatar down until it cleared the band entirely.
+  alignItems: "flex-start",
   gap: "3",
   minWidth: 0,
-  // Half the avatar hangs over the band above; the row's own top padding is
-  // the plane's, so only this pull is needed.
+  // Only the avatar hangs over the band above; the names cancel the pull
+  // with a matching `mt` so they start at the band's edge.
   mt: "-10",
 });
 
@@ -91,15 +94,14 @@ const originLinkStyle = css({
 
 const badgeRow = css({ display: "flex", gap: "1.5", mt: "1" });
 
-// Same pill as a reaction chip (ReactionChips.tsx); second occurrence, so not
-// yet shared (rule of three).
+// A state of the relationship, not something to press here: the filled,
+// borderless pill is what keeps it from reading as a control.
 const badge = css({
   display: "inline-flex",
   px: "2",
   py: "0.5",
-  borderWidth: "1px",
   borderRadius: "full",
-  borderColor: "border.default",
+  bg: "bg.subtle",
   color: "text.muted",
   fontSize: "xs",
 });
@@ -226,7 +228,7 @@ export const ProfileHeader = (props: { account: Account }) => {
               />
             )}
           </Show>
-          <div class={css({ flex: 1, minWidth: 0 })}>
+          <div class={css({ flex: 1, minWidth: 0, mt: "10" })}>
             <h2 class={displayNameStyle}>
               <EmojiText text={displayName()} emojis={emojis()} />
             </h2>
