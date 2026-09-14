@@ -12,6 +12,7 @@ import {
   listHidden,
 } from "./follow-list";
 import type { Account } from "./profile-api";
+import { posts, profileTabPath } from "./profile-tabs";
 
 // A band across the top of the plane, not a framed image: the account's own
 // header when it has one, a plain field of `bg.subtle` when it doesn't (the
@@ -132,7 +133,8 @@ const countLink = css({ "&[aria-current=page]": { color: "text.brand" } });
 
 const countLabel = css({ color: "text.muted" });
 
-// One count, with or without the list behind it. A withheld number is shown as
+// One count, with or without the list behind it. On the page its list is
+// showing, `<A>` marks it `aria-current="page"`. A withheld number is shown as
 // the word instead: Akkoma sends a number either way — the real one, or 0 once
 // the list is hidden too — so the flag, not the value, is what can be read. A
 // count the payload omits renders nothing; a zero would be a claim the
@@ -181,6 +183,12 @@ export const ProfileHeader = (props: { account: Account }) => {
   // Present because the fetch asks for it (profile-api.ts); all-false for an
   // anonymous viewer, so nothing shows. Acting on it is Phase 2.
   const relationship = () => props.account.pleroma?.relationship;
+  // The posts count leads back to the profile's own default tab, which is
+  // where its list is drawn (profile-tabs.ts).
+  const postsHref = (): string | undefined => {
+    const acct = props.account.acct;
+    return acct ? profileTabPath(acct, posts) : undefined;
+  };
   // No link into a list the account withholds: Akkoma answers that one with an
   // empty page to every reader but the owner (follow-list.ts).
   const listHref = (list: FollowList): string | undefined => {
@@ -299,13 +307,14 @@ export const ProfileHeader = (props: { account: Account }) => {
 
         {/* Each follow count carries two independent switches of the account's
             own: `hide_*_count` withholds the number, `hide_*` withholds the
-            list it leads to. Posts has neither and no list to open. */}
+            list it leads to. Posts has neither switch; its list is the Posts
+            tab. */}
         <div class={countsRow}>
           <Count
             value={props.account.statuses_count}
             label="posts"
             withheld={false}
-            href={undefined}
+            href={postsHref()}
           />
           <Count
             value={props.account.following_count}
