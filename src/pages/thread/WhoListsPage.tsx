@@ -17,6 +17,7 @@ import {
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { markRetentionFrame } from "../../entities/retention/retention";
+import { offersSignIn } from "../../entities/session/session";
 import { EmojiText } from "../../entities/status/EmojiText";
 import { parseEmojiReactions } from "../../entities/status/parse";
 import { ReactionChip } from "../../entities/status/ReactionChips";
@@ -161,12 +162,15 @@ export const WhoList = (props: { list: AccountWhoList }) => {
       {/* Retry is offered for a 404 too. Here it is Akkoma's verdict that the
           caller may not see the post (a post that is gone answers `200 []`,
           who-lists-api.ts), and the reactions tab says the same with a 403:
-          one row shape for all three tabs rather than a rule per status. */}
+          one row shape for all three tabs rather than a rule per status. A
+          sign-in is the other way forward when the session is what the
+          verdict turned on. */}
       <Show when={error()}>
         {(failure) => (
           <ErrorCard
             message={listErrorMessage(what(), failure())}
             onRetry={retry}
+            signIn={offersSignIn(failure())}
           />
         )}
       </Show>
@@ -264,12 +268,14 @@ export const ReactionsList = () => {
     <div>
       {/* A post the caller may not see is a 403 here, where the two lists
           beside it answer 404 (who-lists-api.ts); neither is distinguished
-          from a transient failure, so both get a Retry. */}
+          from a transient failure, so both get a Retry, and both offer a
+          sign-in when one could change the verdict. */}
       <Show when={error()}>
         {(failure) => (
           <ErrorCard
             message={listErrorMessage("who reacted to this post", failure())}
             onRetry={retry}
+            signIn={offersSignIn(failure())}
           />
         )}
       </Show>

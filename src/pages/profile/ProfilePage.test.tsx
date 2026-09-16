@@ -19,6 +19,7 @@ import {
   test,
   vi,
 } from "vitest";
+import { completeLogin, logout } from "../../entities/session/session";
 import type { Status } from "../../entities/status/types";
 import { FollowList } from "./FollowList";
 import { followers, following, followListPath } from "./follow-list";
@@ -191,6 +192,31 @@ const renderProfile = (path: string) => {
       </MemoryRouter>
     )),
   };
+};
+
+/**
+ * Renders the rest of the test signed in. The session signal is module-level
+ * and only the sign-in flow sets it, so an authenticated render has to come
+ * through completeLogin (entities/session/session.ts) rather than through a
+ * token written straight to storage.
+ */
+const signIn = async () => {
+  localStorage.setItem("utaita:client_id", "cid-1");
+  localStorage.setItem("utaita:client_secret", "sec-1");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+    ),
+  );
+  onTestFinished(async () => {
+    // Storage first: with no credentials left, logout() drops the signal
+    // without attempting a revoke this suite has no handler for.
+    localStorage.clear();
+    sessionStorage.clear();
+    await logout();
+  });
+  expect((await completeLogin("code-1", "nonce-1")).ok).toBe(true);
 };
 
 /**
@@ -612,6 +638,51 @@ test("an account this instance does not have renders an error and asks for no po
   // No account, no list: the posts endpoint is never reached.
   await settle();
   expect(postsRequestCount).toBe(0);
+});
+
+test("a profile that needs a sign-in offers one", async () => {
+  server.use(
+    http.get("*/api/v1/accounts/:id", () =>
+      HttpResponse.json({ error: "Invalid credentials." }, { status: 403 }),
+    ),
+  );
+  const { findByRole } = renderProfile(`/accounts/${ALICE_ACCT}`);
+
+  expect(await findByRole("alert")).toHaveTextContent(/sign-in required/i);
+  expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
+});
+
+test("an account that is not here offers a sign-in while signed out", async () => {
+  server.use(
+    http.get("*/api/v1/accounts/:id", () =>
+      HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  const { findByRole } = renderProfile("/accounts/ghost@fixture.example");
+
+  // Akkoma answers an anonymous request for an account it will not show with
+  // 404, so the copy cannot claim the account is absent.
+  expect(await findByRole("alert")).toHaveTextContent(
+    /not on this instance, or needs a sign-in to see/i,
+  );
+  expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
+});
+
+test("an account that is not here reads as simply absent once signed in", async () => {
+  await signIn();
+  server.use(
+    http.get("*/api/v1/accounts/:id", () =>
+      HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  const { findByRole, queryByRole } = renderProfile(
+    "/accounts/ghost@fixture.example",
+  );
+
+  const alert = await findByRole("alert");
+  expect(alert).toHaveTextContent(/not on this instance/i);
+  expect(alert).not.toHaveTextContent(/sign-in/i);
+  expect(queryByRole("button", { name: "Log in" })).not.toBeInTheDocument();
 });
 
 test("a failed account fetch offers a retry that revalidates and succeeds", async () => {

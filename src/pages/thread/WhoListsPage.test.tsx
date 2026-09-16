@@ -15,8 +15,16 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { type ParentProps, Suspense } from "solid-js";
-import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  expect,
+  onTestFinished,
+  test,
+} from "vitest";
 import { Retention } from "../../entities/retention/retention";
+import { completeLogin, logout } from "../../entities/session/session";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
 import type { Account } from "../profile/profile-api";
@@ -175,6 +183,31 @@ const renderApp = (history = createMemoryHistory()) =>
     </MemoryRouter>
   ));
 
+/**
+ * Renders the rest of the test signed in. The session signal is module-level
+ * and only the sign-in flow sets it, so an authenticated render has to come
+ * through completeLogin (entities/session/session.ts) rather than through a
+ * token written straight to storage.
+ */
+const signIn = async () => {
+  localStorage.setItem("utaita:client_id", "cid-1");
+  localStorage.setItem("utaita:client_secret", "sec-1");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+    ),
+  );
+  onTestFinished(async () => {
+    // Storage first: with no credentials left, logout() drops the signal
+    // without attempting a revoke this suite has no handler for.
+    localStorage.clear();
+    sessionStorage.clear();
+    await logout();
+  });
+  expect((await completeLogin("code-1", "nonce-1")).ok).toBe(true);
+};
+
 /** Renders straight at a list URL, the way a shared link opens it. */
 const renderListDirectly = (path: string) => {
   const history = createMemoryHistory();
@@ -276,6 +309,36 @@ test("a 404 shows an error row, and its Retry fetches the list again", async () 
 
   expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
   expect(listRequests).toHaveLength(2);
+});
+
+test("a 404 on the boosts list offers a sign-in while signed out", async () => {
+  // Akkoma answers an anonymous request for a post the reader may not see
+  // with 404, so the list failing may be the missing session, not the post.
+  server.use(
+    ...subjectHandlers,
+    http.get("*/api/v1/statuses/:id/reblogged_by", () =>
+      HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  const { findByRole } = renderListDirectly(whoListPath(SUBJECT_ID, boosts));
+
+  expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
+});
+
+test("a 404 on a list offers no sign-in once signed in", async () => {
+  await signIn();
+  server.use(
+    ...subjectHandlers,
+    http.get("*/api/v1/statuses/:id/favourited_by", () =>
+      HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  const { findByRole, queryByRole } = renderListDirectly(
+    whoListPath(SUBJECT_ID, favourites),
+  );
+
+  expect(await findByRole("button", { name: "Retry" })).toBeInTheDocument();
+  expect(queryByRole("button", { name: "Log in" })).not.toBeInTheDocument();
 });
 
 test("Back is a button when the list was opened from inside the app", async () => {
@@ -436,6 +499,18 @@ test("a 403 on the reactions tab shows an error row, and its Retry fetches the g
     await findByRole("region", { name: partyGroup.name }),
   ).toBeInTheDocument();
   expect(listRequests).toHaveLength(2);
+});
+
+test("a 403 on the reactions tab offers a sign-in while signed out", async () => {
+  server.use(
+    ...subjectHandlers,
+    http.get("*/api/v1/pleroma/statuses/:id/reactions", () =>
+      HttpResponse.json({ error: "Access denied" }, { status: 403 }),
+    ),
+  );
+  const { findByRole } = renderListDirectly(whoListPath(SUBJECT_ID, reactions));
+
+  expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
 });
 
 test("Back returns to the conversation after a tab switch, when the list was opened from inside the app", async () => {

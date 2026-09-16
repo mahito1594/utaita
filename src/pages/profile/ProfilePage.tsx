@@ -19,6 +19,8 @@ import {
 import { css, cx } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
+import { SignInButton } from "../../entities/session/SignInButton";
+import { authenticated, offersSignIn } from "../../entities/session/session";
 import { acctFromPath } from "../../entities/status/mention";
 import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
@@ -126,7 +128,14 @@ const httpMessage = (status: number, message: string | undefined): string => {
   if (status === 401 || status === 403) {
     return "Sign-in required to view this profile.";
   }
-  if (status === 404) return "This account is not on this instance.";
+  if (status === 404) {
+    // An account the anonymous reader may not see answers 404 as well, so
+    // while signed out "absent" and "not yours to see" are one answer
+    // (ThreadPage.tsx says the same of a post).
+    return authenticated()
+      ? "This account is not on this instance."
+      : "This account is not on this instance, or needs a sign-in to see.";
+  }
   return `Request failed (${status}${message ? `: ${message}` : ""}).`;
 };
 
@@ -155,6 +164,9 @@ const retryable = (error: ApiError): boolean =>
 export const ErrorCard = (props: {
   message: string;
   onRetry: (() => void) | undefined;
+  // Set only where a session could change the verdict (`offersSignIn`); this
+  // page's post lists never do, being past the account's own answer.
+  signIn?: boolean;
 }) => (
   <p class={errorBox} role="alert">
     {props.message}{" "}
@@ -166,6 +178,9 @@ export const ErrorCard = (props: {
       >
         Retry
       </button>
+    </Show>{" "}
+    <Show when={props.signIn}>
+      <SignInButton />
     </Show>
   </p>
 );
@@ -519,6 +534,7 @@ export const ProfilePage = (props: ParentProps) => {
           <ErrorCard
             message={accountErrorMessage(failure())}
             onRetry={retryable(failure()) ? retry : undefined}
+            signIn={offersSignIn(failure())}
           />
         )}
       </Show>
