@@ -1,7 +1,7 @@
 import { profilePath } from "../../entities/status/mention";
 
 /**
- * One tab of the profile's post list: a path under `/users/:acct` and the
+ * One tab of the profile's post list: a path under `/accounts/:acct` and the
  * query it adds to `AccountController.statuses` (src/api/schema.d.ts). Same
  * shape as the timeline definitions (timelines.ts): the route table and the
  * tab bar both read these, so neither can link to a path the other lacks.

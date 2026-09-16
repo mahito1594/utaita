@@ -77,8 +77,8 @@ describe("parseReturnPath", () => {
     expect(parseReturnPath("/statuses/110000000000000001")).toBe(
       "/statuses/110000000000000001",
     );
-    expect(parseReturnPath("/users/alice@fixture.example")).toBe(
-      "/users/alice@fixture.example",
+    expect(parseReturnPath("/accounts/alice@fixture.example")).toBe(
+      "/accounts/alice@fixture.example",
     );
     expect(parseReturnPath("/local?a=b#c")).toBe("/local?a=b#c");
     expect(parseReturnPath("/")).toBe("/");

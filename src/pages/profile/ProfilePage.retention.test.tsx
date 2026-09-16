@@ -195,7 +195,7 @@ const renderApp = (history = createMemoryHistory()) => {
           />
         </Route>
         <Route
-          path="/users/:acct"
+          path="/accounts/:acct"
           component={ProfilePage}
           preload={preloadProfile}
         >

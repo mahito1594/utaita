@@ -53,7 +53,7 @@ const ThreadStub = () => {
 };
 
 // Stands in for ProfilePage for the same reason: what a mention tap has to
-// prove is that it reached /users/:acct with the acct it named, not anything
+// prove is that it reached /accounts/:acct with the acct it named, not anything
 // the profile page then does with it (that page fetches, and these tests
 // stub the timeline endpoint only).
 const ProfileStub = () => {
@@ -67,7 +67,7 @@ const renderApp = () =>
       <Route component={TimelineShell}>
         <Route path="/" component={() => <TimelinePage timeline={home} />} />
       </Route>
-      <Route path="/users/:acct" component={ProfileStub} />
+      <Route path="/accounts/:acct" component={ProfileStub} />
       <Route path="/statuses/:id" component={ThreadStub} />
     </MemoryRouter>
   ));
@@ -653,7 +653,7 @@ test("the author's name leads to their profile, not to the conversation", async 
   const { findByRole, findByText, queryByText, container } = renderApp();
 
   const name = await findByRole("link", { name: "Alice Example" });
-  const profileHref = "/users/alice@fixture.example";
+  const profileHref = "/accounts/alice@fixture.example";
   expect(name).toHaveAttribute("href", profileHref);
   // The avatar repeats the destination as a second anchor; only the name is
   // in the accessibility tree and the tab order, so the role query above

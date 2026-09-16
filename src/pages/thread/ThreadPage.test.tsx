@@ -131,7 +131,7 @@ afterAll(() => {
 const Chrome = (props: ParentProps) => (
   <>
     <A href={statusPath(SUBJECT_ID)}>Open thread</A>
-    <A href="/users/alice">Open profile</A>
+    <A href="/accounts/alice">Open profile</A>
     <Suspense fallback={<p>Loading…</p>}>{props.children}</Suspense>
   </>
 );
@@ -140,7 +140,7 @@ const renderApp = (history = createMemoryHistory()) =>
   render(() => (
     <MemoryRouter history={history} root={Chrome}>
       <Route path="/" component={() => <p>Home timeline</p>} />
-      <Route path="/users/:acct" component={() => <p>A profile</p>} />
+      <Route path="/accounts/:acct" component={() => <p>A profile</p>} />
       <Route
         path="/statuses/:id"
         component={ThreadPage}

@@ -125,7 +125,7 @@ afterAll(() => {
 // memory history.
 const AppChrome = (props: ParentProps) => (
   <>
-    <A href="/users/alice">Open profile</A>
+    <A href="/accounts/alice">Open profile</A>
     <A href={home.path} end>
       Back to home
     </A>
@@ -166,7 +166,7 @@ const renderApp = (
             component={() => <TimelinePage timeline={local} />}
           />
         </Route>
-        <Route path="/users/:acct" component={ProfileStub} />
+        <Route path="/accounts/:acct" component={ProfileStub} />
       </Route>
     </MemoryRouter>
   ));

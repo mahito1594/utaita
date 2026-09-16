@@ -163,7 +163,7 @@ const renderProfile = (path: string) => {
     ...render(() => (
       <MemoryRouter history={history} root={Chrome}>
         <Route
-          path="/users/:acct"
+          path="/accounts/:acct"
           component={ProfilePage}
           preload={preloadProfile}
         >
@@ -225,7 +225,7 @@ test("renders the identity block over the account's posts", async () => {
     }),
   );
   const { findByText, findByRole, container } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   const name = await findByRole("heading", { level: 2 });
@@ -269,7 +269,7 @@ test("the account is fetched with the viewer's relationship and shows it as badg
       return HttpResponse.json(alicePosts);
     }),
   );
-  const { findByText, container } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByText, container } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
   expect(accountUrl?.searchParams.get("with_relationships")).toBe("true");
@@ -303,7 +303,7 @@ test("each badge follows its own flag", async () => {
       }),
     );
     const { findByText, container, unmount } = renderProfile(
-      `/users/${ALICE_ACCT}`,
+      `/accounts/${ALICE_ACCT}`,
     );
     expect(await findByText("Alice's newer post")).toBeInTheDocument();
     const header = container.querySelector("header");
@@ -331,7 +331,7 @@ test("no relationship, or an all-false one, shows no badge", async () => {
       }),
     );
     const { findByText, container, unmount } = renderProfile(
-      `/users/${ALICE_ACCT}`,
+      `/accounts/${ALICE_ACCT}`,
     );
     expect(await findByText("Alice's newer post")).toBeInTheDocument();
     const header = container.querySelector("header");
@@ -356,7 +356,7 @@ test("a count the payload does not carry is absent, not a zero", async () => {
       return HttpResponse.json(alicePosts);
     }),
   );
-  const { findByRole, container } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByRole, container } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   await findByRole("heading", { level: 2 });
   const header = container.querySelector("header");
@@ -396,7 +396,7 @@ test("the follow counts open their lists, and each of the account's two switches
       }),
     );
     const { container, findByText, unmount } = renderProfile(
-      `/users/${ALICE_ACCT}`,
+      `/accounts/${ALICE_ACCT}`,
     );
     expect(await findByText("Alice's newer post")).toBeInTheDocument();
     const header = container.querySelector("header");
@@ -432,7 +432,7 @@ test("the count of the list on screen is the current link, and the tab bar is go
       ),
     );
     const { container, findByText, unmount } = renderProfile(
-      `/users/${ALICE_ACCT}${list.path}`,
+      `/accounts/${ALICE_ACCT}${list.path}`,
     );
 
     expect(await findByText(list.empty)).toBeInTheDocument();
@@ -464,7 +464,7 @@ test("a remote account offers its page on the origin server", async () => {
       return HttpResponse.json(alicePosts);
     }),
   );
-  const { findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByRole } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   const link = await findByRole("link", { name: "View on fixture.example" });
   expect(link).toHaveAttribute("href", remote.url);
@@ -479,7 +479,7 @@ test("a local account has no such link — its page is this app", async () => {
     ),
     http.get("*/api/v1/accounts/:id/statuses", () => HttpResponse.json([])),
   );
-  const { findByRole, queryByRole } = renderProfile(`/users/${BOB_ACCT}`);
+  const { findByRole, queryByRole } = renderProfile(`/accounts/${BOB_ACCT}`);
 
   await findByRole("heading", { level: 2 });
   expect(queryByRole("link", { name: /^View on / })).not.toBeInTheDocument();
@@ -490,7 +490,7 @@ test("renders an empty-success row and no sentinel when the account has no posts
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     http.get("*/api/v1/accounts/:id/statuses", () => HttpResponse.json([])),
   );
-  const { findByText } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByText } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   expect(await findByText(/no posts yet/i)).toBeInTheDocument();
   // Nothing to page from: the sentinel is never mounted, so it never observes.
@@ -514,7 +514,7 @@ test("a scroll-triggered sentinel appends the next page and stops at a short one
       return HttpResponse.json(olderPage);
     }),
   );
-  const { findByText } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByText } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   expect(await findByText("Full page item 39")).toBeInTheDocument();
 
@@ -543,7 +543,7 @@ test("an older-page failure offers a retry that repeats the same request", async
       return HttpResponse.json([post("119999999999999999", "Recovered page")]);
     }),
   );
-  const { findByText, findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByText, findByRole } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   expect(await findByText("Full page item 39")).toBeInTheDocument();
 
@@ -572,7 +572,7 @@ test("a retry that fails again leaves the reader's focus on the Retry button", a
         : HttpResponse.error();
     }),
   );
-  const { findByText, findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByText, findByRole } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   expect(await findByText("Full page item 39")).toBeInTheDocument();
 
@@ -602,7 +602,7 @@ test("an account this instance does not have renders an error and asks for no po
     }),
   );
   const { findByRole, queryByRole } = renderProfile(
-    "/users/ghost@fixture.example",
+    "/accounts/ghost@fixture.example",
   );
 
   expect(await findByRole("alert")).toHaveTextContent(/not on this instance/i);
@@ -629,7 +629,7 @@ test("a failed account fetch offers a retry that revalidates and succeeds", asyn
     }),
   );
   const { findByText, findByRole, queryByText } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   expect(await findByText(/connection failed/i)).toBeInTheDocument();
@@ -665,7 +665,7 @@ test("a first page of posts that fails leaves the header standing and recovers o
     }),
   );
   const { findByText, findByRole, queryByText } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   // Only the list failed, so the account's own copy is not what is said.
@@ -705,7 +705,7 @@ test("a first-page retry that fails again leaves focus on its Retry button", asy
       );
     }),
   );
-  const { findByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByRole } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   const retryButton = await findByRole("button", { name: "Retry" });
   await userEvent.click(retryButton);
@@ -732,7 +732,7 @@ test("an account retry that comes back 404 withdraws Retry without rebuilding th
     }),
     http.get("*/api/v1/accounts/:id/statuses", () => HttpResponse.json([])),
   );
-  const { findByRole, queryByRole } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByRole, queryByRole } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   const alert = await findByRole("alert");
   expect(alert).toHaveTextContent(/connection failed/i);
@@ -766,12 +766,12 @@ test("changing only :acct leaves none of the previous account's posts behind", a
     ),
   );
   const { history, findByText, queryByText } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
 
-  history.set({ value: `/users/${BOB_ACCT}` });
+  history.set({ value: `/accounts/${BOB_ACCT}` });
 
   expect(await findByText("Bob's only post")).toBeInTheDocument();
   expect(queryByText("Alice's newer post")).not.toBeInTheDocument();
@@ -780,7 +780,7 @@ test("changing only :acct leaves none of the previous account's posts behind", a
   // And back, with both accounts now in the query cache — the leg a reader
   // takes by pressing Back, and the one where the account answer is already
   // there when the URL changes.
-  history.set({ value: `/users/${ALICE_ACCT}` });
+  history.set({ value: `/accounts/${ALICE_ACCT}` });
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
   expect(queryByText("Bob's only post")).not.toBeInTheDocument();
@@ -814,7 +814,7 @@ test("a page of the previous account's posts that lands after the :acct changed 
     ),
   );
   const { history, findByText, findByRole, queryByText } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   // Alice's header is up and her posts are in flight, held.
@@ -822,7 +822,7 @@ test("a page of the previous account's posts that lands after the :acct changed 
     "Alice Example",
   );
 
-  history.set({ value: `/users/${BOB_ACCT}` });
+  history.set({ value: `/accounts/${BOB_ACCT}` });
 
   expect(await findByText("Bob's only post")).toBeInTheDocument();
 
@@ -846,7 +846,7 @@ test("the tab bar links every tab and marks only the current one", async () => {
       return HttpResponse.json(alicePosts);
     }),
   );
-  const { findByRole, findByText } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByRole, findByText } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   // Settled first: the list's request must not still be in flight when the
   // next test installs its own handlers.
@@ -886,7 +886,7 @@ test("the replies and media tabs send their own filters", async () => {
     }),
   );
 
-  const replies = renderProfile(`/users/${ALICE_ACCT}/with_replies`);
+  const replies = renderProfile(`/accounts/${ALICE_ACCT}/with_replies`);
   expect(await replies.findByText("Alice's newer post")).toBeInTheDocument();
   // No filter at all: replies are in, and so is everything else.
   expect(requested[0]?.searchParams.get("exclude_replies")).toBeNull();
@@ -896,7 +896,7 @@ test("the replies and media tabs send their own filters", async () => {
   ).toBe("Posts & replies");
   replies.unmount();
 
-  const mediaTab = renderProfile(`/users/${ALICE_ACCT}/media`);
+  const mediaTab = renderProfile(`/accounts/${ALICE_ACCT}/media`);
   expect(await mediaTab.findByText("Alice's newer post")).toBeInTheDocument();
   expect(requested[1]?.searchParams.get("only_media")).toBe("true");
   expect(requested[1]?.searchParams.get("exclude_replies")).toBeNull();
@@ -923,7 +923,7 @@ test("activating a tab refetches under its filter, keeps the account, and keeps 
     }),
   );
   const { findByText, findByRole, queryByText } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
@@ -956,7 +956,7 @@ test("activating a tab refetches under its filter, keeps the account, and keeps 
 });
 
 test("a percent-encoded :acct names the same account as the raw one", async () => {
-  // `/users/alice%40remote` is the same URL as `/users/alice@remote`, but
+  // `/accounts/alice%40remote` is the same URL as `/accounts/alice@remote`, but
   // solid-router hands the segment over undecoded and openapi-fetch encodes
   // path params, so without a decode the API would be asked for
   // `alice%2540remote` (acctFromPath, mention.ts).
@@ -975,7 +975,7 @@ test("a percent-encoded :acct names the same account as the raw one", async () =
     }),
   );
   const { findByText, findByRole } = renderProfile(
-    `/users/${encodeURIComponent(ALICE_ACCT)}/media`,
+    `/accounts/${encodeURIComponent(ALICE_ACCT)}/media`,
   );
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
@@ -986,7 +986,7 @@ test("a percent-encoded :acct names the same account as the raw one", async () =
   // The tab bar links the canonical form, not the spelling the URL arrived in.
   const nav = await findByRole("navigation", { name: "Profile sections" });
   expect(nav.querySelector("a")?.getAttribute("href")).toBe(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
   // Following one of those links only canonicalizes the URL; the body is keyed
   // on the decoded acct, so the list is not thrown away for it.
@@ -1017,7 +1017,7 @@ test("a tab or a count switches sections without scrolling to the top, and a lin
     http.get("*/api/v1/accounts/:id/following", () => HttpResponse.json([])),
   );
   const { findAllByRole, findByRole, findByText } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
 

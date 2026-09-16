@@ -198,10 +198,10 @@ const App = () => (
           <Route path={bubble.path} component={BubbleTimelinePage} />
           <Route path={federated.path} component={FederatedTimelinePage} />
         </Route>
-        {/* /@:acct is not expressible in solid-router (a segment is dynamic
-            only when it starts with ":"), hence /users/ — see profilePath */}
+        {/* The URL shape is profilePath's (src/entities/status/mention.ts),
+            which also says why it is neither /@:acct nor /users/ */}
         <Route
-          path="/users/:acct"
+          path="/accounts/:acct"
           component={ProfilePage}
           preload={preloadProfile}
         >
