@@ -55,6 +55,10 @@ const headerLinkStyle = css({
   _hover: { textDecoration: "underline" },
 });
 
+// The card-wide tap is the only thing that makes a card pressable, and it is
+// off on the thread's own subject and on a status without an id (`threadPath`).
+const tappableStyle = css({ cursor: "pointer" });
+
 const avatarShape = {
   width: "10",
   height: "10",
@@ -215,6 +219,7 @@ export const StatusCard = (props: {
           flexDirection: "column",
           gap: "2",
         }),
+        threadPath() !== null && tappableStyle,
         props.class,
       )}
     >
