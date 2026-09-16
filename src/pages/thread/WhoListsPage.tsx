@@ -48,9 +48,10 @@ const headerRow = css({
 
 // The plane the tabs and the rows are drawn on, built like the conversation's
 // (ThreadPage.tsx): full-bleed on mobile by escaping `main`'s px-4 (App.tsx),
-// framed from `md` up, where the column is capped. Clipped, as the profile's
-// plane is (ProfilePage.tsx), because the tab bar is its top edge; nothing
-// inside is `position: sticky`, so there is no containing block to re-scope.
+// framed from `md` up, where the column is capped. Clipped with `clip`, not
+// `hidden`: `hidden` is a scrolling mechanism and would re-scope the group
+// bands' `position: sticky` to this never-scrolling box
+// (https://developer.mozilla.org/en-US/docs/Web/CSS/position).
 const plane = css({
   bg: "bg.surface",
   mx: "-4",
@@ -59,7 +60,7 @@ const plane = css({
     borderWidth: "1px",
     borderColor: "border.default",
     borderRadius: "md",
-    overflow: "hidden",
+    overflow: "clip",
   },
 });
 
@@ -197,16 +198,29 @@ export const WhoList = (props: { list: AccountWhoList }) => {
 };
 
 // The band naming one group, built like the follow lists' (FollowList.tsx)
-// and the detached posts' (ThreadPage.tsx): same inset and rule, but what it
-// holds is the chip the post's own card draws, not a line of text.
+// and the detached posts' (ThreadPage.tsx): same inset, but what it holds is
+// the chip the post's own card draws, not a line of text. A chip alone read as
+// another row, so the band is tinted, shorter than a row's `py: "3"`
+// (AccountRow.tsx), and closed by a rule twice theirs — the palette has one
+// border tone (panda.config.ts).
 const groupHeading = css({
   display: "flex",
   alignItems: "center",
+  gap: "2",
   px: "3",
-  py: "2",
-  borderBottomWidth: "1px",
+  py: "1",
+  bg: "bg.subtle",
+  // Which emoji's accounts are on screen, while they are: neither the tab bar
+  // above nor the app header (App.tsx) is sticky, so the viewport top is free.
+  position: "sticky",
+  top: "0",
+  zIndex: "1",
+  borderBottomWidth: "2px",
   borderColor: "border.default",
 });
+
+// What the chip's bare number counts, which nothing else on the band says.
+const groupCount = css({ fontSize: "xs", color: "text.muted" });
 
 /**
  * Everyone who reacted to the post, one section per emoji. The endpoint
@@ -279,9 +293,14 @@ export const ReactionsList = () => {
           // Named by the emoji, which is all that tells one group of rows from
           // the next — the chip drawing it is an image for a custom emoji.
           <section aria-label={group.name}>
-            <div class={groupHeading}>
+            {/* A heading, so the groups can be jumped between; preflight
+                resets its font-size, weight and margin, so it needs no type. */}
+            <h3 class={groupHeading}>
               <ReactionChip reaction={group} />
-            </div>
+              <span class={groupCount}>
+                {group.count === 1 ? "1 person" : `${group.count} people`}
+              </span>
+            </h3>
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
             <ol class={accountList} role="list">
               <For each={group.accounts}>
