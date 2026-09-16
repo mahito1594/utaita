@@ -209,3 +209,18 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   proxy のトークン注入を外してもブラウザは認証されたままになる (2026-07-06 に
   実測)。「未認証の挙動」をブラウザで確かめるときは Cookie を消すこと。OAuth
   実装時のログアウト検証でも同じ罠に注意。
+- **フロントエンドのルートは Akkoma が root で所有する prefix を避ける** (2026-09-16 に
+  ringed.space / Akkoma 3.20 で実測)。Akkoma は `/users/:nickname` 配下を actor 用に
+  広く持つ: feed redirect、`feed`、static-fe の `with_replies` / `media`、AP の
+  `inbox` / `outbox` / `followers` / `following` / `collections/featured`、
+  `statuses/:id`。これらは `Accept: text/html` でも Akkoma 自身が応答し、SPA の
+  index.html にならない。加えて `:param` で終わるルートでは Phoenix が最後のドット
+  以降を `_format` と解釈するので、`user@host.tld` 形式の acct を末尾に置くと 406。
+  glob (`/*path`) の fallback ではこの解釈は起きない。**dev proxy は全パスに
+  index.html を返すため localhost では一切見えない**。root 所有の prefix は
+  `router.ex` で `/`, `/@`, `/users`, `/notice`, `/objects`, `/activities`, `/tags`,
+  `/web`, `/main`, `/auth`, `/inbox`, `/embed`, `/registration`, `/mailer`,
+  `/akkoma`, `/relay`, `/internal`, `/nodeinfo`, `/proxy`, `/api`, `/oauth`,
+  `/.well-known` など。新しい prefix は `curl -s -o /dev/null -w "%{http_code} %{content_type}" -H "Accept: text/html" https://<instance>/<prefix>/...`
+  で index.html が返ることを確かめてから使う。プロフィールはこの理由で
+  `/accounts/:acct` (stories のプロフィール story)。
