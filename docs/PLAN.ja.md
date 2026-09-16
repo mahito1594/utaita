@@ -224,3 +224,25 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   `/.well-known` など。新しい prefix は `curl -s -o /dev/null -w "%{http_code} %{content_type}" -H "Accept: text/html" https://<instance>/<prefix>/...`
   で index.html が返ることを確かめてから使う。プロフィールはこの理由で
   `/accounts/:acct` (stories のプロフィール story)。
+- **ローカル発の引用投稿は被引用投稿の context を継承する。** `CommonAPI.Utils.make_context/1`
+  は `in_reply_to` が無ければ `quote` の context を使い、`/context` は context 一致で拾って
+  ID の大小だけで ancestors / descendants に振り分ける (`in_reply_to` は見ない)。結果、
+  引用投稿の `/context` に被引用投稿とそのスレッド全体が、被引用投稿の `/context` に
+  引用投稿とその返信が、返信チェーン無しで混ざる (2026-09-16 に Akkoma ソースで確認)。
+  継承は投稿を作ったインスタンスの側で起きる: 受信側は `quoteUri` から context を作り直さないが、
+  届いたオブジェクトの `context` はそのまま保持する (`Transmogrifier.fix_context/1`) ので、
+  Akkoma / Pleroma 系のリモート発の引用でも同じ混入が届く。ローカル発かどうかで絞らないこと。
+  スレッドの再構築では引用関係で繋がる detached の連なりを落とすこと (thread-tree.ts)。
+  - `make_context/1` は `in_reply_to` の節が `quote` の節より先にある。返信でもある引用は
+    返信先の context を継ぐので、継承が起きるのは**非返信の引用だけ**。引用する側が返信なら、
+    その引用リンクを「context が混ざった証拠」に数えてはいけない。
+  - 引用先の投稿者を閲覧者がミュート / ブロックしている (または引用先が見えない) と、
+    `maybe_render_quote` が nil を返して `quote` は null になるが、`quote_id` は残る
+    (`status_view.ex`)。引用関係は `quote_id` で辿ること。引用先が DB に無いときの
+    `quote_id` は ghost の `"_"` で、どの投稿も指さない。
+- **匿名リクエストへの応答は可視性で変わる。** `instance.public: true` (既定) では公開 /
+  unlisted の status、`/context`、アカウント、投稿一覧、フォロー一覧、who-lists が 200、
+  private / direct の status は **404** (401 / 403 ではない — `visible_for_user?` が nil
+  user で false)。`verify_credentials` と `/accounts/relationships` は 403。
+  `instance.public: false` では `/context` が可視性を問わず一律 403 (`show` は返る)。
+  2026-09-16 に ringed.space で実測。フロントで visibility を見て隠さず、応答に従う (ADR-0015)。

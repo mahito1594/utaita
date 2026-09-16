@@ -22,7 +22,7 @@ navigation, DOM) stay in a thin shell around them. When logic inside a
 component or effect grows branches, extract the branches into a pure
 function rather than mocking the effect — this is why ADR-0009 tests pure
 logic thickly with plain Vitest and reserves MSW for the HTTP boundary.
-`src/app/oauth.ts` (pure) vs `src/app/session.ts` (shell) is the reference
+`src/entities/session/oauth.ts` (pure) vs `src/entities/session/session.ts` (shell) is the reference
 example.
 
 ## Functional style

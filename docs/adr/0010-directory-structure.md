@@ -111,6 +111,18 @@ may not import `app`. The Decision's `entities/` line therefore reads as
 page-spanning machinery that has no page of its own. The sideways rule is
 unchanged; the retention module imports no other entity.
 
+## Amendment (2026-09-16): the session is the second such resident
+
+The OAuth session (`src/entities/session/`: the `authenticated` signal,
+`login()`, `logout()`, `completeLogin()`, and the authorize-URL helpers)
+moved out of `app/` when pages needed it. ADR-0015 lets threads and
+profiles render for anonymous visitors, and their sign-in prompts call
+`login()` from inside `pages/`, which may not import `app`. Like retention,
+the session has no URL, is read by several pages, and is mounted by `app/`
+(the gate, the header button, the callback route). The module still imports
+no other entity. `OAuthCallback` stays in `app/`: it has a URL and its whole
+job is composition.
+
 ## References
 
 - Server-state primitives and pagination ownership: [ADR-0004](./0004-data-fetching.md)
