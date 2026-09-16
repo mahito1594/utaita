@@ -1,18 +1,18 @@
-// Return leg of the OAuth round-trip. Lives in app/, not pages/, although
-// it has a URL: it is session machinery, and a page could not import the
-// session shell without violating the dependency rule (nothing imports
-// app — ADR-0010 amendment).
+// Return leg of the OAuth round-trip. Lives in app/, not pages/, although it
+// has a URL: it draws no content of its own, and the route table mounts it as
+// a sibling of everything so the gate can never swallow it (App.tsx).
 import { useLocation, useNavigate } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { css } from "../../styled-system/css";
-import { GateFrame, LoginScreen } from "./LoginScreen";
-import { parseCallbackParams } from "./oauth";
+import { parseCallbackParams } from "../entities/session/oauth";
 import {
   authenticated,
   completeLogin,
   type SessionError,
+  signInPending,
   takeReturnPath,
-} from "./session";
+} from "../entities/session/session";
+import { GateFrame, LoginScreen } from "./LoginScreen";
 
 export const OAuthCallback = () => {
   const location = useLocation();
@@ -20,16 +20,16 @@ export const OAuthCallback = () => {
   const [error, setError] = createSignal<SessionError>();
 
   onMount(async () => {
-    // Revisits from history or a bookmark while signed in have nothing to
-    // exchange (the nonce is long consumed); land instead of erroring. The
-    // destination is still taken here rather than assumed to be home: the
-    // token is shared across tabs, so this tab can come back from authorize
-    // already signed in by another one, with its own deep link still saved.
-    if (authenticated()) {
+    const params = parseCallbackParams(location.search);
+    // A sign-in this tab started outranks a stored token, which may be the
+    // expired one being replaced — a 401 never clears it (ADR-0015).
+    const exchanging = params.kind === "code" && signInPending();
+    // Any other signed-in arrival (history, a bookmark, a sign-in finished in
+    // another tab) has nothing to exchange; land, on this tab's own saved path.
+    if (!exchanging && authenticated()) {
       navigate(takeReturnPath(), { replace: true });
       return;
     }
-    const params = parseCallbackParams(location.search);
     if (params.kind !== "code") {
       setError({
         kind: "flow",

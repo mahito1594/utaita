@@ -2,9 +2,9 @@
 // session signal the gate renders from. The pure pieces live in ./oauth.
 import { revalidate } from "@solidjs/router";
 import { createSignal } from "solid-js";
-import { type ApiError, client, toResult } from "../api/client";
-import { exchangeCode, revokeToken } from "../api/oauth";
-import { err, ok, type Result } from "../api/result";
+import { type ApiError, client, toResult } from "../../api/client";
+import { exchangeCode, revokeToken } from "../../api/oauth";
+import { err, ok, type Result } from "../../api/result";
 import {
   type AppCredentials,
   clearToken,
@@ -12,7 +12,7 @@ import {
   loadToken,
   saveCredentials,
   saveToken,
-} from "../api/token-store";
+} from "../../api/token-store";
 import {
   buildAuthorizeUrl,
   generateState,
@@ -36,6 +36,20 @@ const [authenticated, setAuthenticated] = createSignal(
 );
 
 export { authenticated };
+
+// Signing in is a way forward out of a 401/403 whatever the session says — a
+// stored token the instance no longer honours answers the same way — but out
+// of a 404 only while there is no session to explain it (ADR-0015).
+export const offersSignIn = (error: ApiError): boolean =>
+  error.kind === "http" &&
+  (error.status === 401 ||
+    error.status === 403 ||
+    (error.status === 404 && !authenticated()));
+
+// Whether this tab is mid-authorization: login() writes the nonce and
+// completeLogin consumes it, so a revisited callback URL finds none.
+export const signInPending = (): boolean =>
+  sessionStorage.getItem(STATE_KEY) !== null;
 
 const redirectUri = (): string => window.location.origin + REDIRECT_PATH;
 

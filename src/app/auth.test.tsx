@@ -2,14 +2,23 @@
 // Page-level tests of the auth flow: real App composition (Router, gate,
 // callback, header injection), only HTTP simulated via MSW (ADR-0009).
 import { query } from "@solidjs/router";
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { cleanup, render, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  expect,
+  onTestFinished,
+  test,
+  vi,
+} from "vitest";
+import { completeLogin, logout } from "../entities/session/session";
 import type { Status } from "../entities/status/StatusCard";
+import type { Account } from "../pages/profile/profile-api";
 import App from "./App";
-import { completeLogin, logout } from "./session";
 
 const statuses: Status[] = [
   {
@@ -38,6 +47,29 @@ const threadSubject: Status = {
     acct: "alice@fixture.example",
     display_name: "Alice Example",
   },
+};
+
+// The other shared URL a reader can arrive at without a session.
+const PROFILE_PATH = "/accounts/alice@fixture.example";
+
+const profileAccount: Account = {
+  id: "900000000000000001",
+  acct: "alice@fixture.example",
+  display_name: "Alice Example",
+  statuses_count: 0,
+  following_count: 0,
+  followers_count: 0,
+};
+
+// The account behind one of the post's counts. A different name from the
+// post's own author, so the row it draws is unambiguous in the assertions.
+const favouriter: Account = {
+  id: "900000000000000002",
+  acct: "bob",
+  display_name: "Bob Local",
+  statuses_count: 0,
+  following_count: 0,
+  followers_count: 0,
 };
 
 const server = setupServer();
@@ -92,6 +124,19 @@ const threadOk = () => [
   http.get("*/api/v1/statuses/:id", () => HttpResponse.json(threadSubject)),
 ];
 
+// Both requests the profile route makes: the account and the posts list (its
+// pinned strip asks the same endpoint).
+const profileOk = (seen?: (authorization: string | null) => void) => [
+  http.get("*/api/v1/accounts/:id", ({ request }) => {
+    seen?.(request.headers.get("Authorization"));
+    return HttpResponse.json(profileAccount);
+  }),
+  http.get("*/api/v1/accounts/:id/statuses", ({ request }) => {
+    seen?.(request.headers.get("Authorization"));
+    return HttpResponse.json([]);
+  }),
+];
+
 test("unauthenticated visit renders the login gate without probing the API", async () => {
   // The route preload is gated on the session; a request here could only
   // cache a 401 that completeLogin would have to flush again.
@@ -110,6 +155,138 @@ test("unauthenticated visit renders the login gate without probing the API", asy
   expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
   expect(queryByText("Hello from fixture one")).not.toBeInTheDocument();
   expect(timelineRequested).toBe(false);
+});
+
+test("every timeline stays behind the gate while signed out", async () => {
+  let timelineRequests = 0;
+  server.use(
+    http.get("*/api/v1/timelines/*", () => {
+      timelineRequests += 1;
+      return HttpResponse.json([]);
+    }),
+  );
+
+  for (const path of ["/", "/local", "/bubble", "/federated"]) {
+    window.history.replaceState(null, "", path);
+    const { findByRole, queryByRole } = render(() => <App />);
+    expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
+    // The switcher tabs are the shell's, so their absence is the gate
+    // standing where the timeline would be (TimelineShell.tsx).
+    expect(queryByRole("link", { name: "Federated" })).not.toBeInTheDocument();
+    cleanup();
+  }
+  expect(timelineRequests).toBe(0);
+});
+
+test("a thread opened without a session renders and fetches anonymously", async () => {
+  const authorizations: (string | null)[] = [];
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", ({ request }) => {
+      authorizations.push(request.headers.get("Authorization"));
+      return HttpResponse.json({ ancestors: [], descendants: [] });
+    }),
+    http.get("*/api/v1/statuses/:id", ({ request }) => {
+      authorizations.push(request.headers.get("Authorization"));
+      return HttpResponse.json(threadSubject);
+    }),
+  );
+  window.history.replaceState(null, "", THREAD_PATH);
+  const { findByText, queryByRole } = render(() => <App />);
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+  expect(authorizations.length).toBeGreaterThan(0);
+  expect(authorizations.every((value) => value === null)).toBe(true);
+  // Nothing to log out of: the header offers the way in, not the way out.
+  expect(queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+});
+
+test("a list under a post opened without a session renders and fetches anonymously", async () => {
+  const authorizations: (string | null)[] = [];
+  const seen = (request: Request) => {
+    authorizations.push(request.headers.get("Authorization"));
+  };
+  server.use(
+    http.get("*/api/v1/statuses/:id/favourited_by", ({ request }) => {
+      seen(request);
+      return HttpResponse.json([favouriter]);
+    }),
+    http.get("*/api/v1/statuses/:id/context", ({ request }) => {
+      seen(request);
+      return HttpResponse.json({ ancestors: [], descendants: [] });
+    }),
+    http.get("*/api/v1/statuses/:id", ({ request }) => {
+      seen(request);
+      return HttpResponse.json(threadSubject);
+    }),
+  );
+  window.history.replaceState(null, "", `${THREAD_PATH}/favourited_by`);
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("Bob Local")).toBeInTheDocument();
+  expect(authorizations.length).toBeGreaterThan(0);
+  expect(authorizations.every((value) => value === null)).toBe(true);
+});
+
+test("a profile opened without a session renders and fetches anonymously", async () => {
+  const authorizations: (string | null)[] = [];
+  server.use(...profileOk((value) => authorizations.push(value)));
+  window.history.replaceState(null, "", PROFILE_PATH);
+  const { findByRole } = render(() => <App />);
+
+  expect(
+    await findByRole("heading", { name: "Alice Example" }),
+  ).toBeInTheDocument();
+  expect(authorizations.length).toBeGreaterThan(0);
+  expect(authorizations.every((value) => value === null)).toBe(true);
+});
+
+test("the header offers a sign-in from a page read without one", async () => {
+  seedCredentials();
+  server.use(...threadOk());
+  window.history.replaceState(null, "", THREAD_PATH);
+  const { findByText, findByRole } = render(() => <App />);
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  await userEvent.click(await findByRole("button", { name: "Log in" }));
+
+  expect(sessionStorage.getItem("utaita:return_path")).toBe(THREAD_PATH);
+  expect(sessionStorage.getItem("utaita:oauth_state")).toMatch(
+    /^[0-9a-f]{32}$/,
+  );
+});
+
+test("signing in from a post that answered 404 brings the post itself back", async () => {
+  // Akkoma answers an anonymous request for a private post with 404, so this
+  // is what a follower-only post looks like before the sign-in.
+  seedCredentials();
+  let withSession = false;
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", () =>
+      HttpResponse.json({ ancestors: [], descendants: [] }),
+    ),
+    http.get("*/api/v1/statuses/:id", () =>
+      withSession
+        ? HttpResponse.json(threadSubject)
+        : HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  window.history.replaceState(null, "", THREAD_PATH);
+  const { findByText, findByRole } = render(() => <App />);
+
+  const alert = await findByRole("alert");
+  expect(alert).toHaveTextContent(/needs a sign-in to see/i);
+  // The header offers one too; this is the one standing next to the failure.
+  await userEvent.click(
+    await within(alert).findByRole("button", { name: "Log in" }),
+  );
+  expect(sessionStorage.getItem("utaita:return_path")).toBe(THREAD_PATH);
+
+  // The return leg: completeLogin flushes the query cache, so the page the
+  // reader is still on fetches again rather than keeping the 404 it cached.
+  withSession = true;
+  await signIn();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
 });
 
 test("first login registers the app and heads to authorize", async () => {
@@ -241,6 +418,32 @@ test("a sign-in started from a deep link comes back to it", async () => {
   expect(sessionStorage.getItem("utaita:return_path")).toBeNull();
 });
 
+test("a sign-in this tab started exchanges the code even with a token already stored", async () => {
+  // A 401 does not clear the stored token, so the reader who signs in again
+  // gets here with the expired one still in localStorage (ADR-0015).
+  await signIn();
+  sessionStorage.setItem("utaita:oauth_state", "nonce-2");
+  let exchangedCode: string | undefined;
+  server.use(
+    http.post("*/oauth/token", async ({ request }) => {
+      const body = new URLSearchParams(await request.text());
+      exchangedCode = body.get("code") ?? undefined;
+      return HttpResponse.json({ access_token: "tok-2", token_type: "Bearer" });
+    }),
+    homeTimelineOk(),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-2&state=nonce-2",
+  );
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  expect(exchangedCode).toBe("code-2");
+  expect(localStorage.getItem("utaita:access_token")).toBe("tok-2");
+});
+
 test("a return path pointing outside the app is refused", async () => {
   seedCredentials();
   sessionStorage.setItem("utaita:oauth_state", "nonce-1");
@@ -337,6 +540,9 @@ test("the thread the sign-in came back to offers no back out of the app", async 
   expect(await findByText("The post that was opened")).toBeInTheDocument();
   expect(await findByRole("link", { name: "Home" })).toBeInTheDocument();
   expect(queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  // The header has swapped sides: there is nothing left to log in to, on a
+  // path where the gate screen is not the one offering it either.
+  expect(queryByRole("button", { name: "Log in" })).not.toBeInTheDocument();
 });
 
 test("a list under a post the sign-in came back to offers no back out of the app", async () => {
@@ -399,7 +605,7 @@ test("denied authorization comes back as a gate error", async () => {
   ).toBeInTheDocument();
 });
 
-test("logout revokes the token and returns to the gate", async () => {
+test("logout revokes the token, returns to the gate, and reloads the document", async () => {
   await signIn();
   let revoked = false;
   server.use(
@@ -409,6 +615,18 @@ test("logout revokes the token and returns to the gate", async () => {
       return HttpResponse.json({});
     }),
   );
+  // happy-dom's reload() re-fetches the document through its browser frame,
+  // which would take this test out of MSW's reach; observing it is the point.
+  // What it records is the ordering: a reload that fires before the revoke is
+  // sent would abandon the round-trip with the token still valid.
+  let whenReloaded: { revoked: boolean; token: string | null } | undefined;
+  const reload = vi.spyOn(window.location, "reload").mockImplementation(() => {
+    whenReloaded = {
+      revoked,
+      token: localStorage.getItem("utaita:access_token"),
+    };
+  });
+  onTestFinished(() => reload.mockRestore());
   const { findByRole, findByText } = render(() => <App />);
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
 
@@ -417,4 +635,7 @@ test("logout revokes the token and returns to the gate", async () => {
   expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
   expect(revoked).toBe(true);
   expect(localStorage.getItem("utaita:access_token")).toBeNull();
+  await waitFor(() =>
+    expect(whenReloaded).toEqual({ revoked: true, token: null }),
+  );
 });

@@ -11,7 +11,16 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { type ParentProps, Suspense } from "solid-js";
-import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  expect,
+  onTestFinished,
+  test,
+  vi,
+} from "vitest";
+import { completeLogin, logout } from "../../entities/session/session";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
 import { ThreadPage } from "./ThreadPage";
@@ -161,6 +170,31 @@ const renderThreadDirectly = () => {
   const history = createMemoryHistory();
   history.set({ value: statusPath(SUBJECT_ID), replace: true });
   return renderApp(history);
+};
+
+/**
+ * Renders the rest of the test signed in. The session signal is module-level
+ * and only the sign-in flow sets it, so an authenticated render has to come
+ * through completeLogin (entities/session/session.ts) rather than through a
+ * token written straight to storage.
+ */
+const signIn = async () => {
+  localStorage.setItem("utaita:client_id", "cid-1");
+  localStorage.setItem("utaita:client_secret", "sec-1");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+    ),
+  );
+  onTestFinished(async () => {
+    // Storage first: with no credentials left, logout() drops the signal
+    // without attempting a revoke this suite has no handler for.
+    localStorage.clear();
+    sessionStorage.clear();
+    await logout();
+  });
+  expect((await completeLogin("code-1", "nonce-1")).ok).toBe(true);
 };
 
 test("renders the conversation in reading order around the opened post", async () => {
@@ -492,6 +526,58 @@ test("renders the failure when the post is not on this instance", async () => {
   const { findByRole } = renderThreadDirectly();
 
   expect(await findByRole("alert")).toHaveTextContent(/not on this instance/i);
+});
+
+test("a conversation that needs a sign-in offers one", async () => {
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", () =>
+      HttpResponse.json({ ancestors: [], descendants: [] }),
+    ),
+    http.get("*/api/v1/statuses/:id", () =>
+      HttpResponse.json({ error: "Invalid credentials." }, { status: 401 }),
+    ),
+  );
+  const { findByRole } = renderThreadDirectly();
+
+  expect(await findByRole("alert")).toHaveTextContent(/sign-in required/i);
+  expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
+});
+
+test("a post that is not here offers a sign-in while signed out", async () => {
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", () =>
+      HttpResponse.json({ ancestors: [], descendants: [] }),
+    ),
+    http.get("*/api/v1/statuses/:id", () =>
+      HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  const { findByRole } = renderThreadDirectly();
+
+  // Akkoma answers an anonymous request for a private post with 404, so the
+  // copy cannot claim the post is absent.
+  expect(await findByRole("alert")).toHaveTextContent(
+    /not on this instance, or needs a sign-in to see/i,
+  );
+  expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
+});
+
+test("a post that is not here reads as simply absent once signed in", async () => {
+  await signIn();
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", () =>
+      HttpResponse.json({ ancestors: [], descendants: [] }),
+    ),
+    http.get("*/api/v1/statuses/:id", () =>
+      HttpResponse.json({ error: "Record not found" }, { status: 404 }),
+    ),
+  );
+  const { findByRole, queryByRole } = renderThreadDirectly();
+
+  const alert = await findByRole("alert");
+  expect(alert).toHaveTextContent(/not on this instance/i);
+  expect(alert).not.toHaveTextContent(/sign-in/i);
+  expect(queryByRole("button", { name: "Log in" })).not.toBeInTheDocument();
 });
 
 test("does not leave the previous conversation under the URL of one that failed", async () => {

@@ -20,6 +20,8 @@ import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import type { Result } from "../../api/result";
 import { markRetentionFrame } from "../../entities/retention/retention";
+import { SignInButton } from "../../entities/session/SignInButton";
+import { authenticated, offersSignIn } from "../../entities/session/session";
 import { takeThreadRequest } from "../../entities/status/open-thread";
 import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
@@ -47,7 +49,14 @@ const httpMessage = (status: number, message: string | undefined): string => {
   if (status === 401 || status === 403) {
     return "Sign-in required to view this conversation.";
   }
-  if (status === 404) return "This post is not on this instance.";
+  if (status === 404) {
+    // A post the anonymous reader may not see is a 404 too, not a 401
+    // (Akkoma's visibility check, lib/pleroma/web/activity_pub/visibility.ex),
+    // so while signed out "absent" and "not yours to see" are one answer.
+    return authenticated()
+      ? "This post is not on this instance."
+      : "This post is not on this instance, or needs a sign-in to see.";
+  }
   return `Request failed (${status}${message ? `: ${message}` : ""}).`;
 };
 
@@ -59,7 +68,10 @@ const ThreadError = (props: { error: ApiError; onRetry: () => void }) => {
     case "http":
       return (
         <p class={errorBox} role="alert">
-          {httpMessage(props.error.status, props.error.message)}
+          {httpMessage(props.error.status, props.error.message)}{" "}
+          <Show when={offersSignIn(props.error)}>
+            <SignInButton />
+          </Show>
         </p>
       );
     case "network":

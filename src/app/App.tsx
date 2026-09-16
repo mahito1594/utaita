@@ -1,7 +1,20 @@
-import { A, Route, type RoutePreloadFunc, Router } from "@solidjs/router";
+import {
+  A,
+  Route,
+  type RoutePreloadFunc,
+  Router,
+  useLocation,
+} from "@solidjs/router";
 import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { Retention } from "../entities/retention/retention";
+import { REDIRECT_PATH } from "../entities/session/oauth";
+import { SignInButton } from "../entities/session/SignInButton";
+import {
+  authenticated,
+  logout,
+  takeSignInLanding,
+} from "../entities/session/session";
 import { statusPath } from "../entities/status/url";
 import { FollowList } from "../pages/profile/FollowList";
 import { followers, following } from "../pages/profile/follow-list";
@@ -29,12 +42,12 @@ import { bubble, federated, home, local } from "../pages/timeline/timelines";
 import { outlineButton } from "../ui/outline-button";
 import { LoginScreen } from "./LoginScreen";
 import { OAuthCallback } from "./OAuthCallback";
-import { REDIRECT_PATH } from "./oauth";
-import { authenticated, logout, takeSignInLanding } from "./session";
 
-// The session half of the thread's arrival, composed here because `src/pages`
-// must not import `src/app` (.dependency-cruiser.cjs): a thread the sign-in
-// returned to has no entry of this app behind it (session.ts).
+// The session half of the thread's arrival, composed with the page's own
+// preload here at the route table rather than inside it: a thread the sign-in
+// returned to has no entry of this app behind it
+// (entities/session/session.ts), which is a fact about the arrival, not about
+// the thread.
 const preloadThreadRoute: RoutePreloadFunc<ThreadArrival> = (args) => {
   const arrival = preloadThread(args);
   const { id } = args.params;
@@ -61,77 +74,110 @@ const preloadWhoListsRoute: RoutePreloadFunc<WhoListsArrival> = (args) => {
 // the same `md` condition instead of syncing a width literal across files.
 const column = { maxWidth: { md: "600px" }, mx: "auto", px: "4" } as const;
 
+// Where the gate screen itself can be showing: the paths the gate stands on
+// — the timelines' own, taken from the definitions the routes below are built
+// from so the two cannot drift apart — and the callback, which renders that
+// same screen when the return leg fails (OAuthCallback.tsx).
+const gateScreenPaths: ReadonlySet<string> = new Set([
+  REDIRECT_PATH,
+  ...[home, local, bubble, federated].map((timeline) => timeline.path),
+]);
+
+// Logging out is a data boundary (ADR-0015): an ungated page stays mounted with
+// what it fetched under the token, so re-read the document. Ceiling: the body
+// stays up until the revoke round-trip returns.
+const signOut = async () => {
+  await logout();
+  window.location.reload();
+};
+
 // The app's one ErrorBoundary. API failures never land here — they travel as
 // Result values down to the page that rendered them (ADR-0008); anything
 // caught here is a genuine bug.
-const Layout = (props: ParentProps) => (
-  <>
-    <header
-      class={css({
-        bg: "bg.surface",
-        borderBottomWidth: "1px",
-        borderColor: "border.default",
-      })}
-    >
-      <div
+const Layout = (props: ParentProps) => {
+  const location = useLocation();
+  // The gate screen carries its own way in, so the header hides its "Log in"
+  // on those paths only; a page's error row may still offer a second one.
+  const onGateScreen = () => gateScreenPaths.has(location.pathname);
+
+  return (
+    <>
+      <header
         class={css({
-          ...column,
-          py: "3",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
+          bg: "bg.surface",
+          borderBottomWidth: "1px",
+          borderColor: "border.default",
         })}
       >
-        <h1
+        <div
           class={css({
-            fontSize: "lg",
-            fontWeight: "semibold",
-            color: "text.brand",
+            ...column,
+            py: "3",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           })}
         >
-          {/* The way back to the top of the home timeline from anywhere,
-              wearing the heading's own colour rather than a link's. */}
-          <A href="/" class={css({ color: "inherit", textDecoration: "none" })}>
-            utaita
-          </A>
-        </h1>
-        <Show when={authenticated()}>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            class={cx(
-              outlineButton({ tone: "neutral" }),
-              css({ color: "text.muted" }),
-            )}
+          <h1
+            class={css({
+              fontSize: "lg",
+              fontWeight: "semibold",
+              color: "text.brand",
+            })}
           >
-            Log out
-          </button>
-        </Show>
-      </div>
-    </header>
-    <main class={css({ ...column, py: "4" })}>
-      <ErrorBoundary
-        fallback={(err) => <p>Something went wrong: {String(err)}</p>}
-      >
-        <Suspense
-          fallback={
-            <p role="status" class={css({ color: "text.muted" })}>
-              Loading…
-            </p>
-          }
+            {/* The way back to the top of the home timeline from anywhere,
+              wearing the heading's own colour rather than a link's. */}
+            <A
+              href="/"
+              class={css({ color: "inherit", textDecoration: "none" })}
+            >
+              utaita
+            </A>
+          </h1>
+          <Show when={authenticated()}>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              class={cx(
+                outlineButton({ tone: "neutral" }),
+                css({ color: "text.muted" }),
+              )}
+            >
+              Log out
+            </button>
+          </Show>
+          <Show when={!authenticated() && !onGateScreen()}>
+            <SignInButton />
+          </Show>
+        </div>
+      </header>
+      <main class={css({ ...column, py: "4" })}>
+        <ErrorBoundary
+          fallback={(err) => <p>Something went wrong: {String(err)}</p>}
         >
-          {props.children}
-        </Suspense>
-      </ErrorBoundary>
-    </main>
-  </>
-);
+          <Suspense
+            fallback={
+              <p role="status" class={css({ color: "text.muted" })}>
+                Loading…
+              </p>
+            }
+          >
+            {props.children}
+          </Suspense>
+        </ErrorBoundary>
+      </main>
+    </>
+  );
+};
 
 // The gate is a layout route, not a redirect: unauthenticated visits render
 // the login screen in place at whatever URL was opened — no /login URL
 // exists. That URL is also what login() saves for the return leg, so a deep
 // link survives a full sign-in. The callback sits outside as a sibling so the
 // gate can never swallow the return leg (discussion decision 2026-07-12).
+// It wraps the timelines alone: a shared URL is readable without a session,
+// and the instance decides what an anonymous reader may see
+// (docs/adr/0015-sign-in-gates-only-personal-surfaces.md).
 const AuthGate = (props: ParentProps) => (
   <Show when={authenticated()} fallback={<LoginScreen />}>
     {props.children}
@@ -166,9 +212,9 @@ const FavouritedByList = () => <WhoList list={favourites} />;
 const RebloggedByList = () => <WhoList list={boosts} />;
 
 // The session is passed in rather than read inside the retention component:
-// src/entities must not depend on src/app (.dependency-cruiser.cjs), and the
-// stack has to be dropped on sign-out by an explicit signal rather than by
-// trusting the gate to dispose it.
+// the stack has to be dropped on sign-out by an explicit signal rather than
+// by trusting an unmount to dispose it — nothing unmounts the retaining route
+// on the way out of a session.
 const RetainingRoutes = (props: ParentProps) => (
   <Retention signedIn={authenticated()}>{props.children}</Retention>
 );
@@ -182,13 +228,14 @@ const RetainingRoutes = (props: ParentProps) => (
 const App = () => (
   <Router root={Layout} scrollRestoration>
     <Route path={REDIRECT_PATH} component={OAuthCallback} />
-    <Route component={AuthGate}>
-      {/* Retention sits below the gate (so signing out cannot carry a
-          timeline into the next session) and above every route the reader
-          may step into and come back from — the timelines and the detail
-          routes alike, since it is leaving the timeline route that destroys
-          the page holding the content. */}
-      <Route component={RetainingRoutes}>
+    {/* Retention wraps every route the reader may step into and come back
+        from — the timelines and the detail routes alike, since it is leaving
+        the timeline route that destroys the page holding the content. It sits
+        above the gate rather than below it because the detail routes outside
+        the gate retain too; signing out still drops the stack, by the
+        `signedIn` signal RetainingRoutes passes down (retention.tsx). */}
+    <Route component={RetainingRoutes}>
+      <Route component={AuthGate}>
         {/* The four leaves share this one route definition, which is what
             keeps the shell's switcher tabs (and the focused link among them)
             mounted while the page below them is recreated. */}
@@ -198,40 +245,40 @@ const App = () => (
           <Route path={bubble.path} component={BubbleTimelinePage} />
           <Route path={federated.path} component={FederatedTimelinePage} />
         </Route>
-        {/* The URL shape is profilePath's (src/entities/status/mention.ts),
-            which also says why it is neither /@:acct nor /users/ */}
-        <Route
-          path="/accounts/:acct"
-          component={ProfilePage}
-          preload={preloadProfile}
-        >
-          <Route path={posts.path} component={ProfilePostsTab} />
-          <Route path={postsAndReplies.path} component={ProfileRepliesTab} />
-          <Route path={media.path} component={ProfileMediaTab} />
-          <Route path={following.path} component={ProfileFollowingList} />
-          <Route path={followers.path} component={ProfileFollowersList} />
-        </Route>
-        {/* The URL shape is statusPath's (src/entities/status/url.ts). Unlike
-            the timelines, this route fetches through the router's own data
-            layer, so the preload is what starts the requests (ADR-0004). */}
-        <Route
-          path="/statuses/:id"
-          component={ThreadPage}
-          preload={preloadThreadRoute}
-        />
-        {/* The accounts behind the post's counts, on the same path with the
-            list as a further segment (who-lists.ts). A parent route with
-            children matches through them only, so the conversation above
-            keeps `/statuses/:id` to itself. */}
-        <Route
-          path="/statuses/:id"
-          component={WhoListsPage}
-          preload={preloadWhoListsRoute}
-        >
-          <Route path={favourites.path} component={FavouritedByList} />
-          <Route path={boosts.path} component={RebloggedByList} />
-          <Route path={reactions.path} component={ReactionsList} />
-        </Route>
+      </Route>
+      {/* The URL shape is profilePath's (src/entities/status/mention.ts),
+          which also says why it is neither /@:acct nor /users/ */}
+      <Route
+        path="/accounts/:acct"
+        component={ProfilePage}
+        preload={preloadProfile}
+      >
+        <Route path={posts.path} component={ProfilePostsTab} />
+        <Route path={postsAndReplies.path} component={ProfileRepliesTab} />
+        <Route path={media.path} component={ProfileMediaTab} />
+        <Route path={following.path} component={ProfileFollowingList} />
+        <Route path={followers.path} component={ProfileFollowersList} />
+      </Route>
+      {/* The URL shape is statusPath's (src/entities/status/url.ts). Unlike
+          the timelines, this route fetches through the router's own data
+          layer, so the preload is what starts the requests (ADR-0004). */}
+      <Route
+        path="/statuses/:id"
+        component={ThreadPage}
+        preload={preloadThreadRoute}
+      />
+      {/* The accounts behind the post's counts, on the same path with the
+          list as a further segment (who-lists.ts). A parent route with
+          children matches through them only, so the conversation above
+          keeps `/statuses/:id` to itself. */}
+      <Route
+        path="/statuses/:id"
+        component={WhoListsPage}
+        preload={preloadWhoListsRoute}
+      >
+        <Route path={favourites.path} component={FavouritedByList} />
+        <Route path={boosts.path} component={RebloggedByList} />
+        <Route path={reactions.path} component={ReactionsList} />
       </Route>
     </Route>
   </Router>
