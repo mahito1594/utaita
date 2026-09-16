@@ -75,6 +75,18 @@ const blobcatGroup: ReactionGroup = {
   accounts: [bob],
 };
 
+// Akkoma counts the reactions and then drops the accounts it will not show
+// the reader, so `count` can run ahead of `accounts`: the count is taken
+// before the filter (emoji_reaction_view.ex `show.json`, account_view.ex
+// `index.json` in AkkomaGang/akkoma).
+const heartGroup: ReactionGroup = {
+  name: "\u2764\uFE0F",
+  count: 3,
+  me: false,
+  url: null,
+  accounts: [zoe, bob],
+};
+
 // Every list request, in order: whether a list was refetched is only visible
 // here.
 const listRequests: URL[] = [];
@@ -332,6 +344,34 @@ test("the reactions tab shows one group per reaction with an account row under e
   expect(listRequests[0]?.pathname).toBe(
     `/api/v1/pleroma/statuses/${SUBJECT_ID}/reactions`,
   );
+});
+
+test("each reaction group's band is a level 3 heading saying how many people reacted, in the singular for one", async () => {
+  server.use(
+    ...subjectHandlers,
+    reactionsHandler([partyGroup, blobcatGroup, heartGroup]),
+  );
+  const { findByRole } = renderListDirectly(whoListPath(SUBJECT_ID, reactions));
+
+  // Beside the chip, whose own number is bare: the band is the only place
+  // that says what the number counts.
+  const party = await findByRole("region", { name: partyGroup.name });
+  expect(
+    within(party).getByRole("heading", { level: 3, name: /2 people/ }),
+  ).toBeInTheDocument();
+
+  const blobcat = await findByRole("region", { name: blobcatGroup.name });
+  expect(
+    within(blobcat).getByRole("heading", { level: 3, name: /1 person/ }),
+  ).toBeInTheDocument();
+
+  // The reaction count, not the number of rows: they part company whenever
+  // the instance withholds an account it counted.
+  const heart = await findByRole("region", { name: heartGroup.name });
+  expect(
+    within(heart).getByRole("heading", { level: 3, name: /3 people/ }),
+  ).toBeInTheDocument();
+  expect(within(heart).getAllByRole("listitem")).toHaveLength(2);
 });
 
 test("an empty reactions answer shows the reactions tab's empty copy", async () => {
