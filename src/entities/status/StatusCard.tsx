@@ -25,7 +25,7 @@ import { ReactionChips } from "./ReactionChips";
 import { StatusContent } from "./StatusContent";
 import { preciseTime, relativeTime } from "./time";
 import type { Status } from "./types";
-import { statusPath, whoListPaths } from "./url";
+import { safeExternalHref, statusPath, whoListPaths } from "./url";
 
 export type { Status } from "./types";
 
@@ -58,6 +58,18 @@ const headerLinkStyle = css({
 // The card-wide tap is the only thing that makes a card pressable, and it is
 // off on the thread's own subject and on a status without an id (`threadPath`).
 const tappableStyle = css({ cursor: "pointer" });
+
+// The way out to what this instance cannot show, in the muted key of the
+// stats row it follows. Same shape as `originLinkStyle` in
+// src/pages/profile/ProfileHeader.tsx, duplicated concretely (second
+// occurrence); `alignSelf` keeps the rule under the words in a column.
+const originLinkStyle = css({
+  alignSelf: "flex-start",
+  maxWidth: "100%",
+  fontSize: "xs",
+  color: "text.muted",
+  textDecoration: "underline",
+});
 
 const avatarShape = {
   width: "10",
@@ -150,6 +162,21 @@ export const StatusCard = (props: {
         to: paths.reactions,
       },
     ].filter((entry) => entry.count > 0);
+  };
+
+  // Remote posts only, and only where this card is the post being read: the
+  // secondary, explicitly external way to what this instance cannot show
+  // (docs/adr/0011-default-actions-stay-in-app.md). Same derivation as
+  // `origin()` in src/pages/profile/ProfileHeader.tsx, duplicated concretely
+  // (second occurrence) — the scheme gate is also what makes the host safe to
+  // read back off the parsed URL.
+  const origin = (): { href: string; host: string } | null => {
+    if (props.lists !== true) return null;
+    const href = safeExternalHref(subject().url);
+    if (href === null || !(subject().account?.acct ?? "").includes("@")) {
+      return null;
+    }
+    return { href, host: new URL(href).host };
   };
 
   // The author's profile, or null when the account arrived without an acct
@@ -449,6 +476,18 @@ export const StatusCard = (props: {
             )}
           </For>
         </div>
+      </Show>
+      <Show when={origin()}>
+        {(link) => (
+          <a
+            href={link().href}
+            target="_blank"
+            rel="noopener noreferrer"
+            class={originLinkStyle}
+          >
+            View on {link().host}
+          </a>
+        )}
       </Show>
       <ActionBar status={subject()} counts={props.lists !== true} />
     </article>

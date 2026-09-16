@@ -663,3 +663,120 @@ test("the same counts and chips on ancestor and descendant rows are not links", 
     expect(zone.getByTitle("favourites")).toHaveTextContent("12");
   }
 });
+
+// Akkoma serves a remote post's original address in `url`; the fixtures' acct
+// is already remote (`alice@fixture.example`).
+const REMOTE_URL = "https://fixture.example/notice/110000000000000002";
+
+test("the subject row links out to a remote post on its origin server, below the stats row", async () => {
+  server.use(
+    ...threadHandlers(
+      { ...counted(subject), url: REMOTE_URL },
+      {
+        ancestors: [],
+        descendants: [],
+      },
+    ),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  const row = subjectRowOf(container);
+  const link = within(row).getByRole("link", {
+    name: "View on fixture.example",
+  });
+  expect(link).toHaveAttribute("href", REMOTE_URL);
+  // Leaving the app is the point, and an opened tab must not keep a handle on
+  // the one it came from.
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  const text = row.textContent ?? "";
+  expect(text.indexOf("5 boosts")).toBeLessThan(
+    text.indexOf("View on fixture.example"),
+  );
+});
+
+test("the link out to the origin server is there even when every count is zero and no stats row is drawn", async () => {
+  server.use(
+    ...threadHandlers(
+      { ...subject, url: REMOTE_URL },
+      {
+        ancestors: [],
+        descendants: [],
+      },
+    ),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  const row = within(subjectRowOf(container));
+  expect(
+    row.queryByRole("link", { name: /boost|favourite|reaction/ }),
+  ).toBeNull();
+  expect(
+    row.getByRole("link", { name: "View on fixture.example" }),
+  ).toBeInTheDocument();
+});
+
+test("a subject posted on this instance gets no link out to another server", async () => {
+  server.use(
+    ...threadHandlers(
+      {
+        ...counted(subject),
+        url: "https://local.example/notice/110000000000000002",
+        account: {
+          id: "900000000000000002",
+          acct: "bob",
+          display_name: "Bob Local",
+        },
+      },
+      { ancestors: [], descendants: [] },
+    ),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  expect(
+    within(subjectRowOf(container)).queryByRole("link", { name: /^View on/ }),
+  ).toBeNull();
+});
+
+test("neither an ancestor nor a reply gets a link out of its own", async () => {
+  server.use(
+    ...threadHandlers(subject, {
+      ancestors: [
+        { ...root, url: "https://fixture.example/notice/110000000000000001" },
+      ],
+      descendants: [
+        { ...reply, url: "https://fixture.example/notice/110000000000000003" },
+      ],
+    }),
+  );
+  const { findByText, queryByRole } = renderThreadDirectly();
+
+  expect(await findByText("A reply to the opened post")).toBeInTheDocument();
+
+  expect(queryByRole("link", { name: /^View on/ })).toBeNull();
+});
+
+test("a subject whose url is not a safe external link gets no link out", async () => {
+  server.use(
+    ...threadHandlers(
+      { ...counted(subject), url: "javascript:alert(1)" },
+      {
+        ancestors: [],
+        descendants: [],
+      },
+    ),
+  );
+  const { findByText, container } = renderThreadDirectly();
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+
+  expect(
+    within(subjectRowOf(container)).queryByRole("link", { name: /^View on/ }),
+  ).toBeNull();
+});
