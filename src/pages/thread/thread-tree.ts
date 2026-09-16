@@ -183,10 +183,48 @@ const climbsTo = (
 };
 
 /**
+ * The post whose context `status` inherited by quoting it. A reply never does
+ * (even one to the `"_"` sentinel): `make_context/1` tries `in_reply_to` first.
+ * `quote` is null for a muted or blocked author while `quote_id` survives; an
+ * un-ingested quote's `"_"` matches no status, so it needs no guard here.
+ */
+const contextQuoteIdOf = (status: Status): string | undefined => {
+  const parentId = status.in_reply_to_id;
+  if (parentId !== undefined && parentId !== null) return undefined;
+  return status.quote?.id ?? status.quote_id ?? undefined;
+};
+
+/**
+ * Whether a quote, in either direction, ties `status` to the connected
+ * conversation. Akkoma gives a locally composed quote the quoted post's
+ * context, so the quoted post and its whole thread arrive in the quoting
+ * post's `/context` with no reply edge to connect them (docs/PLAN.ja.md,
+ * Akkoma pitfalls).
+ */
+const linkedByQuote = (
+  status: Status,
+  connected: ReadonlySet<Status>,
+): boolean => {
+  const id = idOf(status);
+  const quotedId = contextQuoteIdOf(status);
+  for (const other of connected) {
+    if (quotedId !== undefined && idOf(other) === quotedId) return true;
+    if (id !== undefined && contextQuoteIdOf(other) === id) return true;
+  }
+  return false;
+};
+
+/**
  * Rows for the conversation the merge could not attach to the subject, each
  * detached root followed by its own replies. Federation drops posts, and a
  * context that lost a middle status would otherwise take every reply under it
  * out of the view without a trace.
+ *
+ * A run tied to the conversation by a quote is the exception — it is another
+ * conversation that only shares the context (`linkedByQuote`): it is walked
+ * only to mark it placed, so it leaves the view instead of resurfacing in the
+ * sweep below. The quote can sit anywhere in the run, not just at its
+ * head — a quoted reply drags in its own parent as the root.
  */
 const detachedRowsOf = (
   union: readonly Status[],
@@ -208,19 +246,28 @@ const detachedRowsOf = (
     })
     .sort(byTime);
 
+  // On entry `placed` is the connected conversation: the spine plus the
+  // subject's descendants.
+  const connected = new Set(placed);
+
   const rows: Status[] = [];
+  const draw = (head: Status): void => {
+    placed.add(head);
+    const run = [head, ...subtreeOf(head, children, placed)];
+    if (run.some((status) => linkedByQuote(status, connected))) return;
+    rows.push(...run);
+  };
+
   for (const root of roots) {
     if (placed.has(root)) continue;
-    placed.add(root);
-    rows.push(root, ...subtreeOf(root, children, placed));
+    draw(root);
   }
   // A reply cycle among detached statuses leaves every member with a detached
   // parent, so none qualifies as a root above — sweep the leftovers so a
   // malformed cycle degrades to rows instead of vanishing.
   for (const status of [...detached].sort(byTime)) {
     if (placed.has(status)) continue;
-    placed.add(status);
-    rows.push(status, ...subtreeOf(status, children, placed));
+    draw(status);
   }
   return rows;
 };

@@ -15,6 +15,8 @@ const status = (fields: {
   acct?: string;
   inReplyToId?: string | null;
   inReplyToApId?: string | null;
+  quoteId?: string;
+  hiddenQuoteId?: string;
 }): Status => ({
   id: fields.id,
   created_at: fields.createdAt,
@@ -28,6 +30,16 @@ const status = (fields: {
   ...(fields.inReplyToApId === undefined
     ? {}
     : { akkoma: { in_reply_to_apid: fields.inReplyToApId } }),
+  // A real `quote` embeds the whole quoted status; only its id is read here.
+  // `quote_id` always accompanies it, and outlives it when the quoted author is
+  // muted or blocked (`maybe_render_quote`,
+  // lib/pleroma/web/mastodon_api/views/status_view.ex).
+  ...(fields.quoteId === undefined
+    ? {}
+    : { quote_id: fields.quoteId, quote: { id: fields.quoteId } }),
+  ...(fields.hiddenQuoteId === undefined
+    ? {}
+    : { quote_id: fields.hiddenQuoteId }),
 });
 
 const context = (parts?: Partial<ThreadContext>): ThreadContext => ({
@@ -259,6 +271,258 @@ describe("buildThread", () => {
     ]);
   });
 
+  test("a post the subject quotes stays out, together with its replies", () => {
+    // Akkoma gives a locally composed quote the quoted post's context
+    // (`make_context/1`, lib/pleroma/web/common_api/utils.ex), so the quoted
+    // post and its whole thread arrive in this status's `/context` with no
+    // reply edge to the subject. The card already shows the quote.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      quoteId: "119999999999999990",
+    });
+    const quoted = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T11:00:00.000Z",
+      acct: "bob",
+    });
+    const replyToQuoted = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T11:30:00.000Z",
+      acct: "carol@fixture.example",
+      inReplyToId: "119999999999999990",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ ancestors: [quoted], descendants: [replyToQuoted] }),
+    );
+
+    expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
+  });
+
+  test("a quoted post mid-thread takes its whole run out", () => {
+    // The quoted post is a reply, so the run that arrives with it is headed by
+    // its own parent — which has no quote of its own to link it to the
+    // subject.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      quoteId: "119999999999999990",
+    });
+    const quotedParent = status({
+      id: "119999999999999980",
+      createdAt: "2026-08-01T11:00:00.000Z",
+      acct: "bob",
+    });
+    const quoted = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T11:30:00.000Z",
+      acct: "carol@fixture.example",
+      inReplyToId: "119999999999999980",
+    });
+    const replyToQuoted = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T11:40:00.000Z",
+      acct: "bob",
+      inReplyToId: "119999999999999990",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [quotedParent, quoted, replyToQuoted] }),
+    );
+
+    expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
+  });
+
+  test("a post quoting the subject stays out, together with its replies", () => {
+    // The same inheritance seen from the quoted side: opening the quoted post
+    // brings the quoting post's thread into the context.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    const quoting = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T12:05:00.000Z",
+      acct: "bob",
+      quoteId: "110000000000000001",
+    });
+    const replyToQuoting = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T12:06:00.000Z",
+      acct: "carol@fixture.example",
+      inReplyToId: "119999999999999990",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [quoting, replyToQuoting] }),
+    );
+
+    expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
+  });
+
+  test("a quote hidden by a mute still keeps the quoted thread out", () => {
+    // Akkoma renders `quote` as null when the quoted author is muted or
+    // blocked, while `quote_id` stays (`maybe_render_quote`,
+    // lib/pleroma/web/mastodon_api/views/status_view.ex). The context was still
+    // inherited, so the quoted thread arrives all the same.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      hiddenQuoteId: "119999999999999990",
+    });
+    const quoted = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T11:00:00.000Z",
+      acct: "bob",
+    });
+    const replyToQuoted = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T11:30:00.000Z",
+      acct: "carol@fixture.example",
+      inReplyToId: "119999999999999990",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [quoted, replyToQuoted] }),
+    );
+
+    expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
+  });
+
+  test("a reply's quote is no link, so the quoted run is still drawn", () => {
+    // `make_context/1` matches `in_reply_to` before `quote`
+    // (lib/pleroma/web/common_api/utils.ex): a quoting post that is itself a
+    // reply keeps its parent's context, so nothing explains the quoted run
+    // being here except the conversation itself.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    const reply = status({
+      id: "110000000000000002",
+      createdAt: "2026-08-01T12:01:00.000Z",
+      acct: "bob",
+      inReplyToId: "110000000000000001",
+      quoteId: "119999999999999990",
+    });
+    const quoted = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T11:00:00.000Z",
+      acct: "carol@fixture.example",
+    });
+    const replyToQuoted = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T11:10:00.000Z",
+      acct: "bob",
+      inReplyToId: "119999999999999990",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [reply, quoted, replyToQuoted] }),
+    );
+
+    expect(layout(rows)).toEqual([
+      ["110000000000000001", "subject"],
+      ["110000000000000002", "descendant"],
+      ["119999999999999990", "detached"],
+      ["119999999999999991", "detached"],
+    ]);
+  });
+
+  test("a quote by a reply to an un-ingested post is no link either", () => {
+    // The reply side wins over the quote side for the context whether or not
+    // this instance holds the parent, so the un-ingested sentinel counts as a
+    // reply just like an id does.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    const quoting = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T12:05:00.000Z",
+      acct: "bob",
+      inReplyToId: "_",
+      quoteId: "110000000000000001",
+    });
+    const replyToQuoting = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T12:06:00.000Z",
+      acct: "carol@fixture.example",
+      inReplyToId: "119999999999999990",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [quoting, replyToQuoting] }),
+    );
+
+    expect(layout(rows)).toEqual([
+      ["110000000000000001", "subject"],
+      ["119999999999999990", "detached"],
+      ["119999999999999991", "detached"],
+    ]);
+  });
+
+  test("only the quote-linked detached run is dropped", () => {
+    // The quote lands on a descendant, not on the subject: what keeps a run
+    // out is a link to the conversation as drawn, not to the opened status.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    const reply = status({
+      id: "110000000000000002",
+      createdAt: "2026-08-01T12:01:00.000Z",
+      acct: "bob",
+      inReplyToId: "110000000000000001",
+    });
+    const quoting = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T11:00:00.000Z",
+      acct: "carol@fixture.example",
+      quoteId: "110000000000000002",
+    });
+    const replyToQuoting = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T11:10:00.000Z",
+      acct: "bob",
+      inReplyToId: "119999999999999990",
+    });
+    // A branch cut off by a federation hole, with no quote anywhere.
+    const orphan = status({
+      id: "119999999999999992",
+      createdAt: "2026-08-01T12:05:00.000Z",
+      acct: "carol@fixture.example",
+      inReplyToId: "119999999999999900",
+    });
+    const belowOrphan = status({
+      id: "119999999999999993",
+      createdAt: "2026-08-01T12:06:00.000Z",
+      acct: "bob",
+      inReplyToId: "119999999999999992",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({
+        descendants: [reply, quoting, replyToQuoting, orphan, belowOrphan],
+      }),
+    );
+
+    expect(layout(rows)).toEqual([
+      ["110000000000000001", "subject"],
+      ["110000000000000002", "descendant"],
+      ["119999999999999992", "detached"],
+      ["119999999999999993", "detached"],
+    ]);
+  });
+
   test("a reply cycle among detached statuses still renders", () => {
     // Malformed federated data can close a loop: two posts each naming the
     // other as parent, neither reaching the subject. Neither qualifies as a
@@ -288,6 +552,35 @@ describe("buildThread", () => {
       ["110000000000000003", "detached"],
       ["110000000000000004", "detached"],
     ]);
+  });
+
+  test("a reply cycle the reader reaches through a quote stays out", () => {
+    // The cycle members never qualify as detached roots, so only the fallback
+    // sweep draws them — it owes the same answer to a quote link as the roots.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      quoteId: "110000000000000003",
+    });
+    const loopHead = status({
+      id: "110000000000000003",
+      createdAt: "2026-08-01T12:02:00.000Z",
+      acct: "bob",
+      inReplyToId: "110000000000000004",
+    });
+    const loopTail = status({
+      id: "110000000000000004",
+      createdAt: "2026-08-01T12:03:00.000Z",
+      acct: "bob",
+      inReplyToId: "110000000000000003",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [loopTail, loopHead] }),
+    );
+
+    expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
   });
 
   test("replies on another branch of the conversation are left out", () => {
