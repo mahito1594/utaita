@@ -141,7 +141,7 @@ const renderApp = (history = createMemoryHistory()) =>
   render(() => (
     <MemoryRouter history={history} root={Chrome}>
       <Route path="/" component={() => <p>Home timeline</p>} />
-      <Route path="/users/:acct" component={() => <p>A profile</p>} />
+      <Route path="/accounts/:acct" component={() => <p>A profile</p>} />
       <Route component={RetainingRoutes}>
         <Route path="/statuses/:id" component={() => <p>The conversation</p>} />
         <Route
@@ -197,12 +197,12 @@ test("the favourites tab names the post, marks its own tab current, and lists ea
   expect(tabs[2]).not.toHaveAttribute("aria-current");
 
   const row = await findByRole("link", { name: /Zoe/ });
-  expect(row).toHaveAttribute("href", "/users/zoe");
+  expect(row).toHaveAttribute("href", "/accounts/zoe");
   // The display name's custom emoji is rendered, not left as a shortcode.
   expect(await findByAltText(":party:")).toBeInTheDocument();
   expect(await findByRole("link", { name: /Bob Example/ })).toHaveAttribute(
     "href",
-    "/users/bob",
+    "/accounts/bob",
   );
 
   expect(listRequests).toHaveLength(1);
@@ -219,7 +219,7 @@ test("the boosts tab asks the reblogged_by endpoint and lists who boosted the po
 
   expect(await findByRole("link", { name: /Bob Example/ })).toHaveAttribute(
     "href",
-    "/users/bob",
+    "/accounts/bob",
   );
   const tabs = await findAllByRole("link", {
     name: /^(Favourites|Boosts|Reactions)/,
@@ -311,11 +311,11 @@ test("the reactions tab shows one group per reaction with an account row under e
   expect(party).toHaveTextContent("2");
   expect(within(party).getByRole("link", { name: /Zoe/ })).toHaveAttribute(
     "href",
-    "/users/zoe",
+    "/accounts/zoe",
   );
   expect(
     within(party).getByRole("link", { name: /Bob Example/ }),
-  ).toHaveAttribute("href", "/users/bob");
+  ).toHaveAttribute("href", "/accounts/bob");
   expect(within(party).getAllByRole("listitem")).toHaveLength(2);
 
   // The custom chip draws the emoji's image, named by its shortcode.

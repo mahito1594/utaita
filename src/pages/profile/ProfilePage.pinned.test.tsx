@@ -126,7 +126,7 @@ const renderProfile = (path: string) => {
   return render(() => (
     <MemoryRouter history={history} root={Chrome}>
       <Route
-        path="/users/:acct"
+        path="/accounts/:acct"
         component={ProfilePage}
         preload={preloadProfile}
       >
@@ -152,7 +152,7 @@ test("the Posts tab shows the statuses fetched with pinned=true above the regula
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     statuses(() => HttpResponse.json(pinnedPosts)),
   );
-  const { findByText, container } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByText, container } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
   expect(await findByText("Alice's pinned post")).toBeInTheDocument();
@@ -203,7 +203,7 @@ test("an account with nothing pinned gets no marker and no extra row", async () 
     statuses(() => HttpResponse.json([])),
   );
   const { findByText, queryByText, container } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
@@ -234,7 +234,7 @@ test("a pinned fetch still in flight leaves the header and the regular list on s
     }),
   );
   const { findByText, findByRole, queryByText } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   // The strip's own <Suspense> is what keeps its pending read from suspending
@@ -258,7 +258,7 @@ test("a pinned fetch that fails shows a notice row with Retry and leaves the reg
     }),
   );
   const { findByText, findByRole, queryByText, container } = renderProfile(
-    `/users/${ALICE_ACCT}`,
+    `/accounts/${ALICE_ACCT}`,
   );
 
   // role="alert" so the failure is announced, not merely painted.
@@ -291,7 +291,7 @@ test("a status that is both pinned and in the regular list renders twice, marked
     http.get("*/api/v1/accounts/:id", () => HttpResponse.json(alice)),
     statuses(() => HttpResponse.json([alicePosts[0]])),
   );
-  const { findByText, container } = renderProfile(`/users/${ALICE_ACCT}`);
+  const { findByText, container } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   // Both rows carry the same body, so the marker is what says the strip
   // arrived.

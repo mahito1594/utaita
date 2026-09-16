@@ -58,7 +58,7 @@ const listErrorMessage = (list: ListDefinition, error: ApiError): string => {
  */
 export const FollowList = (props: { list: ListDefinition }) => {
   const params = useParams<{ acct: string }>();
-  // The decoded acct, so `/users/alice%40remote.example` and the raw spelling
+  // The decoded acct, so `/accounts/alice%40remote.example` and the raw spelling
   // the app links to claim one frame rather than two.
   const acct = acctFromPath(params.acct);
   // Claimed before the store exists, because what the frame hands back is what

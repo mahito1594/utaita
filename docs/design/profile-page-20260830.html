@@ -82,7 +82,7 @@ li{margin-bottom:4px}
 <li>Counts are display-only. No follow button (Phase 2), no relationship badge (#2), no tabs (#2), no pinned (last).</li>
 <li>Post rows reuse StatusCard chrome-free with page-local row chrome, same as the timeline — per-framing chrome is the StatusCard contract, not duplication.</li>
 <li>Flat append-only store with a single <code>max_id</code> cursor; no segments/gap/refresh (those exist for streaming and refresh, which the profile list doesn't have).</li>
-<li>Navigating <code>/users/alice</code> → <code>/users/bob</code> recreates the whole body (keyed Show on the loaded account) — no manual reset of the post store.</li>
+<li>Navigating <code>/accounts/alice</code> → <code>/accounts/bob</code> recreates the whole body (keyed Show on the loaded account) — no manual reset of the post store.</li>
 </ul>
 
 <h2>Field sources (verified against the reference instance, 2026-08-30)</h2>

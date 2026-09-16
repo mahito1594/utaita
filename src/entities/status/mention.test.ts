@@ -11,15 +11,17 @@ const alice: Mention = {
 
 describe("profilePath", () => {
   test("builds the in-app profile path from acct", () => {
-    expect(profilePath("alice@remote.host")).toBe("/users/alice@remote.host");
-    expect(profilePath("bob")).toBe("/users/bob");
+    expect(profilePath("alice@remote.host")).toBe(
+      "/accounts/alice@remote.host",
+    );
+    expect(profilePath("bob")).toBe("/accounts/bob");
   });
 });
 
 describe("mentionPath", () => {
   test("resolves an exact href match to a profile path", () => {
     expect(mentionPath("https://remote.host/users/alice", [alice])).toBe(
-      "/users/alice@remote.host",
+      "/accounts/alice@remote.host",
     );
   });
 

@@ -2,7 +2,7 @@ import { profilePath } from "../../entities/status/mention";
 import type { Account } from "./profile-api";
 
 /**
- * One side of an account's social graph: a path under `/users/:acct`, the
+ * One side of an account's social graph: a path under `/accounts/:acct`, the
  * `AccountController` endpoint behind it (src/api/schema.d.ts), and the copy
  * for the two states that carry no rows. Same shape as the tab definitions
  * (profile-tabs.ts): the route table and every link read these, so neither can

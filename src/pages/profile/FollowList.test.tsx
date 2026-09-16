@@ -170,7 +170,7 @@ const renderProfile = (path: string) => {
       <MemoryRouter history={history} root={Chrome}>
         <Route component={RetainingRoutes}>
           <Route
-            path="/users/:acct"
+            path="/accounts/:acct"
             component={ProfilePage}
             preload={preloadProfile}
           >
@@ -205,7 +205,7 @@ test("the following list names each account, links to its profile, and asks by t
     await findByRole("heading", { name: "Following" }),
   ).toBeInTheDocument();
   const row = await findByRole("link", { name: /Zoe/ });
-  expect(row).toHaveAttribute("href", "/users/zoe");
+  expect(row).toHaveAttribute("href", "/accounts/zoe");
   expect(row).toHaveTextContent("@zoe");
   // The display name's custom emoji is rendered, not left as a shortcode.
   expect(await findByAltText(":party:")).toBeInTheDocument();

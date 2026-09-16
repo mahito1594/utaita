@@ -65,7 +65,7 @@ const tabBar = css({
 
 // Router-driven active styling, as in the timeline switcher
 // (TimelineShell.tsx): `<A>` sets `aria-current="page"` on an exact match,
-// so `/users/alice` is not current while `/users/alice/media` is shown.
+// so `/accounts/alice` is not current while `/accounts/alice/media` is shown.
 const tabLink = css({
   flex: 1,
   textAlign: "center",
@@ -346,7 +346,7 @@ const PinnedPosts = (props: { acct: string }) => {
  */
 export const ProfilePosts = (props: { tab: ProfileTab }) => {
   const params = useParams<{ acct: string }>();
-  // The decoded acct, so `/users/alice%40remote.example` and the raw spelling
+  // The decoded acct, so `/accounts/alice%40remote.example` and the raw spelling
   // the tabs link to claim one frame rather than two.
   const acct = acctFromPath(params.acct);
   // Claimed before the store exists, because what the frame hands back is what
