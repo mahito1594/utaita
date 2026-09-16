@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import { createSignal, createUniqueId, Show } from "solid-js";
-import { css } from "../../../styled-system/css";
+import { css, cx } from "../../../styled-system/css";
 import { EmojiText } from "./EmojiText";
 import { MediaGrid } from "./MediaGrid";
 import { opensThread, requestThread } from "./open-thread";
@@ -9,6 +9,10 @@ import { StatusContent } from "./StatusContent";
 import { relativeTime } from "./time";
 import type { Status } from "./types";
 import { statusPath } from "./url";
+
+// The mini-card is pressable only while it leads somewhere: on the quoted
+// post's own page `threadPath()` is null and the tap does nothing.
+const tappableStyle = css({ cursor: "pointer" });
 
 const permalinkStyle = css({
   ml: "auto",
@@ -59,16 +63,19 @@ export const QuoteCard = (props: { status: Status }) => {
     // biome-ignore lint/a11y/useKeyWithClickEvents: a focusable card would nest interactive elements — keyboard activation stays on the permalink, which fires click natively on Enter
     <div
       onClick={openThread}
-      class={css({
-        borderWidth: "1px",
-        borderColor: "border.default",
-        borderRadius: "md",
-        p: "2",
-        display: "flex",
-        flexDirection: "column",
-        gap: "1.5",
-        fontSize: "sm",
-      })}
+      class={cx(
+        css({
+          borderWidth: "1px",
+          borderColor: "border.default",
+          borderRadius: "md",
+          p: "2",
+          display: "flex",
+          flexDirection: "column",
+          gap: "1.5",
+          fontSize: "sm",
+        }),
+        threadPath() !== null && tappableStyle,
+      )}
     >
       <header
         class={css({
