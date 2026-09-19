@@ -56,7 +56,8 @@ is recorded.
 | --- | --- | --- |
 | Decisions with lasting consequences | [adr/](./adr/) | Testing strategy: happy-dom + MSW (ADR-0009) |
 | Standing rules agents follow every session | root `CLAUDE.md` | "Mock only at the HTTP boundary"; semantic-tokens-only rule |
-| Backlog and acceptance criteria | [stories.md](./stories.md) | Phase done conditions |
+| Stories, acceptance criteria, Icebox | [stories.md](./stories.md) | Phase done conditions |
+| Bugs and story-less debt | GitHub issues | A blank page on an unmatched route |
 | Design tokens and wireframes | [design/](./design/) | Light-only token rationale |
 | Rationale for a specific change | Commit message | Why a workaround was chosen |
 
