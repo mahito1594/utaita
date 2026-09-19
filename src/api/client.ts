@@ -23,8 +23,13 @@ export const errorMessage = (body: unknown): string | undefined =>
     : undefined;
 
 // Same-origin by design: the instance serves this frontend itself, and the
-// dev proxy replays the same shape locally.
-export const client = createClient<paths>({ baseUrl: "/" });
+// dev proxy replays the same shape locally. Cookies stay home: Akkoma copies
+// a Bearer token into its session cookie and honours that cookie on a request
+// without the header, which would outlive a sign-out (docs/PLAN.ja.md).
+export const client = createClient<paths>({
+  baseUrl: "/",
+  credentials: "omit",
+});
 
 // Auth header injection is centralized here and nowhere else — divergence
 // is a bug, not duplication (CLAUDE.md). Reads the store on every request

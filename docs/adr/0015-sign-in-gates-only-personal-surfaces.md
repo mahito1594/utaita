@@ -32,7 +32,9 @@ with a blanket 403 and the page falls into the existing sign-in branch.
 - **The sign-in gate wraps only the personal surfaces**: the timeline routes
   (`/`, `/local`, `/bubble`, `/federated`). Shareable URLs — threads, the
   who-lists under them, and profiles — render for anonymous visitors and
-  fetch anonymously.
+  fetch anonymously. "Anonymously" rests on the API client sending no
+  cookies (`credentials: "omit"`): Akkoma also authenticates a header-less
+  request by the session cookie it set from an earlier Bearer token.
 - **Visibility is decided by the server's answer, not by the client.** The
   pages do not inspect `visibility`, `restrict_unauthenticated`, or the
   instance's `public` flag. A 401 or 403 is a sign-in prompt; a 404 while
