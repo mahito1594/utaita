@@ -209,6 +209,16 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   proxy のトークン注入を外してもブラウザは認証されたままになる (2026-07-06 に
   実測)。「未認証の挙動」をブラウザで確かめるときは Cookie を消すこと。OAuth
   実装時のログアウト検証でも同じ罠に注意。
+- **Bearer トークンはセッション Cookie に写り、Authorization ヘッダーの無いリクエストは
+  その Cookie で認証される。** `SetUserSessionIdPlug` がトークンをセッションに保存し、
+  `OAuthPlug` はパラメータ・ヘッダーに無ければセッションのトークンを使う
+  (2026-09-19 に Akkoma ソースで確認)。本番でも同一オリジンなので、ログアウト後や
+  revoke 失敗後の「匿名」取得が認証されてしまう。API クライアントは
+  `credentials: "omit"` で Cookie を送らない (`src/api/client.ts`)。ただし OAuth の
+  フォーム POST (`src/api/oauth.ts`) は omit に揃えないこと: `/oauth/token`
+  の応答も Cookie を発行し (`after_token_exchange`)、`/oauth/revoke` は送られてきた
+  Cookie のトークンが revoke 対象と一致するときだけそのセッションを消す
+  (`o_auth_controller.ex`)。
 - **フロントエンドのルートは Akkoma が root で所有する prefix を避ける** (2026-09-16 に
   ringed.space / Akkoma 3.20 で実測)。Akkoma は `/users/:nickname` 配下を actor 用に
   広く持つ: feed redirect、`feed`、static-fe の `with_replies` / `media`、AP の
