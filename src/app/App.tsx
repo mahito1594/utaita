@@ -84,10 +84,10 @@ const gateScreenPaths: ReadonlySet<string> = new Set([
 ]);
 
 // Logging out is a data boundary (ADR-0015): an ungated page stays mounted with
-// what it fetched under the token, so re-read the document. Ceiling: the body
-// stays up until the revoke round-trip returns.
-const signOut = async () => {
-  await logout();
+// what it fetched under the token, so re-read the document — without waiting
+// for the revoke, which logout() has already sent by the time it yields.
+const signOut = () => {
+  void logout();
   window.location.reload();
 };
 
@@ -137,7 +137,7 @@ const Layout = (props: ParentProps) => {
           <Show when={authenticated()}>
             <button
               type="button"
-              onClick={() => void signOut()}
+              onClick={signOut}
               class={cx(
                 outlineButton({ tone: "neutral" }),
                 css({ color: "text.muted" }),

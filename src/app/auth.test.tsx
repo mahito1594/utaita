@@ -4,7 +4,7 @@
 import { query } from "@solidjs/router";
 import { cleanup, render, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { delay, HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import {
   afterAll,
@@ -617,26 +617,23 @@ test("a sign-in refused over a stored token is reported, not swallowed", async (
   expect(sessionStorage.getItem("utaita:oauth_state")).toBeNull();
 });
 
-test("logout revokes the token, returns to the gate, and reloads the document", async () => {
+test("logout revokes the token and reloads the document without waiting for the answer", async () => {
   await signIn();
   let revoked = false;
   server.use(
     homeTimelineOk(),
-    http.post("*/oauth/revoke", () => {
+    // An instance that never answers must not keep the signed-in page up.
+    http.post("*/oauth/revoke", async () => {
       revoked = true;
+      await delay("infinite");
       return HttpResponse.json({});
     }),
   );
   // happy-dom's reload() re-fetches the document through its browser frame,
   // which would take this test out of MSW's reach; observing it is the point.
-  // What it records is the ordering: a reload that fires before the revoke is
-  // sent would abandon the round-trip with the token still valid.
-  let whenReloaded: { revoked: boolean; token: string | null } | undefined;
+  let whenReloaded: { token: string | null } | undefined;
   const reload = vi.spyOn(window.location, "reload").mockImplementation(() => {
-    whenReloaded = {
-      revoked,
-      token: localStorage.getItem("utaita:access_token"),
-    };
+    whenReloaded = { token: localStorage.getItem("utaita:access_token") };
   });
   onTestFinished(() => reload.mockRestore());
   const { findByRole, findByText } = render(() => <App />);
@@ -645,9 +642,6 @@ test("logout revokes the token, returns to the gate, and reloads the document", 
   await userEvent.click(await findByRole("button", { name: "Log out" }));
 
   expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
-  expect(revoked).toBe(true);
-  expect(localStorage.getItem("utaita:access_token")).toBeNull();
-  await waitFor(() =>
-    expect(whenReloaded).toEqual({ revoked: true, token: null }),
-  );
+  expect(whenReloaded).toEqual({ token: null });
+  await waitFor(() => expect(revoked).toBe(true));
 });
