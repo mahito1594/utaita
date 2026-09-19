@@ -51,6 +51,9 @@ export const offersSignIn = (error: ApiError): boolean =>
 export const signInPending = (): boolean =>
   sessionStorage.getItem(STATE_KEY) !== null;
 
+// A refused authorization ends the round-trip without a code to consume.
+export const cancelSignIn = (): void => sessionStorage.removeItem(STATE_KEY);
+
 const redirectUri = (): string => window.location.origin + REDIRECT_PATH;
 
 // Registration happens at most once per origin (ADR-0003); afterwards the

@@ -605,6 +605,18 @@ test("denied authorization comes back as a gate error", async () => {
   ).toBeInTheDocument();
 });
 
+test("a sign-in refused over a stored token is reported, not swallowed", async () => {
+  await signIn();
+  sessionStorage.setItem("utaita:oauth_state", "nonce-2");
+  window.history.replaceState(null, "", "/oauth-callback?error=access_denied");
+  const { findByText } = render(() => <App />);
+
+  expect(
+    await findByText(/authorization refused \(access_denied\)/i),
+  ).toBeInTheDocument();
+  expect(sessionStorage.getItem("utaita:oauth_state")).toBeNull();
+});
+
 test("logout revokes the token, returns to the gate, and reloads the document", async () => {
   await signIn();
   let revoked = false;
