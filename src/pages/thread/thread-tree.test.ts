@@ -336,6 +336,84 @@ describe("buildThread", () => {
     expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
   });
 
+  test("another quote of the quoted post stays out through it", () => {
+    // Every local quote of the same post inherits that post's context, so a
+    // sibling quote arrives too — linked to the subject only through the
+    // quoted post, never directly.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      quoteId: "119999999999999990",
+    });
+    const quoted = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T11:00:00.000Z",
+      acct: "bob",
+    });
+    const replyToQuoted = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T11:30:00.000Z",
+      acct: "carol@fixture.example",
+      inReplyToId: "119999999999999990",
+    });
+    const otherQuote = status({
+      id: "119999999999999992",
+      createdAt: "2026-08-01T11:40:00.000Z",
+      acct: "dave@fixture.example",
+      quoteId: "119999999999999990",
+    });
+    const replyToOtherQuote = status({
+      id: "119999999999999993",
+      createdAt: "2026-08-01T11:50:00.000Z",
+      acct: "bob",
+      inReplyToId: "119999999999999992",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({
+        descendants: [quoted, replyToQuoted, otherQuote, replyToOtherQuote],
+      }),
+    );
+
+    expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
+  });
+
+  test("a quote chain drops a run that only links through a later one", () => {
+    // The subject quotes a reply in a thread whose root quotes an older post:
+    // all three threads share one context. The older post's run comes first
+    // in time but has nothing to link to until the quoted thread is dropped.
+    const subject = status({
+      id: "110000000000000001",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      quoteId: "119999999999999991",
+    });
+    const older = status({
+      id: "119999999999999980",
+      createdAt: "2026-08-01T10:00:00.000Z",
+      acct: "carol@fixture.example",
+    });
+    const quotingOlder = status({
+      id: "119999999999999990",
+      createdAt: "2026-08-01T11:00:00.000Z",
+      acct: "bob",
+      quoteId: "119999999999999980",
+    });
+    const quotedReply = status({
+      id: "119999999999999991",
+      createdAt: "2026-08-01T11:30:00.000Z",
+      acct: "dave@fixture.example",
+      inReplyToId: "119999999999999990",
+    });
+
+    const rows = buildThread(
+      subject,
+      context({ descendants: [older, quotingOlder, quotedReply] }),
+    );
+
+    expect(layout(rows)).toEqual([["110000000000000001", "subject"]]);
+  });
+
   test("a post quoting the subject stays out, together with its replies", () => {
     // The same inheritance seen from the quoted side: opening the quoted post
     // brings the quoting post's thread into the context.

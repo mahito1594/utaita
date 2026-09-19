@@ -224,7 +224,8 @@ const linkedByQuote = (
  * conversation that only shares the context (`linkedByQuote`): it is walked
  * only to mark it placed, so it leaves the view instead of resurfacing in the
  * sweep below. The quote can sit anywhere in the run, not just at its
- * head — a quoted reply drags in its own parent as the root.
+ * head — a quoted reply drags in its own parent as the root. The link is
+ * transitive: a run quoting a dropped run is dropped too.
  */
 const detachedRowsOf = (
   union: readonly Status[],
@@ -250,12 +251,10 @@ const detachedRowsOf = (
   // subject's descendants.
   const connected = new Set(placed);
 
-  const rows: Status[] = [];
+  const runs: Status[][] = [];
   const draw = (head: Status): void => {
     placed.add(head);
-    const run = [head, ...subtreeOf(head, children, placed)];
-    if (run.some((status) => linkedByQuote(status, connected))) return;
-    rows.push(...run);
+    runs.push([head, ...subtreeOf(head, children, placed)]);
   };
 
   for (const root of roots) {
@@ -269,7 +268,20 @@ const detachedRowsOf = (
     if (placed.has(status)) continue;
     draw(status);
   }
-  return rows;
+
+  // Dropping a run can link another one through it, so repeat until nothing
+  // more drops.
+  let kept = runs;
+  for (let dropped = true; dropped; ) {
+    dropped = false;
+    kept = kept.filter((run) => {
+      if (!run.some((status) => linkedByQuote(status, connected))) return true;
+      for (const status of run) connected.add(status);
+      dropped = true;
+      return false;
+    });
+  }
+  return kept.flat();
 };
 
 /**
