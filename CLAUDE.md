@@ -13,7 +13,11 @@ from the instance-served OpenAPI spec and consumed via openapi-fetch.
   pitfalls are listed at the bottom)
 - How we work (phase lifecycle, session ritual): [docs/process.md](docs/process.md)
 - Decisions with lasting consequences: [docs/adr/](docs/adr/)
-- Backlog and phase done conditions: [docs/stories.ja.md](docs/stories.ja.md)
+- Stories (features with acceptance criteria), the Icebox of unassigned
+  stories, and phase done conditions: [docs/stories.ja.md](docs/stories.ja.md)
+- Bugs and story-less debt (a refactor, a missing guard): GitHub issues.
+  They do not need to stay in sync with the code's checkbox state, so they
+  live outside the repository
 - Design tokens rationale and wireframes: [docs/design/](docs/design/)
 
 ## Language convention (edit the right file)

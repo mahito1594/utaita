@@ -195,8 +195,10 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   はページネーションしない** (`status_controller.ex` は likes / announcements の全
   ap_id を `Repo.all` で引き、`add_link_headers` を呼ばない。`emoji_reaction_controller.ex`
   も同様。2026-09-13 に Akkoma ソースで確認)。`limit` / `max_id` は受けず、全件が
-  1 応答で来る。見えない投稿への応答は揃っていない: favourited_by / reblogged_by は
-  **404**、reactions は **403**。`show_reactions: false` のインスタンスでは
+  1 応答で来る。存在するが見えない投稿への応答は揃っていない: favourited_by /
+  reblogged_by は **404**、reactions は **403**。**存在しない id は 3 本とも `200 []`**
+  (`Activity.get_by_id_with_object` が nil で `with` から落ち、`json(conn, [])` に着く。
+  2026-09-19 に匿名 curl と Akkoma ソースで確認)。`show_reactions: false` のインスタンスでは
   favourited_by と reactions が `200 []` (reblogged_by は無条件)。
 - **status に埋め込まれる `emoji_reactions` と `/pleroma/statuses/:id/reactions` は
   形が違う**: 埋め込みは `account_ids` (id の配列) のみ、専用エンドポイントは
