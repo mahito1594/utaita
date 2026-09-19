@@ -11,7 +11,7 @@ hardcoded; any Akkoma instance should be able to install it.
 | --- | --- |
 | [PLAN.md](./PLAN.md) | Phase roadmap, current status, and learning goals per phase |
 | [process.md](./process.md) | Phase lifecycle and session workflow |
-| [stories.md](./stories.md) | User story backlog |
+| [stories.md](./stories.md) | User stories, phase done conditions, and the Icebox (bugs are tracked as GitHub issues) |
 | `*.ja.md` | Japanese sources for PLAN and stories (source of truth; English synced at phase boundaries) |
 | [adr/](./adr/) | Architecture Decision Records |
 | [design/](./design/) | Design token decisions and wireframes |
