@@ -7,8 +7,8 @@ paying for itself, delete it.
 
 ### Kickoff
 
-- [ ] Curate the phase's stories in [stories.md](./stories.md); define the
-      phase's done condition
+- [ ] Curate the phase's stories in [stories.ja.md](./stories.ja.md); define
+      the phase's done condition
 - [ ] Decide which screens need a rough wireframe (only those touched by this
       phase; export to `docs/design/`)
 - [ ] Poke the relevant API endpoints with curl and read the raw JSON before
@@ -23,14 +23,14 @@ paying for itself, delete it.
 
 ### Wrap-up
 
-- [ ] Check the phase's done condition against stories.md
+- [ ] Check the phase's done condition against stories.ja.md
 - [ ] Retrospective: what worked, what to change in this file
 - [ ] Promote decisions worth keeping into ADRs
 - [ ] Sync `.ja.md` sources to their English `.md` counterparts
 - [ ] Check that the root `CLAUDE.md` still matches reality (commands, docs
       pointers, agreements)
 - [ ] Write up learnings as a blog post (link indexed privately, not in-repo)
-- [ ] Update the current-status section of [PLAN.md](./PLAN.md)
+- [ ] Update the current-status section of [PLAN.ja.md](./PLAN.ja.md)
 
 ## Working agreements
 
@@ -56,7 +56,7 @@ is recorded.
 | --- | --- | --- |
 | Decisions with lasting consequences | [adr/](./adr/) | Testing strategy: happy-dom + MSW (ADR-0009) |
 | Standing rules agents follow every session | root `CLAUDE.md` | "Mock only at the HTTP boundary"; semantic-tokens-only rule |
-| Stories, acceptance criteria, Icebox | [stories.md](./stories.md) | Phase done conditions |
+| Stories, acceptance criteria, Icebox | [stories.ja.md](./stories.ja.md) | Phase done conditions |
 | Bugs and story-less debt | GitHub issues | A blank page on an unmatched route |
 | Design tokens and wireframes | [design/](./design/) | Light-only token rationale |
 | Rationale for a specific change | Commit message | Why a workaround was chosen |
