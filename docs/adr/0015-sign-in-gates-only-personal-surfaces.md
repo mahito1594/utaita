@@ -1,6 +1,6 @@
-# 0015: Sign-in gates only the personal surfaces; visibility is the server's call
+# 0015: Sign-in gates only the feeds; visibility is the server's call
 
-- Status: draft
+- Status: accepted (2026-09-19, after the checks on the reference instance)
 - Date: 2026-09-16
 
 ## Context
@@ -29,12 +29,18 @@ with a blanket 403 and the page falls into the existing sign-in branch.
 
 ## Decision
 
-- **The sign-in gate wraps only the personal surfaces**: the timeline routes
-  (`/`, `/local`, `/bubble`, `/federated`). Shareable URLs — threads, the
-  who-lists under them, and profiles — render for anonymous visitors and
-  fetch anonymously. "Anonymously" rests on the API client sending no
-  cookies (`credentials: "omit"`): Akkoma also authenticates a header-less
-  request by the session cookie it set from an earlier Bearer token.
+- **The sign-in gate wraps only the feeds**: the timeline routes (`/`,
+  `/local`, `/bubble`, `/federated`). The dividing line is what a reader
+  would hand to someone else: a URL that names a post or a person — a
+  thread, the who-lists under it, a profile — is shareable and renders for
+  anonymous visitors, fetching anonymously. A feed is not; `/local` and
+  `/federated` stay behind the gate even though the server would serve them
+  (see "Not included" below). "Anonymously" rests on the API client sending
+  no cookies (`credentials: "omit"`): Akkoma also authenticates a
+  header-less request by the session cookie it set from an earlier Bearer
+  token. The OAuth form posts (`/oauth/token`, `/oauth/revoke`) are the one
+  exception and keep sending cookies: `/oauth/revoke` drops the server-side
+  session only when the cookie's token matches the one being revoked.
 - **Visibility is decided by the server's answer, not by the client.** The
   pages do not inspect `visibility`, `restrict_unauthenticated`, or the
   instance's `public` flag. A 401 or 403 is a sign-in prompt; a 404 while
@@ -48,8 +54,9 @@ with a blanket 403 and the page falls into the existing sign-in branch.
   so would whatever they fetched with the token — a followers-only thread, a
   locked account's posts. Clearing each cache by hand has to be remembered
   for every future one; a reload of the current URL drops them all and
-  re-fetches the page anonymously. The header's button does the reload;
-  `logout()` itself only clears the session.
+  re-fetches the page anonymously. `logout()` clears the local session first
+  and sends the revoke with `keepalive`, best effort; the header's button
+  then reloads without waiting for the answer.
 - **A sign-in this tab started wins over a token already stored.** The
   callback exchanges the `code` whenever this tab holds the pending `state`,
   even if a token is present, because that token may be the expired one the
@@ -64,8 +71,8 @@ with a blanket 403 and the page falls into the existing sign-in branch.
 
 ## Consequences
 
-- Every new route must decide which side of the gate it belongs on. The
-  test is whether the URL is something a reader would hand to someone else.
+- Every new route must decide which side of the gate it belongs on, by the
+  dividing line above: a post or a person is outside, a feed is inside.
 - Anonymous requests to endpoints that need a user (`verify_credentials`,
   `/accounts/relationships`) answer 403; nothing in the read paths calls
   them, and a future write path must not be reached from an ungated page

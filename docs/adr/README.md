@@ -36,4 +36,4 @@ Template:
 | [0012](./0012-enforce-boundaries-with-dependency-cruiser.md) | Enforce directory boundaries with dependency-cruiser |
 | [0013](./0013-dompurify-html-pipeline.md) | Sanitize status HTML with DOMPurify in a fragment pipeline |
 | [0014](./0014-thread-view.md) | Thread view — one subject, no indentation, arrival-aware scrolling |
-| [0015](./0015-sign-in-gates-only-personal-surfaces.md) | Sign-in gates only the personal surfaces; visibility is the server's call (draft) |
+| [0015](./0015-sign-in-gates-only-personal-surfaces.md) | Sign-in gates only the feeds; visibility is the server's call (draft) |
