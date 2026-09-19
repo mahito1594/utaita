@@ -24,12 +24,14 @@ const parseTokenResponse = (body: unknown): TokenResponse | undefined =>
 const postForm = async (
   path: string,
   fields: Record<string, string>,
+  keepalive = false,
 ): Promise<Result<unknown, ApiError>> => {
   try {
     const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(fields),
+      keepalive,
     });
     const body: unknown = await response.json().catch(() => undefined);
     return response.ok
@@ -70,10 +72,16 @@ export const revokeToken = async (params: {
   clientSecret: string;
   token: string;
 }): Promise<Result<void, ApiError>> => {
-  const result = await postForm("/oauth/revoke", {
-    client_id: params.clientId,
-    client_secret: params.clientSecret,
-    token: params.token,
-  });
+  // keepalive: the logout reload does not wait for the answer, and the
+  // request has to outlive the document that sent it.
+  const result = await postForm(
+    "/oauth/revoke",
+    {
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      token: params.token,
+    },
+    true,
+  );
   return result.ok ? ok(undefined) : result;
 };
