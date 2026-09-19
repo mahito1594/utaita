@@ -422,6 +422,13 @@ test("each reaction group's band is a level 3 heading saying how many people rea
   expect(
     within(party).getByRole("heading", { level: 3, name: /2 people/ }),
   ).toBeInTheDocument();
+  // The chip's bare number is not read a second time.
+  expect(
+    within(party).getByRole("heading", {
+      level: 3,
+      name: `${partyGroup.name}, 2 people`,
+    }),
+  ).toBeInTheDocument();
 
   const blobcat = await findByRole("region", { name: blobcatGroup.name });
   expect(

@@ -231,6 +231,9 @@ const groupCount = css({ fontSize: "xs", color: "text.muted" });
  * returns the groups already assembled, accounts included (who-lists-api.ts),
  * so the whole tab is one request and, like its siblings, one page.
  */
+const peopleOf = (count: number): string =>
+  count === 1 ? "1 person" : `${count} people`;
+
 export const ReactionsList = () => {
   const params = useParams<{ id: string }>();
 
@@ -300,12 +303,14 @@ export const ReactionsList = () => {
           // the next — the chip drawing it is an image for a custom emoji.
           <section aria-label={group.name}>
             {/* A heading, so the groups can be jumped between; preflight
-                resets its font-size, weight and margin, so it needs no type. */}
-            <h3 class={groupHeading}>
+                resets its font-size, weight and margin, so it needs no type.
+                Named outright, or the chip's own count would read twice. */}
+            <h3
+              class={groupHeading}
+              aria-label={`${group.name}, ${peopleOf(group.count)}`}
+            >
               <ReactionChip reaction={group} />
-              <span class={groupCount}>
-                {group.count === 1 ? "1 person" : `${group.count} people`}
-              </span>
+              <span class={groupCount}>{peopleOf(group.count)}</span>
             </h3>
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
             <ol class={accountList} role="list">
