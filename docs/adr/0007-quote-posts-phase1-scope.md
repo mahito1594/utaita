@@ -1,4 +1,4 @@
-# 0007: Whether quote posts are in the Phase 1 status card scope
+# 0007: Quote posts are in the Phase 1 card scope, rendered at depth 1
 
 - Status: accepted
 - Date: 2026-07-13 (drafted 2026-07-05, deferred at the 2026-07-07 kickoff)
@@ -56,7 +56,6 @@ the depth-1 cut, and measurement showed the implementation cost is small
 ## References
 
 - Wireframe: [status-card-20260705.html](../design/status-card-20260705.html)
-- Measurement: a real quote post on the reference instance (2026-07-13
-  session discussion)
+- Measurement: a real quote post on the reference instance (2026-07-13)
 - ADR-0011 (unresolvable references get a secondary external link)
 - ADR-0013 (HTML pipeline that implements the stripping)
