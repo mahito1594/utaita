@@ -33,7 +33,7 @@ regeneration script so the spec version is explicit and reviewable.
 
 ## Amendment (2026-07-05)
 
-Two refinements from Phase 0 session A:
+Two refinements from building the Phase 0 client:
 
 - The generated types (`src/api/schema.d.ts`) are committed alongside
   `openapi.json`. Being in the same commit is what guarantees spec and types

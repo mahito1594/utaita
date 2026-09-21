@@ -46,16 +46,17 @@ timeline performance ever demands it.
 
 ## Note (2026-07-05)
 
-"createResource plus a Solid store" above is mechanism detail, not the
-decision's essence (no solid-query; hand-rolled accumulation; query for
-entity fetches). With errors now flowing as Result values all the way to
-components (ADR-0008 amendment), createResource's throw-based Suspense
-integration buys little — a plain async function feeding a store, with a
-hand-rolled loading signal, may fit better. Re-decide the mechanism at
-Phase 1 kickoff, in front of the real requirements (scroll retention,
-CW toggling without scroll jumps, prepending new statuses).
+The "createResource plus a Solid store" sentence in the Decision is
+mechanism detail, not the decision's essence (no solid-query; hand-rolled
+accumulation; query for entity fetches). With errors now flowing as Result
+values all the way to components (ADR-0008 amendment), createResource's
+throw-based Suspense integration buys little — a plain async function
+feeding a store, with a hand-rolled loading signal, may fit better.
+Re-decide the mechanism at Phase 1 kickoff, in front of the real
+requirements (scroll retention, CW toggling without scroll jumps, prepending
+new statuses).
 
-## Amendment (2026-07-19): the mechanism, re-decided at Phase 1 session 3
+## Amendment (2026-07-19): the mechanism, re-decided with the home timeline
 
 The Note's homework is done; the home timeline is implemented
 (`src/pages/timeline/`) on the following mechanism, which supersedes the
@@ -94,9 +95,10 @@ the Phase 2 exit line.
 ## Amendment (2026-08-09): retention across a detail-route excursion
 
 The thread view (`/statuses/:id`) makes leaving the timeline route the most
-common navigation in the app. The previous amendment's third bullet is now
-false in both of its claims and is superseded here; the fourth bullet
-(browser scroll anchoring) stands, joined by a second mechanism.
+common navigation in the app. The 2026-07-19 amendment's third bullet
+("Component-scoped store, no route `preload`") is now false in both of its
+claims and is superseded here; its fourth bullet ("Scroll position is
+delegated to browser scroll anchoring") stands, joined by a second mechanism.
 
 - **The store is still created per page; what outlives the page is a
   snapshot.** A pathless layout route (`TimelineRetention`) below the auth
