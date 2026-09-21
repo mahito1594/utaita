@@ -23,24 +23,27 @@ The dev server proxies `/api`, `/oauth`, and `/nodeinfo` to
 same-origin. If `DEV_ACCESS_TOKEN` is set, the proxy injects it server-side
 as an `Authorization` header; the token never reaches the browser
 ([ADR-0006](./docs/adr/0006-dev-token-injection.md)). Leave it unset to
-exercise the unauthenticated (401) paths.
+exercise the unauthenticated paths (401 or 403 — it differs per endpoint;
+see the Akkoma pitfalls in [docs/PLAN.md](./docs/PLAN.md)).
 
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Dev server with the instance proxy |
-| `pnpm build` | Typecheck + production build |
-| `pnpm check` / `pnpm check:fix` | Biome lint + format |
-| `pnpm check:deps` | dependency-cruiser: module-graph layer boundaries ([ADR-0012](./docs/adr/0012-enforce-boundaries-with-dependency-cruiser.md)) |
-| `pnpm check:licenses` | Fail on production dependencies outside the permissive license allowlist |
-| `pnpm typecheck` | TypeScript only |
-| `pnpm test` / `pnpm test:watch` | Vitest ([ADR-0009](./docs/adr/0009-testing-strategy.md)) |
-| `pnpm api:spec` | Refetch `openapi.json` from `DEV_INSTANCE_URL` |
-| `pnpm api:types` | Regenerate `src/api/schema.d.ts` from `openapi.json` |
+| `pnpm test` | Run the test suite |
+| `pnpm check` | Everything CI checks: Biome, TypeScript, module boundaries, licenses |
+| `pnpm check:lint:fix` | Apply Biome's formatting and lint fixes |
+| `pnpm build` | Production build |
 
-Both `openapi.json` and the generated types are committed; regenerate them
-together so API changes show up as one reviewable diff.
+`pnpm check && pnpm test && pnpm build` is exactly what CI runs, so green
+locally is green there. `package.json` holds the rest — each part of `check`
+on its own, `test:watch`, `preview`.
+
+When the Akkoma API changes, `pnpm api:spec` refetches `openapi.json` from
+`DEV_INSTANCE_URL` and `pnpm api:types` regenerates `src/api/schema.d.ts`
+from it. Both files are committed; regenerate them together so API changes
+show up as one reviewable diff.
 
 ## Documentation
 

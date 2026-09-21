@@ -38,9 +38,7 @@ jobs:
       # styled-system output.
       - run: pnpm install --frozen-lockfile
 
+      # check is the umbrella: Biome, TypeScript, module boundaries, licenses.
       - run: pnpm check
-      - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm check:deps
-      - run: pnpm check:licenses
       - run: pnpm build
