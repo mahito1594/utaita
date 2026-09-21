@@ -63,9 +63,9 @@ failure shapes — HTTP errors as values, network failures as exceptions — int
 
 ## Amendment (2026-07-05): how the UI consumes error values
 
-Session B forced the question this ADR left open: solid-router's documented
-idiom is throw-plus-ErrorBoundary, which collides with errors-as-values.
-Resolved as a role split:
+Wiring `createAsync` to the wrapper forced the question this ADR left open:
+solid-router's documented idiom is throw-plus-ErrorBoundary, which collides
+with errors-as-values. Resolved as a role split:
 
 - **Suspense means loading, Result means failure.** `createAsync` may
   suspend while a query resolves, but the resolved value is always

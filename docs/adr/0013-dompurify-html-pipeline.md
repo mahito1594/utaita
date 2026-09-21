@@ -18,15 +18,15 @@ card is rendered (ADR-0007), and mentions must navigate in-app (ADR-0011).
 Alternatives considered and rejected:
 
 - **Browser Sanitizer API (`Element.setHTML`)**: in the WHATWG spec and
-  shipped in Chrome ~145+ / Firefox 148+, but Safari has not started
+  shipped in Chrome 146+ / Firefox 148+, but Safari has not started
   implementing it (support statement only, 2023) and it is explicitly not
   Baseline. The dogfooding target includes mobile WebKit, and happy-dom
   tests would need a JS implementation anyway.
 - **Elk-style AST pipeline** (parse to an AST, emit router-aware
   components): cleaner for hover cards and rich link components, but it adds
   a parser dependency and a second rendering path for content that is static
-  per status. YAGNI; the fragment approach below can migrate to it if those
-  features ever materialize.
+  per status. YAGNI; the fragment pipeline in the Decision can migrate to it
+  if those features ever materialize.
 - **Hand-written ALLOWED_TAGS allowlist**: rejected because the story's
   acceptance criterion is rendering basic tags (`<small>`, `<sub>`, `<ruby>`,
   …) that pleroma-fe drops; an enumerated allowlist silently loses whatever
@@ -86,7 +86,9 @@ leaf utility, not an architectural direction.
 
 - ADR-0007 (quote scope; defines when `quote-inline` is stripped)
 - ADR-0011 (mentions navigate in-app; external links open in new tabs)
-- Survey of pleroma-fe / Elk / Phanpy content pipelines and Sanitizer API
-  browser status (2026-07-13 session discussion)
+- The content pipelines of pleroma-fe, Elk and Phanpy, read from their
+  public repositories (2026-07-13)
+- Sanitizer API support data: caniuse `mdn-api_element_sethtml` (checked
+  2026-07-13)
 - Measurement: custom emoji arrive unreplaced in `content` (verified against
   the reference instance, 2026-07-13)

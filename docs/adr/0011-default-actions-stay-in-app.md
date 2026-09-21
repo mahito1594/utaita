@@ -33,24 +33,20 @@ navigation happens only through affordances explicitly marked as external
 ## Consequences
 
 - The thread view depends on an authenticated resolve call, so it can only
-  be built after OAuth login (Phase 1 session 1).
+  be built after OAuth login.
 - Whether Akkoma's resolve backfills a whole ancestor chain or one status
   per call is unverified; measure at implementation time and iterate the
   resolve if needed.
 - Quote posts are unaffected: the quoted status arrives structurally in the
   `quote` field, so rendering it in-app needs no URL handling (ADR-0007).
 
-## References
-
-- Kickoff discussion, 2026-07-07 (outcome recorded here and in
-  [stories.ja.md](../stories.ja.md))
-
 ## Amendment (2026-08-09): ingesting a parent is an action, not a rendering
 
-Built at Phase 1 session 7 ([ADR-0014](./0014-thread-view.md)). The intent —
-a default tap never sends the reader out of the app — is unchanged. The first
-bullet of the Decision above described a Phase 1 shape that measurement has
-overturned, and is superseded here.
+Built with the thread view ([ADR-0014](./0014-thread-view.md)). The intent —
+a default tap never sends the reader out of the app — is unchanged. The
+Decision's first bullet (an unfetched thread parent is resolved on the way to
+rendering it) described a Phase 1 shape that measurement has overturned, and
+is superseded here.
 
 - **The placeholder appears whenever the parent is un-ingested, not only when
   resolution fails.** Resolution no longer happens on the way to the
@@ -74,3 +70,10 @@ overturned, and is superseded here.
   discover that an escape hatch exists.
 - Unchanged: mentions go to the in-app profile, plain body URLs remain
   ordinary external links, and quote posts need no URL handling.
+
+## References
+
+- The thread story in [stories.ja.md](../stories.ja.md) — explicitly
+  ingesting an unfetched parent, and never losing the reading context
+- `do_search` in Akkoma's `lib/pleroma/search/database_search.ex` (the full-text
+  fallback that makes an automatic resolve unsafe)

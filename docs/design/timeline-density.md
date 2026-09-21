@@ -1,8 +1,8 @@
 # Timeline density — full-bleed rows over per-status cards
 
-Decided 2026-08-11, from the first dogfooding round (findings 4, 5, and 7:
+Decided 2026-08-11, from three findings of the first dogfooding round:
 statuses feel stretched out on mobile, the horizontal padding question, and
-the thread view looking right-shifted). Supersedes the card treatment in the
+the thread view looking right-shifted. Supersedes the card treatment in the
 2026-07-05 wireframes (`status-card-20260705.html`, `app-shell-20260705.html`).
 
 ## Decision

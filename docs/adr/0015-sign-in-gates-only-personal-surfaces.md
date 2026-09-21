@@ -8,8 +8,10 @@
 Until this record, every route sat under one login gate: an unauthenticated
 visit to any URL rendered the login screen in place (App.tsx, `AuthGate`).
 The gate was never decided; it was the shape the OAuth session
-(ADR-0003) left behind, and the deep-link return leg (stories, 2026-08-09)
-was built on top of it so that a shared thread URL survived a sign-in.
+(ADR-0003) left behind, and the deep-link return leg (the sign-in story in
+[stories.ja.md](../stories.ja.md): the URL you opened before signing in
+survives it) was built on top of it so that a shared thread URL survived a
+sign-in.
 
 Running the frontend on the reference instance made the cost visible: a
 thread or profile link shared with someone who has no account on the
@@ -35,12 +37,13 @@ with a blanket 403 and the page falls into the existing sign-in branch.
   thread, the who-lists under it, a profile — is shareable and renders for
   anonymous visitors, fetching anonymously. A feed is not; `/local` and
   `/federated` stay behind the gate even though the server would serve them
-  (see "Not included" below). "Anonymously" rests on the API client sending
-  no cookies (`credentials: "omit"`): Akkoma also authenticates a
-  header-less request by the session cookie it set from an earlier Bearer
-  token. The OAuth form posts (`/oauth/token`, `/oauth/revoke`) are the one
-  exception and keep sending cookies: `/oauth/revoke` drops the server-side
-  session only when the cookie's token matches the one being revoked.
+  (see this Decision's "Not included" bullet). "Anonymously" rests on the
+  API client sending no cookies (`credentials: "omit"`): Akkoma also
+  authenticates a header-less request by the session cookie it set from an
+  earlier Bearer token. The OAuth form posts (`/oauth/token`,
+  `/oauth/revoke`) are the one exception and keep sending cookies:
+  `/oauth/revoke` drops the server-side session only when the cookie's
+  token matches the one being revoked.
 - **Visibility is decided by the server's answer, not by the client.** The
   pages do not inspect `visibility`, `restrict_unauthenticated`, or the
   instance's `public` flag. A 401 or 403 is a sign-in prompt; a 404 while
@@ -72,7 +75,7 @@ with a blanket 403 and the page falls into the existing sign-in branch.
 ## Consequences
 
 - Every new route must decide which side of the gate it belongs on, by the
-  dividing line above: a post or a person is outside, a feed is inside.
+  Decision's dividing line: a post or a person is outside, a feed is inside.
 - Anonymous requests to endpoints that need a user (`verify_credentials`,
   `/accounts/relationships`) answer 403; nothing in the read paths calls
   them, and a future write path must not be reached from an ungated page

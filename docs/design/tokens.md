@@ -29,7 +29,8 @@ second color face costs more than it returns. Consequences:
   values are written.
 - `globalCss` declares `color-scheme: light` so native widgets (form controls,
   scrollbars) stay light even when the OS prefers dark.
-- The Phase 1 "theme toggle" story was dropped (stories.md).
+- No phase carries a theme-toggle story; light-only is the product decision,
+  not a deferral.
 
 ## Contrast verification (WCAG 2.x relative luminance)
 
