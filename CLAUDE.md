@@ -56,7 +56,6 @@ The "why" behind existing ADRs; apply these when weighing new choices:
 
 Only the ones with a gotcha; the rest are ordinary `package.json` scripts.
 
-- `pnpm check:deps` — dependency-cruiser (module-graph layer boundaries)
 - `pnpm test` / `pnpm test:watch` — Vitest (401 noise in the output is a known
   by-product of failure-path tests; `Tests N passed` + exit 0 means green)
 
