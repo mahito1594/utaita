@@ -23,35 +23,16 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 - [x] 調査: 先行事例 (Elk, Phanpy, Soapbox, pleroma-fe) と SolidJS エコシステム
 - [x] リファレンスインスタンスの spec で型生成を検証 (173 paths, 79 schemas)
 - [x] Phase 0 完了 (2026-07-06)
-- [x] Phase 1 キックオフ (2026-07-07) — Done 条件とストーリーは
-      [stories.ja.md](./stories.ja.md)、ワイヤー対象はログイン/未認証・会話ツリー・
-      プロフィール・通知の 4 画面 (各セッション冒頭に just-in-time で描く)
-- [x] Phase 1 セッション 1 (OAuth ログイン) 完了 (2026-07-12。ストーリーのチェックは
-      スマホ実機確認待ち)
-- [x] Phase 1 セッション 2 (Status カード) 完了 (2026-07-13。引用スコープは
-      ADR-0007、サニタイズ/HTML パイプラインは ADR-0013。ストーリーのチェックは
-      スマホ実機確認待ち)
-- [x] Phase 1 セッション 4 (home タイムライン: 無限スクロール + gap-aware
-      手動更新) 完了 (2026-08-07, PR #4)
-- [x] Phase 1 セッション 6 (タイムライン切替: local / bubble / federated、
-      パスベースルート + タブ) 完了 (2026-08-08。ストーリーのチェックは
-      スマホ実機確認待ち)
-- [x] Phase 1 セッション 7 (スレッド表示 + 読み位置の保持 + サインイン復帰) 完了
-      (2026-08-09。会話ツリーは [ADR-0014](./adr/0014-thread-view.md)、未取得親の
-      明示的な取り込みは ADR-0011 amendment、詳細ルートへの往復での保持は
-      ADR-0004 amendment。ストーリーのチェックはスマホ実機確認待ち)
-- [ ] Phase 1 進行中 (ストーリーの実装は 2026-09-13 に出揃った — プロフィールの
-      pinned 表示と「誰が」一覧が最後。残りは dogfooding とスマホ実機確認。通知は
-      2026-09-13 に Phase 2 へ — 既読管理が write scope を要するため。
-      根拠は [stories.ja.md](./stories.ja.md) の Phase 2 冒頭)
-      - PC dogfooding は 2026-09-14 に開始 (local dev server)。指摘の修正は
-        stories.ja.md の各ストーリーに記録
-      - **Phase 3 の最小スライスを Phase 1 の締めに前倒し** (2026-09-14 決定):
-        Done 条件の「スマホ実機」と「pleroma-fe を開かずに 1 日」は localhost では
-        測れず、[ADR-0005](./adr/0005-deployment.md) も dogfooding を本番で行う前提。
-        `pnpm build` → `frontends/utaita/<ref>` レイアウトの zip → リファレンス
-        インスタンスへ手動インストール → 自分の `preferred_frontend` 切替、まで。
-        CI とリリース自動化は Phase 3 に残す
+- [x] Phase 1 完了 (2026-09-21)。Done 条件とストーリーは
+      [stories.ja.md](./stories.ja.md)。通知は Phase 2 へ移した — 既読管理が
+      write scope を要するため (根拠は stories.ja.md の Phase 2 冒頭)。決定は
+      ADR-0007 / 0011 / 0013 / 0014 / 0015 と ADR-0004 amendment。Phase 3 の
+      最小スライス (`pnpm build` → `frontends/utaita/<ref>` レイアウトの zip →
+      リファレンスインスタンスへ手動インストール → 自分の `preferred_frontend`
+      切替) を Phase 1 の締めに前倒しし、Done 条件の「スマホ実機」と「pleroma-fe
+      を開かずに 1 日」は本番で測った。CI とリリース自動化は Phase 3 に残る
+- [ ] Phase 2 kickoff。前に一回きりの見直しを置く: 機械的 audit (knip / jscpd /
+      cccc) → アーキテクチャレビュー。見つかったものは issue へ
 
 ## Phase 0 — 基盤
 
@@ -76,14 +57,16 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 
 書き込みより先に「毎日開くクライアント」にする。
 
-- [ ] OAuth ログイン (動的アプリ登録、[ADR-0003](./adr/0003-oauth.md)) とセッション管理
-- [ ] タイムライン: home / local / bubble (Akkoma 独自) / federated、
+- [x] OAuth ログイン (動的アプリ登録、[ADR-0003](./adr/0003-oauth.md)) とセッション管理。
+      サインインの門はタイムラインだけで、共有リンクは匿名で読める
+      ([ADR-0015](./adr/0015-sign-in-gates-only-personal-surfaces.md))
+- [x] タイムライン: home / local / bubble (Akkoma 独自) / federated、
       無限スクロールと新着の手動更新付き
-- [ ] Status カード: サニタイズ済み HTML 本文、カスタム絵文字、添付メディア、
+- [x] Status カード: サニタイズ済み HTML 本文、カスタム絵文字、添付メディア、
       CW/sensitive、絵文字リアクション表示、ブースト表示、投票・リンクプレビューの閲覧
-- [ ] スレッド (会話ツリー) 表示 ([ADR-0014](./adr/0014-thread-view.md)。未取得の親は
+- [x] スレッド (会話ツリー) 表示 ([ADR-0014](./adr/0014-thread-view.md)。未取得の親は
       自動 resolve ではなく明示的な取り込み操作で — ADR-0011 amendment)
-- [ ] プロフィールページ (ヘッダ、投稿/返信/メディアのタブ、フォロー関係の表示)
+- [x] プロフィールページ (ヘッダ、投稿/返信/メディアのタブ、フォロー関係の表示)
 
 学びの目標: OAuth2 authorization code フローの手実装。カーソルページネーション
 (`max_id`/`min_id`、Link ヘッダ、辞書順ソート可能な 128bit ID)。API レスポンスと
@@ -96,7 +79,7 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 
 - [ ] 通知 (既読管理込み。`pleroma:emoji_reaction`, `move` など未知の type で
       落ちない。トークン scope を `read write` に広げた直後に着手 — 既読を付ける
-      API がすべて write scope のため。2026-09-13 に Phase 1 から移動)
+      API がすべて write scope のため。Phase 1 から移動)
 - [ ] Compose: テキスト、CW、公開範囲 (Akkoma の `local` 含む)、カスタム絵文字補完
 - [ ] alt text 付きメディアアップロード (見た目より重いので独立タスク)
 - [ ] ファボ / ブースト / ブックマーク / 絵文字リアクション
