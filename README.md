@@ -32,7 +32,10 @@ exercise the unauthenticated (401) paths.
 | `pnpm dev` | Dev server with the instance proxy |
 | `pnpm build` | Typecheck + production build |
 | `pnpm check` / `pnpm check:fix` | Biome lint + format |
+| `pnpm check:deps` | dependency-cruiser: module-graph layer boundaries ([ADR-0012](./docs/adr/0012-enforce-boundaries-with-dependency-cruiser.md)) |
+| `pnpm check:licenses` | Fail on production dependencies outside the permissive license allowlist |
 | `pnpm typecheck` | TypeScript only |
+| `pnpm test` / `pnpm test:watch` | Vitest ([ADR-0009](./docs/adr/0009-testing-strategy.md)) |
 | `pnpm api:spec` | Refetch `openapi.json` from `DEV_INSTANCE_URL` |
 | `pnpm api:types` | Regenerate `src/api/schema.d.ts` from `openapi.json` |
 
@@ -42,6 +45,7 @@ together so API changes show up as one reviewable diff.
 ## Documentation
 
 - Roadmap and phase status: [docs/PLAN.md](./docs/PLAN.md)
+- User stories, phase done conditions, and the Icebox: [docs/stories.md](./docs/stories.md)
 - Decisions with lasting consequences: [docs/adr/](./docs/adr/)
 - How we work: [docs/process.md](./docs/process.md)
 
