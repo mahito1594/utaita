@@ -79,7 +79,15 @@ tone but clearly not amaranth:
   overridden until a real screen demands it.
 - Font is the `sans` preset stack (system-ui). Static-file distribution means
   no webfont hosting, and Japanese text falls to system fonts anyway.
-- Semantic token set is intentionally minimal (`bg.canvas/surface/subtle`,
+- Semantic token set is intentionally minimal
+  (`bg.canvas/surface/subtle/backdrop`,
   `text.default/muted/brand/onAccent`, `accent.default/hover`,
   `border.default`, `error.default/subtle`); new names are added when a
   consumer demands them, per the rule of three.
+- `bg.backdrop` (`rgba(28, 16, 19, 0.92)`) is the media-overlay scrim: a
+  near-black pulled toward the chocolate-cosmos hue so a full-screen image
+  sits on the palette rather than on neutral grey. It is the one semantic
+  token holding a literal rather than referencing an anchor — the alpha is
+  part of the value and no anchor carries one. Contrast is not checked
+  because nothing is read against it; the scrim only separates the image
+  from the page.

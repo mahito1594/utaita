@@ -54,8 +54,7 @@ export default defineConfig({
             canvas: { value: "{colors.cream.50}" },
             surface: { value: "{colors.white}" },
             subtle: { value: "{colors.cream.100}" },
-            // Media-overlay scrim: near-black warmed toward the brand hue so
-            // the lightbox stays in the palette (docs/design/tokens.md).
+            // Media-overlay scrim; rationale in docs/design/tokens.md.
             backdrop: { value: "rgba(28, 16, 19, 0.92)" },
           },
           text: {
