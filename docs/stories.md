@@ -280,10 +280,48 @@ condition.
     Phase 1 was rejected — the row and the store would be designed twice,
     the second time around read tracking. Start right after the token scope
     changes (`read` → `read write`; see the login screen story)
+  - Design that comes with the scope change: store the token response's
+    `scope` next to the token, and treat a token with no recorded scope as a
+    Phase 1 read token — revoke it and send the reader back through
+    authorization (the server cannot be asked: `apps/verify_credentials` does
+    not return the scope). Akkoma's authorize screen lets the user untick
+    scopes, so "signed in but read-only" is a standing state rather than a
+    migration one, and a 403 for a missing scope (`Insufficient permissions`)
+    gets a message of its own, distinct from "sign-in required". ADR-0003's
+    "Phase 2 costs exactly one re-authorization prompt" holds on Akkoma only
+    in this form
+  - The list grows at the front (new items plus gaps from missed pages), so
+    it needs the timeline's segment model. That model is fixed to `Status`
+    and lives in `pages/timeline`; this story is its third cursor store
+    (rule of three), so parameterize the item type and move it to
+    `entities/`. Keep the read state in a signal of its own rather than
+    writing it back into the list items (writing back rebuilds every row).
+    Notification ids are integer sequences, so compare the read boundary
+    numerically (PLAN, Akkoma pitfalls)
 - [ ] I can write a post with CW and visibility (including `local`), with
       custom emoji autocomplete.
+  - Compose needs the session and, from `entities/status`, the Emoji type,
+    `EmojiText` and the visibility icons. Decide where it lives together with
+    the ban on imports between entities (`no-entity-sideways`) — the same wall
+    as the session note under the reaction story
 - [ ] I can attach images with alt text and see upload progress.
+  - Upload progress is not available from fetch; it takes XHR. The auth
+    header is attached only in the openapi-fetch middleware
+    (`src/api/client.ts`), so extract a function that returns the header
+    value and call it from both the middleware and the XHR. Fold the XHR
+    result into a Result the same way `src/api/oauth.ts` folds its form POST
 - [ ] I can favourite, boost, bookmark and emoji-react from the timeline.
+  - The same status is held in five places (timeline segments, cursor list,
+    the pinned query, the thread query, retention snapshots) as separate
+    objects, with no path to update one item. Whether that becomes a
+    canonical store or an overlay of the viewer's own flags is decided in
+    ADR-0016 (draft) before the story starts
+  - `ActionBar` (`entities/status`) cannot read the session
+    (`no-entity-sideways`). Either pass "may write" down as a prop, or lower
+    the session's facts (whether a token exists and which scopes it carries)
+    into plain functions in `src/api/token-store.ts`. The session never
+    changes within a page (login leaves through `location.assign`, logout
+    reloads), so a non-reactive read is enough from entities
 - [ ] I can follow / unfollow from a profile and see the pending state for
       locked accounts.
 - [ ] I can search for accounts, hashtags and posts.
