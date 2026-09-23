@@ -287,3 +287,8 @@ Learning goals: realtime over Phoenix-backed WebSockets; offline-first storage.
   `/context` answers a blanket 403 regardless of visibility (`show` still
   works). Measured 2026-09-16 on ringed.space. The frontend does not hide
   anything based on visibility; it follows the response (ADR-0015).
+- **Notification ids are integer sequences, not flake ids** (the default
+  primary key of the `notifications` table, stringified by
+  `notification_view.ex`). "Lexical order is chronological order" is a
+  property of status flake ids; compare a notification read boundary
+  numerically.
