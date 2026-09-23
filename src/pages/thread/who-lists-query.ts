@@ -16,8 +16,8 @@ import {
  * failed list is cached like any other answer, and retrying is
  * `revalidate(...keyFor(id))` rather than calling again.
  */
-export const favouritedByQuery = query(fetchFavouritedBy, "who-favourites");
-export const rebloggedByQuery = query(fetchRebloggedBy, "who-boosts");
+const favouritedByQuery = query(fetchFavouritedBy, "who-favourites");
+const rebloggedByQuery = query(fetchRebloggedBy, "who-boosts");
 export const reactionsQuery = query(fetchReactions, "who-reactions");
 
 /** The cached fetch behind a list, and the `keyFor` a Retry revalidates. */
