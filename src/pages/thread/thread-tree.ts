@@ -7,7 +7,7 @@ import type { ThreadContext } from "./thread-api";
 const UNFETCHED_PARENT = "_";
 
 /** What a row replies to, as far as the fetched conversation can tell. */
-export type ReplyTarget =
+type ReplyTarget =
   | { readonly kind: "root" }
   | { readonly kind: "status"; readonly status: Status }
   /**
@@ -24,7 +24,7 @@ export type ReplyTarget =
  * `detached` is the honest answer for a status the conversation contains but
  * cannot be connected to the subject.
  */
-export type ThreadPlace = "ancestor" | "subject" | "descendant" | "detached";
+type ThreadPlace = "ancestor" | "subject" | "descendant" | "detached";
 
 export type ThreadRow = {
   readonly status: Status;

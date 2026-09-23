@@ -8,7 +8,7 @@ export const REDIRECT_PATH = "/oauth-callback";
 // by itself), request tokens with only what the current phase uses — the
 // read-only MVP asks for `read` (ADR-0003).
 export const REGISTRATION_SCOPES = "read write follow push";
-export const TOKEN_SCOPE = "read";
+const TOKEN_SCOPE = "read";
 
 export const buildAuthorizeUrl = (params: {
   clientId: string;
