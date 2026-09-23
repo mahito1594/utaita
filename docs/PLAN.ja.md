@@ -241,3 +241,6 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
   user で false)。`verify_credentials` と `/accounts/relationships` は 403。
   `instance.public: false` では `/context` が可視性を問わず一律 403 (`show` は返る)。
   2026-09-16 に ringed.space で実測。フロントで visibility を見て隠さず、応答に従う (ADR-0015)。
+- **通知の id は flake id ではなく整数の連番** (`notifications` テーブルの既定主キー、
+  `notification_view.ex` が文字列化して返す)。「id の辞書順 = 時系列順」は status の
+  flake id の性質で、通知の既読境界の比較は数値で行う。

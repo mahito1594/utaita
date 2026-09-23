@@ -59,9 +59,15 @@
 
 - [ ] 通知を読め、どこまで読んだかが分かる。メンション・ブースト・フォロー・絵文字リアクションが一目で区別でき、`pleroma:emoji_reaction` や `move` など未知の type で落ちない。未読が見分けられ、閲覧で既読になる。
   - Phase 1 から移動。既読を付ける経路 (`POST /api/v1/pleroma/notifications/read` は `write:notifications`、`POST /api/v1/markers` は `follow` / `write:blocks`) がすべて write scope で、Phase 1 の `read` トークンでは `pleroma.is_seen` が全件 false に張り付いて未読表示が成立しない。一覧だけ先に Phase 1 で出す案は、既読前提で行と store を 2 回設計することになるため棄却。着手はトークン scope の変更 (`read` → `read write`、ログイン画面の story 参照) の直後
+  - scope の変更に伴う設計: トークン応答の `scope` をトークンと並べて保存し、記録の無いトークンは Phase 1 の read トークンとして扱って revoke → 再認可に回す (サーバには問い合わせられない — `apps/verify_credentials` は scope を返さない)。Akkoma の認可画面では scope を外せるので「サインイン済みだが読み取りのみ」は移行期だけの状態ではなく、scope 不足の 403 (`Insufficient permissions`) は「サインインが必要」とは別の表示にする。ADR-0003 の「Phase 2 costs exactly one re-authorization prompt」は Akkoma ではこの形でしか成り立たない
+  - 一覧は先頭に伸びる (新着 + 取りこぼしの gap) ので timeline の segment モデルが要る。現状は Status 固定で `pages/timeline` にあり、この story が 3 件目 (rule of three) として要素型をパラメータ化して `entities/` へ移す。既読状態は一覧の要素に書き戻さず別の signal で持つ (書き戻すと全行が作り直される)。通知 id は整数連番なので既読境界の比較は数値で行う (PLAN の落とし穴)
 - [ ] CW・公開範囲 (`local` 含む) 付きで投稿でき、カスタム絵文字の補完が効く。
+  - compose は session に加えて `entities/status` の Emoji 型・`EmojiText`・公開範囲のアイコンを使う。置き場所は entity 間 import の禁止 (`no-entity-sideways`) と合わせて決める (リアクション story の session の注記と同じ壁)
 - [ ] alt text 付きで画像を添付でき、アップロードの進捗が見える。
+  - アップロード進捗は fetch では取れず XHR が要る。認証ヘッダの付与は openapi-fetch の middleware にしか無い (`src/api/client.ts`) ので、ヘッダ値を返す関数を切り出して middleware と XHR の両方から呼ぶ。XHR の結果は `src/api/oauth.ts` の form POST と同じ畳み方で Result にする
 - [ ] タイムライン上からファボ・ブースト・ブックマーク・絵文字リアクションができる。
+  - 同じ status が 5 か所 (timeline の segment、cursor list、pinned の query、thread の query、retention の snapshot) に別オブジェクトで保持されていて、1 件だけ更新する経路が無い。canonical store か閲覧者フラグの overlay かは ADR-0016 (draft) で着手前に決める
+  - `ActionBar` (`entities/status`) からは session を読めない (`no-entity-sideways`)。書き込み可否は prop で通すか、session の事実 (トークンの有無と付与 scope) を `src/api/token-store.ts` の素の関数として下ろす。同じページの中では session は変わらない (login は `location.assign`、logout は reload) ので、entities からはリアクティブでない読み出しで足りる
 - [ ] プロフィールからフォロー / 解除でき、承認制アカウントには申請中の状態が表示される。
 - [ ] アカウント・ハッシュタグ・投稿を検索できる。
 - [ ] お気に入り / ブックマークした投稿の一覧を閲覧できる (`/api/v1/favourites`, `/api/v1/bookmarks`)。
