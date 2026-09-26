@@ -63,11 +63,14 @@ module.exports = {
         "dependencies; devDependencies and undeclared (phantom) packages " +
         "would still bundle but escape the --prod scope of " +
         "check:licenses. Type-only imports never reach the bundle and " +
-        "are exempt.",
+        "are exempt, as are src/test/ helpers, which only test files import.",
       severity: "error",
       from: {
         path: "^src/",
-        pathNot: "[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|cts|tsx)$",
+        pathNot: [
+          "[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|cts|tsx)$",
+          "^src/test/",
+        ],
       },
       to: {
         dependencyTypes: ["npm-dev", "npm-no-pkg", "npm-unknown"],

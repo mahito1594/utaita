@@ -15,18 +15,11 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { type ParentProps, Suspense } from "solid-js";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  expect,
-  onTestFinished,
-  test,
-} from "vitest";
+import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import { Retention } from "../../entities/retention/retention";
-import { completeLogin, logout } from "../../entities/session/session";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { signIn } from "../../test/sign-in";
 import type { Account } from "../profile/profile-api";
 import { ReactionsList, WhoList, WhoListsPage } from "./WhoListsPage";
 import { boosts, favourites, reactions, whoListPath } from "./who-lists";
@@ -183,31 +176,6 @@ const renderApp = (history = createMemoryHistory()) =>
     </MemoryRouter>
   ));
 
-/**
- * Renders the rest of the test signed in. The session signal is module-level
- * and only the sign-in flow sets it, so an authenticated render has to come
- * through completeLogin (entities/session/session.ts) rather than through a
- * token written straight to storage.
- */
-const signIn = async () => {
-  localStorage.setItem("utaita:client_id", "cid-1");
-  localStorage.setItem("utaita:client_secret", "sec-1");
-  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
-  server.use(
-    http.post("*/oauth/token", () =>
-      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
-    ),
-  );
-  onTestFinished(async () => {
-    // Storage first: with no credentials left, logout() drops the signal
-    // without attempting a revoke this suite has no handler for.
-    localStorage.clear();
-    sessionStorage.clear();
-    await logout();
-  });
-  expect((await completeLogin("code-1", "nonce-1")).ok).toBe(true);
-};
-
 /** Renders straight at a list URL, the way a shared link opens it. */
 const renderListDirectly = (path: string) => {
   const history = createMemoryHistory();
@@ -326,7 +294,7 @@ test("a 404 on the boosts list offers a sign-in while signed out", async () => {
 });
 
 test("a 404 on a list offers no sign-in once signed in", async () => {
-  await signIn();
+  await signIn(server);
   server.use(
     ...subjectHandlers,
     http.get("*/api/v1/statuses/:id/favourited_by", () =>

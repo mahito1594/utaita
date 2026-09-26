@@ -19,8 +19,8 @@ import {
   test,
   vi,
 } from "vitest";
-import { completeLogin, logout } from "../../entities/session/session";
 import type { Status } from "../../entities/status/types";
+import { signIn } from "../../test/sign-in";
 import { FollowList } from "./FollowList";
 import { followers, following, followListPath } from "./follow-list";
 import { ProfilePage, ProfilePosts } from "./ProfilePage";
@@ -192,31 +192,6 @@ const renderProfile = (path: string) => {
       </MemoryRouter>
     )),
   };
-};
-
-/**
- * Renders the rest of the test signed in. The session signal is module-level
- * and only the sign-in flow sets it, so an authenticated render has to come
- * through completeLogin (entities/session/session.ts) rather than through a
- * token written straight to storage.
- */
-const signIn = async () => {
-  localStorage.setItem("utaita:client_id", "cid-1");
-  localStorage.setItem("utaita:client_secret", "sec-1");
-  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
-  server.use(
-    http.post("*/oauth/token", () =>
-      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
-    ),
-  );
-  onTestFinished(async () => {
-    // Storage first: with no credentials left, logout() drops the signal
-    // without attempting a revoke this suite has no handler for.
-    localStorage.clear();
-    sessionStorage.clear();
-    await logout();
-  });
-  expect((await completeLogin("code-1", "nonce-1")).ok).toBe(true);
 };
 
 /**
@@ -669,7 +644,7 @@ test("an account that is not here offers a sign-in while signed out", async () =
 });
 
 test("an account that is not here reads as simply absent once signed in", async () => {
-  await signIn();
+  await signIn(server);
   server.use(
     http.get("*/api/v1/accounts/:id", () =>
       HttpResponse.json({ error: "Record not found" }, { status: 404 }),
