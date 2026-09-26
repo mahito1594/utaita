@@ -11,6 +11,8 @@ import {
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
+import { failureMessage } from "../../entities/session/failure-message";
+import { authenticated } from "../../entities/session/session";
 import { StatusCard } from "../../entities/status/StatusCard";
 import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
@@ -67,23 +69,15 @@ const TimelineError = (props: { error: ApiError; onRetry: () => void }) => {
   // network error's Retry on screen after a retry came back 403.
   switch (props.error.kind) {
     case "http":
-      // Akkoma's unauthenticated answer differs per endpoint: home responds
-      // 403 "Invalid credentials.", public responds 401 — both mean "no
-      // valid user", so both get the sign-in prompt.
-      return props.error.status === 401 || props.error.status === 403 ? (
+      return (
         <p class={errorBox} role="alert">
-          Sign-in required to view this timeline.
-        </p>
-      ) : (
-        <p class={errorBox} role="alert">
-          Request failed ({props.error.status}
-          {props.error.message ? `: ${props.error.message}` : ""}).
+          {failureMessage(props.error, "this timeline", authenticated())}
         </p>
       );
     case "network":
       return (
         <p class={errorBox} role="alert">
-          Connection failed — check your network.{" "}
+          {failureMessage(props.error, "this timeline", authenticated())}{" "}
           <button
             type="button"
             class={outlineButton({ tone: "error" })}
@@ -115,18 +109,9 @@ const RefreshError = (props: { error: ApiError }) => (
       overflowAnchor: "none",
     })}
   >
-    {props.error.kind === "network"
-      ? "Refresh failed — check your network."
-      : `Refresh failed (${props.error.status}).`}
+    {failureMessage(props.error, "newer posts", authenticated())}
   </p>
 );
-
-// Shared by the gap marker and the sentinel: both surface a `loadOlder`
-// failure the same way, just anchored at a different spot in the list.
-const olderErrorMessage = (error: ApiError): string =>
-  error.kind === "network"
-    ? "Couldn't load more — check your network."
-    : `Couldn't load more (${error.status}).`;
 
 // Vertical padding is the enclosing row's (`sentinelRow`), not this line's —
 // stacking the two would leave the failure state taller than the loading state
@@ -193,7 +178,7 @@ const GapMarker = (props: {
             role="alert"
             class={css({ color: "error.default", fontSize: "sm" })}
           >
-            {olderErrorMessage(error())}
+            {failureMessage(error(), "older posts", authenticated())}
           </span>
         )}
       </Show>
@@ -289,7 +274,7 @@ const Sentinel = (props: {
           class={inlineErrorRow}
         >
           <Show when={props.error}>
-            {(error) => olderErrorMessage(error())}
+            {(error) => failureMessage(error(), "older posts", authenticated())}
           </Show>
           <button
             type="button"

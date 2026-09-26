@@ -492,7 +492,7 @@ test("renders the failure when the post is not on this instance", async () => {
   );
   const { findByRole } = renderThreadDirectly();
 
-  expect(await findByRole("alert")).toHaveTextContent(/not on this instance/i);
+  expect(await findByRole("alert")).toHaveTextContent(/on this instance/i);
 });
 
 test("a conversation that needs a sign-in offers one", async () => {
@@ -524,7 +524,7 @@ test("a post that is not here offers a sign-in while signed out", async () => {
   // Akkoma answers an anonymous request for a private post with 404, so the
   // copy cannot claim the post is absent.
   expect(await findByRole("alert")).toHaveTextContent(
-    /not on this instance, or needs a sign-in to see/i,
+    /needs a sign-in to see/i,
   );
   expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
 });
@@ -542,7 +542,7 @@ test("a post that is not here reads as simply absent once signed in", async () =
   const { findByRole, queryByRole } = renderThreadDirectly();
 
   const alert = await findByRole("alert");
-  expect(alert).toHaveTextContent(/not on this instance/i);
+  expect(alert).toHaveTextContent(/on this instance/i);
   expect(alert).not.toHaveTextContent(/sign-in/i);
   expect(queryByRole("button", { name: "Log in" })).not.toBeInTheDocument();
 });
@@ -573,9 +573,7 @@ test("does not leave the previous conversation under the URL of one that failed"
   await waitFor(() => expect(history.get()).toBe(statusPath(reply.id ?? "")));
   // The post the reader asked for is gone, so what they get is its failure —
   // not the previous conversation under a refresh notice.
-  expect(await view.findByRole("alert")).toHaveTextContent(
-    /not on this instance/i,
-  );
+  expect(await view.findByRole("alert")).toHaveTextContent(/on this instance/i);
   await settle();
   expect(view.queryByText("The post that was opened")).not.toBeInTheDocument();
   expect(view.container.querySelector('[aria-current="true"]')).toBeNull();
@@ -594,7 +592,7 @@ test("retries a thread that failed to load", async () => {
   );
   const { findByRole, findByText } = renderThreadDirectly();
 
-  expect(await findByRole("alert")).toHaveTextContent(/connection failed/i);
+  expect(await findByRole("alert")).toHaveTextContent(/check your network/i);
 
   await userEvent.click(await findByRole("button", { name: "Retry" }));
 

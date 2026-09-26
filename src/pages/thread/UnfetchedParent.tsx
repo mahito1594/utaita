@@ -2,6 +2,8 @@ import { createSignal, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import type { Result } from "../../api/result";
+import { failureMessage } from "../../entities/session/failure-message";
+import { authenticated } from "../../entities/session/session";
 import type { Status } from "../../entities/status/types";
 import { safeExternalHref } from "../../entities/status/url";
 import { outlineButton } from "../../ui/outline-button";
@@ -16,15 +18,7 @@ const messageFor = (failure: IngestFailure): string => {
   if (failure.kind === "absent") {
     return "This instance couldn't fetch that post — it may be deleted, private, or on an instance it can't reach.";
   }
-  if (failure.error.kind === "network") {
-    return "Connection failed — check your network.";
-  }
-  // Akkoma answers an unauthenticated request with either code depending on
-  // the endpoint, so both mean "no valid user" (TimelinePage.tsx).
-  if (failure.error.status === 401 || failure.error.status === 403) {
-    return "Sign-in required to fetch a remote post.";
-  }
-  return `Couldn't fetch that post (${failure.error.status}).`;
+  return failureMessage(failure.error, "that post", authenticated());
 };
 
 // A dashed frame is the conventional sign of a thing that is not there yet, and

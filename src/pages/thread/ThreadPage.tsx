@@ -20,6 +20,7 @@ import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import type { Result } from "../../api/result";
 import { markRetentionFrame } from "../../entities/retention/retention";
+import { failureMessage } from "../../entities/session/failure-message";
 import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
 import { takeThreadRequest } from "../../entities/status/open-thread";
@@ -43,23 +44,6 @@ const errorBox = css({
   fontSize: "sm",
 });
 
-const httpMessage = (status: number, message: string | undefined): string => {
-  // Akkoma answers an unauthenticated request with either code depending on
-  // the endpoint, so both mean "no valid user" (TimelinePage.tsx).
-  if (status === 401 || status === 403) {
-    return "Sign-in required to view this conversation.";
-  }
-  if (status === 404) {
-    // A post the anonymous reader may not see is a 404 too, not a 401
-    // (Akkoma's visibility check, lib/pleroma/web/activity_pub/visibility.ex),
-    // so while signed out "absent" and "not yours to see" are one answer.
-    return authenticated()
-      ? "This post is not on this instance."
-      : "This post is not on this instance, or needs a sign-in to see.";
-  }
-  return `Request failed (${status}${message ? `: ${message}` : ""}).`;
-};
-
 // Errors are ordinary render branches, not exceptions (ADR-0008). The
 // non-reactive switch is sound only because the page's <Show keyed> recreates
 // this component whenever the error value changes.
@@ -68,7 +52,7 @@ const ThreadError = (props: { error: ApiError; onRetry: () => void }) => {
     case "http":
       return (
         <p class={errorBox} role="alert">
-          {httpMessage(props.error.status, props.error.message)}{" "}
+          {failureMessage(props.error, "this post", authenticated())}{" "}
           <Show when={offersSignIn(props.error)}>
             <SignInButton />
           </Show>
@@ -77,7 +61,7 @@ const ThreadError = (props: { error: ApiError; onRetry: () => void }) => {
     case "network":
       return (
         <p class={errorBox} role="alert">
-          Connection failed — check your network.{" "}
+          {failureMessage(props.error, "this post", authenticated())}{" "}
           <button
             type="button"
             class={outlineButton({ tone: "error" })}
@@ -153,9 +137,7 @@ const refreshNotice = css({
 
 const RefreshNotice = (props: { error: ApiError; onRetry: () => void }) => (
   <p role="alert" class={refreshNotice}>
-    {props.error.kind === "network"
-      ? "Refresh failed — check your network."
-      : `Refresh failed (${props.error.status}).`}{" "}
+    {failureMessage(props.error, "new replies", authenticated())}{" "}
     <button
       type="button"
       class={outlineButton({ tone: "error" })}

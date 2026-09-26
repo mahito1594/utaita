@@ -298,7 +298,7 @@ test("leaves focus on the button when the fetch fails", async () => {
   });
   await userEvent.click(button);
 
-  expect(await findByRole("alert")).toHaveTextContent(/connection failed/i);
+  expect(await findByRole("alert")).toHaveTextContent(/check your network/i);
   // One element across idle, in flight and failed — relabeled, never swapped
   // out, and held focusable by `aria-disabled` standing in for `disabled`.
   expect(await findByRole("button", { name: "Retry" })).toBe(button);
@@ -366,7 +366,9 @@ test("keeps the conversation on screen when the reload after an ingest fails", a
     await findByRole("button", { name: "Fetch new remote resource" }),
   );
 
-  expect(await findByRole("alert")).toHaveTextContent(/refresh failed/i);
+  expect(await findByRole("alert")).toHaveTextContent(
+    /couldn't load new replies/i,
+  );
   expect(await findByText("The post that was opened")).toBeInTheDocument();
 
   failReload = false;
@@ -405,7 +407,9 @@ test("does not hold the reader to where they were before a failed reload", async
   await userEvent.click(
     await findByRole("button", { name: "Fetch new remote resource" }),
   );
-  expect(await findByRole("alert")).toHaveTextContent(/refresh failed/i);
+  expect(await findByRole("alert")).toHaveTextContent(
+    /couldn't load new replies/i,
+  );
 
   // The reader goes on reading while the failure sits there.
   viewportTop = 400;
@@ -448,7 +452,9 @@ test("does not chase the parent with focus once a failed reload has come between
   await userEvent.click(
     await findByRole("button", { name: "Fetch new remote resource" }),
   );
-  expect(await findByRole("alert")).toHaveTextContent(/refresh failed/i);
+  expect(await findByRole("alert")).toHaveTextContent(
+    /couldn't load new replies/i,
+  );
 
   failReload = false;
   await userEvent.click(await findByRole("button", { name: "Retry" }));
@@ -578,7 +584,7 @@ test("reports a failed request on the row and fetches again on retry", async () 
     await findByRole("button", { name: "Fetch new remote resource" }),
   );
 
-  expect(await findByRole("alert")).toHaveTextContent(/connection failed/i);
+  expect(await findByRole("alert")).toHaveTextContent(/check your network/i);
 
   await userEvent.click(await findByRole("button", { name: "Retry" }));
 

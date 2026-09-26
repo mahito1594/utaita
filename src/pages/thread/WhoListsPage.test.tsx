@@ -270,7 +270,7 @@ test("a 404 shows an error row, and its Retry fetches the list again", async () 
 
   const retry = await findByRole("button", { name: "Retry" });
   expect(await findByRole("alert")).toHaveTextContent(
-    "Couldn't load who favourited this post (404).",
+    "Couldn't find who favourited this post on this instance, or it needs a sign-in to see.",
   );
 
   await userEvent.click(retry);
@@ -465,7 +465,7 @@ test("a 403 on the reactions tab shows an error row, and its Retry fetches the g
 
   const retry = await findByRole("button", { name: "Retry" });
   expect(await findByRole("alert")).toHaveTextContent(
-    "Couldn't load who reacted to this post (403).",
+    "Sign-in required to view who reacted to this post.",
   );
 
   await userEvent.click(retry);
