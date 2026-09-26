@@ -1,8 +1,9 @@
 import { createAsync, useParams } from "@solidjs/router";
 import { For, onCleanup, onMount, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
-import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
+import { failureMessage } from "../../entities/session/failure-message";
+import { authenticated } from "../../entities/session/session";
 import { acctFromPath } from "../../entities/status/mention";
 import { AccountRow } from "./AccountRow";
 import {
@@ -41,15 +42,10 @@ const listHeading = css({
 
 // The list failing is one region of a page that otherwise arrived, so the copy
 // names the region — the header above it is proof the account exists.
-const listErrorMessage = (list: ListDefinition, error: ApiError): string => {
-  const what =
-    list.kind === "following"
-      ? "who this account follows"
-      : "this account's followers";
-  return error.kind === "network"
-    ? `Couldn't load ${what} — check your network.`
-    : `Couldn't load ${what} (${error.status}).`;
-};
+const listSubject = (list: ListDefinition): string =>
+  list.kind === "following"
+    ? "who this account follows"
+    : "this account's followers";
 
 /**
  * Who an account follows, or who follows it: a leaf of the profile route
@@ -130,7 +126,11 @@ export const FollowList = (props: { list: ListDefinition }) => {
       <Show when={store.error()}>
         {(failure) => (
           <ErrorCard
-            message={listErrorMessage(props.list, failure())}
+            message={failureMessage(
+              failure(),
+              listSubject(props.list),
+              authenticated(),
+            )}
             onRetry={() => void store.loadInitial()}
           />
         )}
