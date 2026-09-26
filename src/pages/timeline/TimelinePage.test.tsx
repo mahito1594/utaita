@@ -180,7 +180,7 @@ test("renders a retry affordance when the network fails", async () => {
   server.use(http.get("*/api/v1/timelines/home", () => HttpResponse.error()));
   const { findByText, findByRole } = renderTimeline();
 
-  expect(await findByText(/connection failed/i)).toBeInTheDocument();
+  expect(await findByText(/check your network/i)).toBeInTheDocument();
   expect(await findByRole("button", { name: "Retry" })).toBeInTheDocument();
 });
 
@@ -279,7 +279,7 @@ test("a refresh failure surfaces a notice without blanking existing content", as
 
   await userEvent.click(await findByRole("button", { name: "Refresh" }));
 
-  expect(await findByText(/refresh failed/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load newer posts/i)).toBeInTheDocument();
   expect(refreshRequested).toBe(true);
   // The existing cards are untouched by the failed refresh.
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
@@ -406,7 +406,7 @@ test("a loadOlder failure at the sentinel shows a retry affordance, and retrying
 
   FakeIntersectionObserver.instances.at(-1)?.fireVisible();
 
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
   // Existing content survives the failed tail fetch.
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
 
@@ -664,7 +664,7 @@ test("a queued fetch that succeeds does not clear the preceding anchor's failure
   expect(await findByText("Older after queued success")).toBeInTheDocument();
   // ...but the gap row's own failure must still be visible with its own
   // Retry affordance, not silently wiped by the succeeding successor.
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
   const retryButtons = await findAllByRole("button", { name: "Retry" });
   expect(retryButtons.length).toBeGreaterThan(0);
 });
@@ -795,7 +795,7 @@ test("retry clicks while a retry is already in flight collapse into one request"
 test("a retry that fails differently swaps the error rendering (network → sign-in)", async () => {
   // `<Show keyed>` must recreate TimelineError when the error value
   // changes: non-keyed, the truthy→truthy transition kept the stale
-  // "Connection failed" + Retry on screen after the retry came back 403.
+  // network error's message + Retry on screen after the retry came back 403.
   let requestCount = 0;
   server.use(
     http.get("*/api/v1/timelines/home", () => {
@@ -809,12 +809,12 @@ test("a retry that fails differently swaps the error rendering (network → sign
   );
   const { findByText, findByRole, queryByText } = renderTimeline();
 
-  expect(await findByText(/connection failed/i)).toBeInTheDocument();
+  expect(await findByText(/check your network/i)).toBeInTheDocument();
 
   await userEvent.click(await findByRole("button", { name: "Retry" }));
 
   expect(await findByText(/sign-in required/i)).toBeInTheDocument();
-  expect(queryByText(/connection failed/i)).not.toBeInTheDocument();
+  expect(queryByText(/check your network/i)).not.toBeInTheDocument();
 });
 
 test("a short gap fill that reaches the tail segment proves exhaustion without an extra fetch", async () => {
@@ -874,12 +874,12 @@ test("a sentinel re-fire while its failure is displayed does not auto-retry", as
 
   const observer = FakeIntersectionObserver.instances.at(-1);
   observer?.fireVisible();
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
 
   observer?.fireVisible();
   // Still just the one request, and the failure row is still there —
   // recovery belongs to the Retry button (covered by the retry test above).
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
   expect(olderRequestCount).toBe(1);
 });
 
@@ -1024,13 +1024,13 @@ test("a queued fetch's failure surfaces on the right row after a preceding casca
   // The merge closes the gap (one segment left), so the failure — recorded
   // against an anchor now interior to that segment — must still surface on
   // its only remaining row: the sentinel.
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
   expect(queuedFetchCount).toBe(1);
 
   await userEvent.click(await findByRole("button", { name: "Retry" }));
 
   expect(await findByText("Landed after retry")).toBeInTheDocument();
-  expect(queryByText(/couldn't load more/i)).not.toBeInTheDocument();
+  expect(queryByText(/couldn't load older posts/i)).not.toBeInTheDocument();
 });
 
 test("the refresh announcement counts only the refresh's own statuses, not a concurrently-landing older page", async () => {
@@ -1124,7 +1124,7 @@ test("a gap fill failure keeps the same persistent button focused across a retry
 
   // The persistent button — same element, now relabeled — keeps focus once
   // the failure lands.
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
   expect(gapButton).toHaveTextContent("Retry");
   expect(document.activeElement).toBe(gapButton);
 
@@ -1138,7 +1138,7 @@ test("a gap fill failure keeps the same persistent button focused across a retry
   // A second failure: still the same element, still focused.
   releaseGapFill?.();
   await waitFor(() => expect(gapFillCount).toBe(2));
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
   expect(document.activeElement).toBe(gapButton);
 });
 
@@ -1173,7 +1173,7 @@ test("a sentinel retry keeps the same button focused in flight, and a successful
 
   expect(await findByText("Second fixture status")).toBeInTheDocument();
   FakeIntersectionObserver.instances.at(-1)?.fireVisible();
-  expect(await findByText(/couldn't load more/i)).toBeInTheDocument();
+  expect(await findByText(/couldn't load older posts/i)).toBeInTheDocument();
 
   const retryButton = await findByRole("button", { name: "Retry" });
   await userEvent.click(retryButton);
@@ -1185,5 +1185,5 @@ test("a sentinel retry keeps the same button focused in flight, and a successful
   expect(await findByText("Recovered after retry")).toBeInTheDocument();
   // A successful retry unmounts the error row (content arrived) — no focus
   // assertion for this path, only that the failure is actually gone.
-  expect(queryByText(/couldn't load more/i)).not.toBeInTheDocument();
+  expect(queryByText(/couldn't load older posts/i)).not.toBeInTheDocument();
 });

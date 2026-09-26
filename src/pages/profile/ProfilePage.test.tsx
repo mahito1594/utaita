@@ -551,7 +551,9 @@ test("an older-page failure offers a retry that repeats the same request", async
   FakeIntersectionObserver.instances.at(-1)?.fireVisible();
 
   // role="alert" so the failure is announced, not merely painted.
-  expect(await findByRole("alert")).toHaveTextContent(/couldn't load more/i);
+  expect(await findByRole("alert")).toHaveTextContent(
+    /couldn't load older posts/i,
+  );
 
   await userEvent.click(await findByRole("button", { name: "Retry" }));
 
@@ -586,7 +588,9 @@ test("a retry that fails again leaves the reader's focus on the Retry button", a
   // The second failure has to reach the page as one update: pressing Retry
   // again is the only way forward, so the button it is pressed with must not
   // be unmounted and rebuilt underneath the reader in between.
-  expect(await findByRole("alert")).toHaveTextContent(/couldn't load more/i);
+  expect(await findByRole("alert")).toHaveTextContent(
+    /couldn't load older posts/i,
+  );
   expect(document.activeElement).toBe(retryButton);
 });
 
@@ -606,7 +610,7 @@ test("an account this instance does not have renders an error and asks for no po
     "/accounts/ghost@fixture.example",
   );
 
-  expect(await findByRole("alert")).toHaveTextContent(/not on this instance/i);
+  expect(await findByRole("alert")).toHaveTextContent(/on this instance/i);
   // A 404 is the one answer repeating the request cannot change.
   expect(queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
 
@@ -638,7 +642,7 @@ test("an account that is not here offers a sign-in while signed out", async () =
   // Akkoma answers an anonymous request for an account it will not show with
   // 404, so the copy cannot claim the account is absent.
   expect(await findByRole("alert")).toHaveTextContent(
-    /not on this instance, or needs a sign-in to see/i,
+    /needs a sign-in to see/i,
   );
   expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
 });
@@ -655,7 +659,7 @@ test("an account that is not here reads as simply absent once signed in", async 
   );
 
   const alert = await findByRole("alert");
-  expect(alert).toHaveTextContent(/not on this instance/i);
+  expect(alert).toHaveTextContent(/on this instance/i);
   expect(alert).not.toHaveTextContent(/sign-in/i);
   expect(queryByRole("button", { name: "Log in" })).not.toBeInTheDocument();
 });
@@ -678,7 +682,7 @@ test("a failed account fetch offers a retry that revalidates and succeeds", asyn
     `/accounts/${ALICE_ACCT}`,
   );
 
-  expect(await findByText(/connection failed/i)).toBeInTheDocument();
+  expect(await findByText(/check your network/i)).toBeInTheDocument();
 
   await userEvent.click(await findByRole("button", { name: "Retry" }));
 
@@ -688,7 +692,7 @@ test("a failed account fetch offers a retry that revalidates and succeeds", asyn
   expect(await findByRole("heading", { level: 2 })).toHaveTextContent(
     "Alice Example",
   );
-  expect(queryByText(/connection failed/i)).not.toBeInTheDocument();
+  expect(queryByText(/check your network/i)).not.toBeInTheDocument();
   expect(accountRequestCount).toBe(2);
 });
 
@@ -760,7 +764,7 @@ test("a first-page retry that fails again leaves focus on its Retry button", asy
   // Two failures, one card: the copy updates in place and the same element
   // is still the one focused.
   await vi.waitFor(() => expect(postsRequestCount).toBe(2));
-  expect(await findByRole("alert")).toHaveTextContent(/posts \(503\)/);
+  expect(await findByRole("alert")).toHaveTextContent(/posts \(503/);
   expect(await findByRole("button", { name: "Retry" })).toBe(retryButton);
   expect(document.activeElement).toBe(retryButton);
 });
@@ -781,12 +785,10 @@ test("an account retry that comes back 404 withdraws Retry without rebuilding th
   const { findByRole, queryByRole } = renderProfile(`/accounts/${ALICE_ACCT}`);
 
   const alert = await findByRole("alert");
-  expect(alert).toHaveTextContent(/connection failed/i);
+  expect(alert).toHaveTextContent(/check your network/i);
   await userEvent.click(await findByRole("button", { name: "Retry" }));
 
-  await vi.waitFor(() =>
-    expect(alert).toHaveTextContent(/not on this instance/i),
-  );
+  await vi.waitFor(() => expect(alert).toHaveTextContent(/on this instance/i));
   expect(queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
 });
 

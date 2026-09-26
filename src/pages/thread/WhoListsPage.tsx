@@ -15,9 +15,9 @@ import {
   Suspense,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
-import type { ApiError } from "../../api/client";
 import { markRetentionFrame } from "../../entities/retention/retention";
-import { offersSignIn } from "../../entities/session/session";
+import { failureMessage } from "../../entities/session/failure-message";
+import { authenticated, offersSignIn } from "../../entities/session/session";
 import { EmojiText } from "../../entities/status/EmojiText";
 import { parseEmojiReactions } from "../../entities/status/parse";
 import { ReactionChip } from "../../entities/status/ReactionChips";
@@ -99,13 +99,6 @@ const accountList = css({
   listStyleType: "none",
 });
 
-// The list failing is one region of a page that otherwise arrived, so the copy
-// names the region rather than the page (FollowList.tsx holds the same line).
-const listErrorMessage = (what: string, error: ApiError): string =>
-  error.kind === "network"
-    ? `Couldn't load ${what} — check your network.`
-    : `Couldn't load ${what} (${error.status}).`;
-
 /**
  * Everyone who favourited or boosted the post, one flat list of accounts. A
  * leaf of the who-lists route (App.tsx): a new `:id` or a new tab is a new
@@ -114,6 +107,8 @@ const listErrorMessage = (what: string, error: ApiError): string =>
  */
 export const WhoList = (props: { list: AccountWhoList }) => {
   const params = useParams<{ id: string }>();
+  // The list failing is one region of a page that otherwise arrived, so the
+  // copy names the region rather than the page (FollowList.tsx does the same).
   const what = () =>
     props.list.kind === "favourites"
       ? "who favourited this post"
@@ -168,7 +163,7 @@ export const WhoList = (props: { list: AccountWhoList }) => {
       <Show when={error()}>
         {(failure) => (
           <ErrorCard
-            message={listErrorMessage(what(), failure())}
+            message={failureMessage(failure(), what(), authenticated())}
             onRetry={retry}
             signIn={offersSignIn(failure())}
           />
@@ -276,7 +271,11 @@ export const ReactionsList = () => {
       <Show when={error()}>
         {(failure) => (
           <ErrorCard
-            message={listErrorMessage("who reacted to this post", failure())}
+            message={failureMessage(
+              failure(),
+              "who reacted to this post",
+              authenticated(),
+            )}
             onRetry={retry}
             signIn={offersSignIn(failure())}
           />
