@@ -19,6 +19,7 @@ import {
 import { css, cx } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import { claimRetentionFrame } from "../../entities/retention/retention";
+import { failureMessage } from "../../entities/session/failure-message";
 import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
 import { acctFromPath } from "../../entities/status/mention";
@@ -122,37 +123,6 @@ const errorBox = css({
   fontSize: "sm",
 });
 
-const httpMessage = (status: number, message: string | undefined): string => {
-  // Akkoma answers an unauthenticated request with either code depending on
-  // the endpoint, so both mean "no valid user" (TimelinePage.tsx).
-  if (status === 401 || status === 403) {
-    return "Sign-in required to view this profile.";
-  }
-  if (status === 404) {
-    // An account the anonymous reader may not see answers 404 as well, so
-    // while signed out "absent" and "not yours to see" are one answer
-    // (ThreadPage.tsx says the same of a post).
-    return authenticated()
-      ? "This account is not on this instance."
-      : "This account is not on this instance, or needs a sign-in to see.";
-  }
-  return `Request failed (${status}${message ? `: ${message}` : ""}).`;
-};
-
-// The account fetch failing is the page failing: what went wrong is all there
-// is to say.
-const accountErrorMessage = (error: ApiError): string =>
-  error.kind === "network"
-    ? "Connection failed — check your network."
-    : httpMessage(error.status, error.message);
-
-// The posts failing is one region of a page that otherwise arrived, so the
-// copy names the region — the header above it is proof the account exists.
-const postsErrorMessage = (error: ApiError): string =>
-  error.kind === "network"
-    ? "Couldn't load this account's posts — check your network."
-    : `Couldn't load this account's posts (${error.status}).`;
-
 // A 404 is the one answer that repeating the request cannot change.
 const retryable = (error: ApiError): boolean =>
   error.kind === "network" || error.status !== 404;
@@ -184,11 +154,6 @@ export const ErrorCard = (props: {
     </Show>
   </p>
 );
-
-const olderErrorMessage = (error: ApiError): string =>
-  error.kind === "network"
-    ? "Couldn't load more — check your network."
-    : `Couldn't load more (${error.status}).`;
 
 // The list's own end while more is coming: no closing rule, since the last
 // post row's rule already sits above it and nothing follows.
@@ -283,7 +248,7 @@ export const PostsSentinel = (props: {
           class={inlineErrorRow}
         >
           <Show when={props.error}>
-            {(error) => olderErrorMessage(error())}
+            {(error) => failureMessage(error(), "older posts", authenticated())}
           </Show>
           <button
             type="button"
@@ -422,11 +387,17 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
 
       {/* Retry is always offered here, 404 included: this endpoint answers
           for an account that has already been found, so a missing list is a
-          transient answer rather than a settled one. */}
+          transient answer rather than a settled one. The copy names the
+          region, not the page: the header above it is proof the account
+          exists. */}
       <Show when={store.error()}>
         {(failure) => (
           <ErrorCard
-            message={postsErrorMessage(failure())}
+            message={failureMessage(
+              failure(),
+              "this account's posts",
+              authenticated(),
+            )}
             onRetry={() => void store.loadInitial()}
           />
         )}
@@ -532,7 +503,7 @@ export const ProfilePage = (props: ParentProps) => {
       <Show when={error()}>
         {(failure) => (
           <ErrorCard
-            message={accountErrorMessage(failure())}
+            message={failureMessage(failure(), "this account", authenticated())}
             onRetry={retryable(failure()) ? retry : undefined}
             signIn={offersSignIn(failure())}
           />
