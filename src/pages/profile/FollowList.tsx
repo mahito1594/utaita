@@ -3,7 +3,7 @@ import { For, onCleanup, onMount, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
-import { authenticated } from "../../entities/session/session";
+import { authenticated, offersSignIn } from "../../entities/session/session";
 import { acctFromPath } from "../../entities/status/mention";
 import { AccountRow } from "./AccountRow";
 import {
@@ -120,9 +120,8 @@ export const FollowList = (props: { list: ListDefinition }) => {
         </p>
       </Show>
 
-      {/* Retry is always offered here, 404 included: this endpoint answers
-          for an account that has already been found, so a missing list is a
-          transient answer rather than a settled one. */}
+      {/* Retry stays on for a 404 too: the account above has already
+          answered, so a failure here is not the page's verdict. */}
       <Show when={store.error()}>
         {(failure) => (
           <ErrorCard
@@ -132,6 +131,7 @@ export const FollowList = (props: { list: ListDefinition }) => {
               authenticated(),
             )}
             onRetry={() => void store.loadInitial()}
+            signIn={offersSignIn(failure())}
           />
         )}
       </Show>

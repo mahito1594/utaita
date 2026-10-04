@@ -134,8 +134,8 @@ const retryable = (error: ApiError): boolean =>
 export const ErrorCard = (props: {
   message: string;
   onRetry: (() => void) | undefined;
-  // Set only where a session could change the verdict (`offersSignIn`); this
-  // page's post lists never do, being past the account's own answer.
+  // `offersSignIn`: the button shows only where a session could change the
+  // verdict.
   signIn?: boolean;
 }) => (
   <p class={errorBox} role="alert">
@@ -385,11 +385,9 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
         </p>
       </Show>
 
-      {/* Retry is always offered here, 404 included: this endpoint answers
-          for an account that has already been found, so a missing list is a
-          transient answer rather than a settled one. The copy names the
-          region, not the page: the header above it is proof the account
-          exists. */}
+      {/* Retry stays on for a 404 too: the account above has already
+          answered, so a failure here is not the page's verdict. The copy
+          names the region, not the page. */}
       <Show when={store.error()}>
         {(failure) => (
           <ErrorCard
@@ -399,6 +397,7 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
               authenticated(),
             )}
             onRetry={() => void store.loadInitial()}
+            signIn={offersSignIn(failure())}
           />
         )}
       </Show>

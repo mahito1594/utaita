@@ -293,6 +293,24 @@ test("a failed first page offers Retry, and Retry fetches it again", async () =>
   expect(listRequests).toHaveLength(2);
 });
 
+test("a 401 on the list offers a sign-in while signed out", async () => {
+  server.use(
+    accountHandler,
+    http.get("*/api/v1/accounts/:id/following", () =>
+      HttpResponse.json(
+        { error: "This API requires an authenticated user" },
+        { status: 401 },
+      ),
+    ),
+  );
+  const { findByRole } = renderProfile(followListPath(ALICE_ACCT, following));
+
+  expect(await findByRole("alert")).toHaveTextContent(
+    "Sign-in required to view who this account follows.",
+  );
+  expect(await findByRole("button", { name: "Log in" })).toBeInTheDocument();
+});
+
 test("the followers list asks the followers endpoint and says so when it is empty", async () => {
   server.use(accountHandler, listHandler("followers", [[]]));
   const { findByText, findByRole } = renderProfile(
