@@ -106,7 +106,7 @@ const conversationHandlers = (
 const broughtIntoView: Element[] = [];
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
   vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
     this: Element,
   ) {

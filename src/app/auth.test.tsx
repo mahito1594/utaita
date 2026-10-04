@@ -74,7 +74,7 @@ const favouriter: Account = {
 
 const server = setupServer();
 
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(async () => {
   server.resetHandlers();
   cleanup();
@@ -309,7 +309,7 @@ test("first login registers the app and heads to authorize", async () => {
 
 test("login with stored credentials skips registration", async () => {
   // No /api/v1/apps handler is registered on purpose: with
-  // onUnhandledRequest "error", a re-registration attempt fails this test.
+  // onUnhandledFrame "error", a re-registration attempt fails this test.
   // Registration is once per origin, then reused (ADR-0003).
   seedCredentials();
   const { findByRole, findByText } = render(() => <App />);

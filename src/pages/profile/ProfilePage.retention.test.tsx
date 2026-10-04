@@ -149,7 +149,7 @@ const timelineHandler = http.get("*/api/v1/timelines/home", ({ request }) => {
 const server = setupServer();
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
   vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
 });
 afterEach(() => {
