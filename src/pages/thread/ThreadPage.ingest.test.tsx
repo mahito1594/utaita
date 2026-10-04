@@ -102,7 +102,7 @@ const resolved = () =>
 let viewportTop = 0;
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
     () => new DOMRect(0, viewportTop, 0, 0),
   );

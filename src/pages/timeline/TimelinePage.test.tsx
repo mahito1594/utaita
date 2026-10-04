@@ -101,7 +101,7 @@ const fullPage: Status[] = Array.from({ length: 40 }, (_, i) => {
 const server = setupServer();
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
   vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
 });
 afterEach(() => {

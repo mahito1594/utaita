@@ -18,5 +18,10 @@ export default defineConfig({
     // every suite to jsdom silently instead of failing on a missing package.
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
+    // vite-plugin-solid adds the "browser" condition, which vitest forwards to
+    // Node for external deps; @mswjs/interceptors maps its node-only entries
+    // (e.g. ./ClientRequest) to null under it. Inlining both moves msw's imports
+    // of those entries from Node's resolver to Vite's.
+    server: { deps: { inline: ["msw", "@mswjs/interceptors"] } },
   },
 });
