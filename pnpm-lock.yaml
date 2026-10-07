@@ -193,6 +193,12 @@ importers:
       '@pandacss/dev':
         specifier: ^2.0.0
         version: 2.1.1(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(postcss@8.5.28)
+      '@pandacss/preset-base':
+        specifier: ^2.1.1
+        version: 2.1.1
+      '@pandacss/preset-panda':
+        specifier: ^2.1.1
+        version: 2.1.1
       '@solidjs/testing-library':
         specifier: ^0.8.10
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.15))(solid-js@1.9.15)
@@ -612,6 +618,14 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       postcss: '>=8'
+
+  '@pandacss/preset-base@2.1.1':
+    resolution: {integrity: sha512-km9p/6m5gGyVdVPEc7/YPBGP0wiRqPhbvWdQaJSFlyluzQUFeGzycF7ZTi4heYKmUpVfNm0D56QM+gcxL4FVog==}
+    engines: {node: '>=22'}
+
+  '@pandacss/preset-panda@2.1.1':
+    resolution: {integrity: sha512-c7xaDhGkor/vM3nir6HlMFRmxE3s5uqgQCmrLybaA4s7BjRGsIl48qRv2nSpOHQstWXI/iBg7BvbKgGFZ/m+Sg==}
+    engines: {node: '>=22'}
 
   '@pandacss/types@2.1.1':
     resolution: {integrity: sha512-ycF8sYdqg8mu2cdfdR2hM/pLRpSxBVkD2kJkCBhWAr+KvKb5SoRRNeERSzizgENDUKmThcWHF3N0kSFMA1Rt9A==}
@@ -2557,6 +2571,14 @@ snapshots:
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
+
+  '@pandacss/preset-base@2.1.1':
+    dependencies:
+      '@pandacss/types': 2.1.1
+
+  '@pandacss/preset-panda@2.1.1':
+    dependencies:
+      '@pandacss/types': 2.1.1
 
   '@pandacss/types@2.1.1': {}
 
