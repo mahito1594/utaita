@@ -2,6 +2,9 @@ allowBuilds:
   esbuild: true
   # msw's postinstall only prints a sponsorship message; nothing to build.
   msw: false
+  # Only compiles from source when build-from-source is requested; the native
+  # binary comes prebuilt from its optional platform packages.
+  "@parcel/watcher": false
 # dependency-cruiser only parses TypeScript <7 and silently cruises 0 modules
 # otherwise; give it its own TS6 while the project's typescript stays on 7.
 # Remove once it supports TS7 (sverweij/dependency-cruiser#1069, #1048).
