@@ -9,16 +9,15 @@ paying for itself, delete it.
 
 - [ ] Curate the phase's stories in [stories.ja.md](./stories.ja.md); define
       the phase's done condition
-- [ ] Decide which screens need a rough wireframe (only those touched by this
-      phase; export to `docs/design/`)
-- [ ] Poke the relevant API endpoints with curl and read the raw JSON before
-      writing typed code
 - [ ] Record any open design questions as ADR drafts
 
 ### Iteration (one session ≈ one story)
 
 - [ ] Pick one story; state it at the start of the session
-- [ ] Discuss approach before code when the story touches new ground
+- [ ] When the story touches new ground, before code: discuss the approach,
+      poke the relevant API endpoints with curl and read the raw JSON before
+      writing typed code, and decide whether the screen needs a rough
+      wireframe (export to `docs/design/`)
 - [ ] Implement, review, commit (commit messages carry the "why")
 
 ### Wrap-up

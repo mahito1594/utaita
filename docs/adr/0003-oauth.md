@@ -44,6 +44,34 @@ grant — the frontend must never see the user's password.
   once per instance — no instance-selection or multi-registration logic.
 - If Akkoma gains PKCE upstream, adopt it and supersede this ADR.
 
+## Amendment (2026-10-19, draft): the granted scope is data the client stores, not a phase constant
+
+The Decision reads a token's scope off the phase: `read` in Phase 1,
+`read write` from Phase 2 on. Two Akkoma facts break that reading (both
+verified in the Akkoma source, `develop` branch, 2026-09-23):
+
+- The authorization screen lets the user untick scopes
+  (`lib/pleroma/web/templates/o_auth/o_auth/_scopes.html.eex`), so a token
+  obtained in Phase 2 may still be read-only. "Signed in but read-only" is a
+  lasting state, not a migration-period one.
+- Nothing on the server reports a stored token's scope:
+  `GET /api/v1/apps/verify_credentials` returns none, and a call outside the
+  token's scope fails with 403 `Insufficient permissions`
+  (`lib/pleroma/web/plugs/o_auth_scopes_plug.ex`). The token response does
+  carry `scope` (`lib/pleroma/web/o_auth/o_auth_view.ex`).
+
+So the client stores the `scope` field of the token response next to the
+token. A stored token with no scope record is a Phase 1 `read` token: revoke
+it and start a new authorization. A 403 for insufficient scope is shown as
+"this sign-in cannot write", distinct from the sign-in prompt the app shows
+for a missing token and for content it cannot see (ADR-0015). The
+Consequences' "Phase 2 costs exactly one re-authorization prompt" holds
+only in this form.
+
+Draft until the scope-change story ships (stories.ja.md, Phase 2, first
+story); the implementation may still move the boundary between what the
+client stores and what it infers.
+
 ## References
 
 - Akkoma `develop` branch, source-verified 2026-07 via akkoma.dev raw files:
@@ -52,3 +80,8 @@ grant — the frontend must never see the user's password.
   `lib/pleroma/web/mastodon_api/controllers/app_controller.ex`,
   `lib/pleroma/web/router.ex`, `config/config.exs` (`:oauth2` section)
 - https://docs.akkoma.dev/stable/development/authentication_authorization/
+- Amendment of 2026-10-19: Akkoma `develop` branch, source-verified
+  2026-09-23 via a local clone:
+  `lib/pleroma/web/templates/o_auth/o_auth/_scopes.html.eex`,
+  `lib/pleroma/web/plugs/o_auth_scopes_plug.ex`,
+  `lib/pleroma/web/o_auth/o_auth_view.ex`
