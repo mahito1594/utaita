@@ -31,8 +31,12 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
       リファレンスインスタンスへ手動インストール → 自分の `preferred_frontend`
       切替) を Phase 1 の締めに前倒しし、Done 条件の「スマホ実機」と「pleroma-fe
       を開かずに 1 日」は本番で測った。CI とリリース自動化は Phase 3 に残る
-- [ ] Phase 2 kickoff。前に一回きりの見直しを置く: 機械的 audit (knip / jscpd /
-      cccc) → アーキテクチャレビュー。見つかったものは issue へ
+- [x] Phase 2 前の一回きりの見直し (2026-09-23): 機械的 audit (knip / jscpd /
+      cccc) と、独立した 2 本のアーキテクチャレビュー。結果は issue #70–#73 と
+      ADR-0016 (draft)、各 story の sub-item
+- [x] Phase 2 kickoff (2026-10-19)。Done 条件と着手順は
+      [stories.ja.md](./stories.ja.md) の Phase 2 冒頭。検索は Icebox へ
+- [ ] Phase 2。通知 story の前に issue #71 を消化する (着手条件は stories.ja.md)
 
 ## Phase 0 — 基盤
 
@@ -77,18 +81,21 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 
 ## Phase 2 — 書き込み
 
+Done 条件に入るのは先頭 4 本 (詳細は stories.ja.md)。
+
+- [ ] トークン scope を `read write` に広げる + ログイン画面の仕上げ (全員が
+      再認可を通るので同スロット)
 - [ ] 通知 (既読管理込み。`pleroma:emoji_reaction`, `move` など未知の type で
-      落ちない。トークン scope を `read write` に広げた直後に着手 — 既読を付ける
-      API がすべて write scope のため。Phase 1 から移動)
+      落ちない。scope 変更の直後に着手 — 既読を付ける API がすべて write scope
+      のため。Phase 1 から移動)
 - [ ] Compose: テキスト、CW、公開範囲 (Akkoma の `local` 含む)、カスタム絵文字補完
-- [ ] alt text 付きメディアアップロード (見た目より重いので独立タスク)
 - [ ] ファボ / ブースト / ブックマーク / 絵文字リアクション
       (`PUT /api/v1/pleroma/statuses/:id/reactions/:emoji`)
+- [ ] alt text 付きメディアアップロード (見た目より重いので独立タスク)
 - [ ] フォロー管理
-- [ ] 検索 (v2)
 
-学びの目標: WebFinger (`@user@host` の解決)、nodeinfo。連合バックエンドに対する
-冪等性と楽観的更新。
+学びの目標: nodeinfo。連合バックエンドに対する冪等性と楽観的更新。
+(WebFinger は検索と一緒に Icebox へ)
 
 ## Phase 3 — 本番デプロイ
 

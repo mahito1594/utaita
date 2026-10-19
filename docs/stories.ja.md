@@ -4,7 +4,7 @@
 
 形式: 1 ストーリー 1 行。自明でない場合のみ受け入れ条件を添える。フェーズごとにグループ化し、未割り当てのアイデアは Icebox へ。バグと story を伴わない負債 (リファクタ、ガードの欠落) は GitHub issue に置く — コードの実装・確認状況と同期する必要が無いため。
 
-> 状態: Phase 1 は完了 (Done 条件は Phase 1 冒頭)。Phase 2 以降はロードマップから起こした初期ドラフトのままなので、kickoff で pleroma-fe への実際の不満に照らして書き直すこと。
+> 状態: Phase 1 は完了 (Done 条件は Phase 1 冒頭)。Phase 2 は kickoff (2026-10-19) で curate 済み (Done 条件は Phase 2 冒頭)。受け入れ条件は書けるものから書き、残りは着手セッションの冒頭で書く。
 
 ## Phase 0 — 基盤
 
@@ -57,24 +57,39 @@
 
 ## Phase 2 — 書き込み
 
+**Done 条件**: 「Done 条件に入るストーリー」がすべてチェックされ、書き込みについても pleroma-fe を開かずに 1 日過ごせる。毎日行う書き込みは通知の確認・投稿・リアクションの 3 つなので、この 3 つと前提になるトークン scope の変更で判定する。添付とフォローは頻度が低いので、そのために pleroma-fe を開くのは判定に数えない (Phase 1 の通知と同じ扱い)。加えて Phase 1 から持ち越した issue #57 / #60 / #63 / #64 を close する (story と並走で進め、story の PR には混ぜない)。
+
+ストーリーの順序は着手順。先頭の scope 変更が無いと以降の書き込み API が全部 403 になるため、順序を入れ替えない。
+
+### Done 条件に入るストーリー
+
+- [ ] トークン scope を `read` から `read write` に広げ、ログイン画面をワイヤー ([docs/design/login-20260712.html](./design/login-20260712.html)) に合わせて仕上げる (Phase 1 では意図的に直さなかった — 接触頻度が低く、全員が再認可のためログインを通り直すこのタイミングに実装するのが同スロットで安い)。
+  - 受け入れ条件: Phase 1 の `read` トークンで開くと再認可に誘導され、通過後は `read write` トークンで動く / トークン応答の `scope` がトークンと並んで保存され、認可画面で write を外されたトークンは「サインイン済みだが書き込み不可」として、サインインを促す表示とは別の文言で現れる (scope 不足の 403 `Insufficient permissions` も同じ扱い) / ログイン画面が PC と 375px でワイヤーに一致する / セッション Cookie がある状態での再サインインが `?access_token=` で戻るバグ (issue #56) がこの経路の中で解消される
+  - 設計 (scope を保存する理由、記録の無いトークンの扱い、403 の区別) は ADR-0003 の amendment (2026-10-19、draft) に従う。実装で境界が動いたら amendment を直してから accepted にする
 - [ ] 通知を読め、どこまで読んだかが分かる。メンション・ブースト・フォロー・絵文字リアクションが一目で区別でき、`pleroma:emoji_reaction` や `move` など未知の type で落ちない。未読が見分けられ、閲覧で既読になる。
-  - Phase 1 から移動。既読を付ける経路 (`POST /api/v1/pleroma/notifications/read` は `write:notifications`、`POST /api/v1/markers` は `follow` / `write:blocks`) がすべて write scope で、Phase 1 の `read` トークンでは `pleroma.is_seen` が全件 false に張り付いて未読表示が成立しない。一覧だけ先に Phase 1 で出す案は、既読前提で行と store を 2 回設計することになるため棄却。着手はトークン scope の変更 (`read` → `read write`、ログイン画面の story 参照) の直後
-  - scope の変更に伴う設計: トークン応答の `scope` をトークンと並べて保存し、記録の無いトークンは Phase 1 の read トークンとして扱って revoke → 再認可に回す (サーバには問い合わせられない — `apps/verify_credentials` は scope を返さない)。Akkoma の認可画面では scope を外せるので「サインイン済みだが読み取りのみ」は移行期だけの状態ではなく、scope 不足の 403 (`Insufficient permissions`) は「サインインが必要」とは別の表示にする。ADR-0003 の「Phase 2 costs exactly one re-authorization prompt」は Akkoma ではこの形でしか成り立たない
+  - 受け入れ条件: 種別ごとにアイコンか文言で区別でき、未知の type は汎用行で出て一覧が壊れない / 未読と既読の境界が一覧上で見え、一覧を開くと既読になる / 新着と取りこぼしの gap がタイムラインと同じく先頭に伸びる / 通知の行から投稿 (スレッド) とアカウント (プロフィール) に遷移し、Back で一覧の位置に戻る
+  - 着手条件: issue #71 (pages 横断 import の規則化と既存 3 本の解消) がマージ済みであること。通知ページが `AccountRow` / `ErrorCard` の 4 本目・5 本目の横断 import を足すため、先に直す方が安い
+  - Phase 1 から移動。既読を付ける経路 (`POST /api/v1/pleroma/notifications/read` は `write:notifications`、`POST /api/v1/markers` は `follow` / `write:blocks`) がすべて write scope で、Phase 1 の `read` トークンでは `pleroma.is_seen` が全件 false に張り付いて未読表示が成立しない。一覧だけ先に Phase 1 で出す案は、既読前提で行と store を 2 回設計することになるため棄却
   - 一覧は先頭に伸びる (新着 + 取りこぼしの gap) ので timeline の segment モデルが要る。現状は Status 固定で `pages/timeline` にあり、この story が 3 件目 (rule of three) として要素型をパラメータ化して `entities/` へ移す。既読状態は一覧の要素に書き戻さず別の signal で持つ (書き戻すと全行が作り直される)。通知 id は整数連番なので既読境界の比較は数値で行う (PLAN の落とし穴)
 - [ ] CW・公開範囲 (`local` 含む) 付きで投稿でき、カスタム絵文字の補完が効く。
   - compose は session に加えて `entities/status` の Emoji 型・`EmojiText`・公開範囲のアイコンを使う。置き場所は entity 間 import の禁止 (`no-entity-sideways`) と合わせて決める (リアクション story の session の注記と同じ壁)
+- [ ] タイムライン上からファボ・ブースト・ブックマーク・絵文字リアクションができる。
+  - 着手前に決めること: 同じ status が 5 か所 (timeline の segment、cursor list、pinned の query、thread の query、retention の snapshot) に別オブジェクトで保持されていて、1 件だけ更新する経路が無い。canonical store か閲覧者フラグの overlay かは ADR-0016 (draft) で決める / スレッド起点の統計行 (N boosts · N favourites · N reactions) とリアクション数の表示を残すかも同時に決める (数を出すと「バズっている投稿」が見えて疲れる、という使い手の観察から。「誰が」一覧の sub-item にある統計行の根拠はこの再考の対象)
+  - `ActionBar` (`entities/status`) からは session を読めない (`no-entity-sideways`)。書き込み可否は prop で通すか、session の事実 (トークンの有無と付与 scope) を `src/api/token-store.ts` の素の関数として下ろす。同じページの中では session は変わらない (login は `location.assign`、logout は reload) ので、entities からはリアクティブでない読み出しで足りる
+
+### Done 条件に入らないストーリー
+
+スロットが空いたら着手する。Phase 2 の wrap-up で未着手なら Icebox か次の phase へ。
+
 - [ ] alt text 付きで画像を添付でき、アップロードの進捗が見える。
   - アップロード進捗は fetch では取れず XHR が要る。認証ヘッダの付与は openapi-fetch の middleware にしか無い (`src/api/client.ts`) ので、ヘッダ値を返す関数を切り出して middleware と XHR の両方から呼ぶ。XHR の結果は `src/api/oauth.ts` の form POST と同じ畳み方で Result にする
-- [ ] タイムライン上からファボ・ブースト・ブックマーク・絵文字リアクションができる。
-  - 同じ status が 5 か所 (timeline の segment、cursor list、pinned の query、thread の query、retention の snapshot) に別オブジェクトで保持されていて、1 件だけ更新する経路が無い。canonical store か閲覧者フラグの overlay かは ADR-0016 (draft) で着手前に決める
-  - `ActionBar` (`entities/status`) からは session を読めない (`no-entity-sideways`)。書き込み可否は prop で通すか、session の事実 (トークンの有無と付与 scope) を `src/api/token-store.ts` の素の関数として下ろす。同じページの中では session は変わらない (login は `location.assign`、logout は reload) ので、entities からはリアクティブでない読み出しで足りる
 - [ ] プロフィールからフォロー / 解除でき、承認制アカウントには申請中の状態が表示される。
-- [ ] アカウント・ハッシュタグ・投稿を検索できる。
+  - 受け入れ条件: 既にフォロー関係があるリモートアカウントをフォロー解除し、再フォローする。両方向がプロフィールのボタン表示に反映される。相手が承認制なら、再フォローで「申請中」が出ることも同じ手順で確認する。インスタンスに既知のアカウントが相手なので、リモートアカウントの解決 (WebFinger) はこの story の範囲に入らない
 - [ ] お気に入り / ブックマークした投稿の一覧を閲覧できる (`/api/v1/favourites`, `/api/v1/bookmarks`)。
-- [ ] ログイン画面をワイヤー ([docs/design/login-20260712.html](./design/login-20260712.html)) に合わせて仕上げる (Phase 1 では意図的に直さなかった — 接触頻度が低く、Phase 2 のトークン scope 変更 (`read` → `read write`) で全員が再認可のためログインを通り直すタイミングに実装するのが同スロットで安い)
 
 ## Icebox
 
+- アカウント・ハッシュタグ・投稿の検索 (v2)。利用頻度が低いため Phase 2 の kickoff で外した。`@user@host` を手入力で解決する唯一の動線なので、戻すときは WebFinger の学びも一緒に戻る
 - 見逃した投稿のキャッチアップダイジェスト (Phanpy 風)
 - タブを閉じても消えない下書き
 - Streaming によるタイムラインのリアルタイム更新 — 自動更新 / 手動更新をトグルで切り替えられる形で (昔の Twitter クライアント風)
