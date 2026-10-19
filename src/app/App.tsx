@@ -18,7 +18,11 @@ import {
 import { statusPath } from "../entities/status/url";
 import { FollowList } from "../pages/profile/FollowList";
 import { followers, following } from "../pages/profile/follow-list";
-import { ProfilePage, ProfilePosts } from "../pages/profile/ProfilePage";
+import {
+  ErrorCard,
+  ProfilePage,
+  ProfilePosts,
+} from "../pages/profile/ProfilePage";
 import { preloadProfile } from "../pages/profile/profile-query";
 import { media, posts, postsAndReplies } from "../pages/profile/profile-tabs";
 import { ThreadPage } from "../pages/thread/ThreadPage";
@@ -219,6 +223,17 @@ const RetainingRoutes = (props: ParentProps) => (
   <Retention signedIn={authenticated()}>{props.children}</Retention>
 );
 
+// No "Log in" here: an unmatched path is not a visibility verdict a session
+// could change.
+const NotFound = () => (
+  <>
+    <ErrorCard message="Page not found." onRetry={undefined} />
+    <A href="/" class={outlineButton({ tone: "neutral" })}>
+      Home
+    </A>
+  </>
+);
+
 // `scrollRestoration`: the router records `window.scrollY` per history entry
 // and restores it once routing settles after a pop. The scrolling container
 // is the document — which is why TimelineShell's panel must never clip — so
@@ -281,6 +296,8 @@ const App = () => (
         <Route path={reactions.path} component={ReactionsList} />
       </Route>
     </Route>
+    {/* Outside the gate and retention: readable signed out, never stacked. */}
+    <Route path="*" component={NotFound} />
   </Router>
 );
 
