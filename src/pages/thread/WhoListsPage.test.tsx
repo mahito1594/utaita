@@ -20,10 +20,9 @@ import { Retention } from "../../entities/retention/retention";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
 import { signIn } from "../../test/sign-in";
-import type { Account } from "../profile/profile-api";
 import { ReactionsList, WhoList, WhoListsPage } from "./WhoListsPage";
 import { boosts, favourites, reactions, whoListPath } from "./who-lists";
-import type { ReactionGroup } from "./who-lists-api";
+import type { Account, ReactionGroup } from "./who-lists-api";
 import { preloadWhoLists } from "./who-lists-query";
 
 // Hand-written, anonymized fixtures typed against the generated schema — the

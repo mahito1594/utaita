@@ -27,7 +27,7 @@ import { statusPath } from "../../entities/status/url";
 import { ErrorCard } from "../../ui/ErrorCard";
 import { ghostIconButton } from "../../ui/ghost-icon-button";
 import { noticeRow } from "../../ui/notice-row";
-import { AccountRow } from "../profile/AccountRow";
+import { AccountRow } from "./AccountRow";
 import { threadQuery } from "./thread-query";
 import {
   type AccountWhoList,

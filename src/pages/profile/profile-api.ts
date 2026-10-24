@@ -6,10 +6,10 @@ import type { Status } from "../../entities/status/types";
 import type { ProfileTab } from "./profile-tabs";
 
 // Named here rather than in an entity module: the full account shape is what
-// the profile and the account lists (this page's follow lists and the lists
-// under a post, src/pages/thread/who-lists-api.ts) draw, while
-// `Status["account"]` (the card's abbreviated author) is a different need
-// (entities/status/types.ts).
+// the profile and its follow lists draw, while `Status["account"]` (the card's
+// abbreviated author) is a different need (entities/status/types.ts). Pages do
+// not import each other, so src/pages/thread/who-lists-api.ts names the same
+// generated type for itself.
 export type Account = components["schemas"]["Account"];
 
 /**
