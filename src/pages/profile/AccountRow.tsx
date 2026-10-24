@@ -54,6 +54,9 @@ const acctLine = css({ ...truncated, color: "text.muted", fontSize: "xs" });
  *
  * Bios, relationship badges and a follow button are not part of it; following
  * from a list is Phase 2 work (docs/PLAN.ja.md).
+ *
+ * src/pages/thread/AccountRow.tsx is a copy (pages do not import each other);
+ * a change here belongs there too until a third use moves both below pages.
  */
 export const AccountRow = (props: { account: Account }) => {
   const acct = () => props.account.acct ?? "";

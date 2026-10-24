@@ -17,15 +17,17 @@ import {
 import { css } from "../../../styled-system/css";
 import { markRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
+import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
 import { EmojiText } from "../../entities/status/EmojiText";
 import { parseEmojiReactions } from "../../entities/status/parse";
 import { ReactionChip } from "../../entities/status/ReactionChips";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { ErrorCard } from "../../ui/ErrorCard";
 import { ghostIconButton } from "../../ui/ghost-icon-button";
-import { AccountRow } from "../profile/AccountRow";
-import { ErrorCard, noticeRow } from "../profile/ProfilePage";
+import { noticeRow } from "../../ui/notice-row";
+import { AccountRow } from "./AccountRow";
 import { threadQuery } from "./thread-query";
 import {
   type AccountWhoList,
@@ -165,8 +167,11 @@ export const WhoList = (props: { list: AccountWhoList }) => {
           <ErrorCard
             message={failureMessage(failure(), what(), authenticated())}
             onRetry={retry}
-            signIn={offersSignIn(failure())}
-          />
+          >
+            <Show when={offersSignIn(failure())}>
+              <SignInButton />
+            </Show>
+          </ErrorCard>
         )}
       </Show>
 
@@ -277,8 +282,11 @@ export const ReactionsList = () => {
               authenticated(),
             )}
             onRetry={retry}
-            signIn={offersSignIn(failure())}
-          />
+          >
+            <Show when={offersSignIn(failure())}>
+              <SignInButton />
+            </Show>
+          </ErrorCard>
         )}
       </Show>
 

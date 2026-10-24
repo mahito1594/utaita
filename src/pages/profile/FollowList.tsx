@@ -3,8 +3,11 @@ import { For, onCleanup, onMount, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
+import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
 import { acctFromPath } from "../../entities/status/mention";
+import { ErrorCard } from "../../ui/ErrorCard";
+import { noticeRow } from "../../ui/notice-row";
 import { AccountRow } from "./AccountRow";
 import {
   type CursorListSnapshot,
@@ -16,7 +19,7 @@ import {
   listHidden,
 } from "./follow-list";
 import { fetchFollowList } from "./follow-list-api";
-import { ErrorCard, loadingRow, noticeRow, PostsSentinel } from "./ProfilePage";
+import { loadingRow, PostsSentinel } from "./ProfilePage";
 import type { Account } from "./profile-api";
 import { profileQuery } from "./profile-query";
 
@@ -131,8 +134,11 @@ export const FollowList = (props: { list: ListDefinition }) => {
               authenticated(),
             )}
             onRetry={() => void store.loadInitial()}
-            signIn={offersSignIn(failure())}
-          />
+          >
+            <Show when={offersSignIn(failure())}>
+              <SignInButton />
+            </Show>
+          </ErrorCard>
         )}
       </Show>
 
