@@ -123,6 +123,31 @@ the session has no URL, is read by several pages, and is mounted by `app/`
 no other entity. `OAuthCallback` stays in `app/`: it has a URL and its whole
 job is composition.
 
+## Amendment (2026-10-24): `src/ui/` exists and holds API-type-free primitives, components included
+
+The reserved layer was created on 2026-08-07, when the outline button's
+fourth occurrence forced the extraction the Decision anticipated, and
+ADR-0012's config gained `ui-stays-leaf` the next day to pin it as a leaf
+beside `api/`. It held only style recipes until the error card
+(`src/ui/ErrorCard.tsx`) became its first component, moved there once three
+pages and the catch-all route rendered it.
+
+What qualifies for `ui/` is decided by its imports, not by whether it is a
+style or a component: a resident uses nothing from `api/` (so no generated
+schema types) and nothing from `entities/`, which `ui-stays-leaf` enforces.
+A component whose props are plain values (a message, a callback, children)
+fits; one that needs an `Account`, a `Status`, or an entity component does
+not and stays in `entities/`. The consequence shows in the error card: the
+sign-in button is an entity (`entities/session`), so the card cannot render
+it itself and takes it as children from the page, which also owns the
+decision of whether a session could change the verdict.
+
+The Decision's tree reads with a fifth line:
+
+```
+  ui/          # shared UI primitives with no API or entity knowledge: style recipes, plain-prop components
+```
+
 ## References
 
 - Server-state primitives and pagination ownership: [ADR-0004](./0004-data-fetching.md)
