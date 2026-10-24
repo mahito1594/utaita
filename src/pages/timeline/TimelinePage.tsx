@@ -14,6 +14,7 @@ import { claimRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
 import { authenticated } from "../../entities/session/session";
 import { StatusCard } from "../../entities/status/StatusCard";
+import { noticeRow } from "../../ui/notice-row";
 import { outlineButton } from "../../ui/outline-button";
 import { gapBoundariesByTailId } from "./gap-lookup";
 import { publishTimelineControls } from "./TimelineShell";
@@ -33,15 +34,6 @@ const statusRow = css({
 // conversation on tap, so 12px of padding around it has to be padding *inside*
 // it to stay reachable by a thumb (StatusCard.tsx).
 const statusRowBody = css({ px: "3", py: "3" });
-
-// The loading and empty states: whichever shows is alone in the panel, so it
-// takes the row inset without the rule — there is nothing under it to separate
-// itself from.
-const noticeRow = css({
-  px: "3",
-  py: "3",
-  color: "text.muted",
-});
 
 // A box, not a row: it is the only thing in the panel when it shows, so it
 // keeps its frame and takes the row inset as a margin instead — nothing to
