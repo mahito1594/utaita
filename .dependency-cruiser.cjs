@@ -2,9 +2,11 @@
 // entities → {api, ui}) and ADR-0012. api and ui are both leaves with no
 // dependents of their own, so entities may import ui (a shared UI
 // primitive) the same way it imports api; only the two leaves must not
-// import each other or anything above them. Biome cannot do this job: its
-// import rules glob-match the literal import specifier, so a relative
-// `../status/...` between sibling entities is invisible to it.
+// import each other or anything above them. Siblings within a layer stay
+// independent too: no entity imports another entity and no page imports
+// another page (no-entity-sideways, no-page-sideways). Biome cannot do this
+// job: its import rules glob-match the literal import specifier, so a
+// relative `../status/...` between sibling entities is invisible to it.
 // Also enforces dependency hygiene: production code must only import
 // declared production dependencies (not-to-dev-dep below).
 
@@ -49,6 +51,20 @@ module.exports = {
       severity: "error",
       from: { path: "^src/entities/([^/]+)/" },
       to: { path: "^src/entities/", pathNot: "^src/entities/$1/" },
+    },
+    {
+      name: "no-page-sideways",
+      comment:
+        "Pages stay independent of each other; what several pages share " +
+        "moves down to entities or ui (ADR-0010). $1 back-references the " +
+        "page's own folder. Test files are exempt: the retention tests " +
+        "mount several pages on one router.",
+      severity: "error",
+      from: {
+        path: "^src/pages/([^/]+)/",
+        pathNot: "[.](?:spec|test)[.](?:js|mjs|cjs|jsx|ts|mts|cts|tsx)$",
+      },
+      to: { path: "^src/pages/", pathNot: "^src/pages/$1/" },
     },
     {
       name: "no-circular",
