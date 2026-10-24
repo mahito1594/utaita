@@ -25,6 +25,8 @@ import { authenticated, offersSignIn } from "../../entities/session/session";
 import { acctFromPath } from "../../entities/status/mention";
 import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
+import { ErrorCard } from "../../ui/ErrorCard";
+import { noticeRow } from "../../ui/notice-row";
 import { outlineButton } from "../../ui/outline-button";
 import {
   type CursorListSnapshot,
@@ -100,60 +102,13 @@ const postRow = css({
 
 const postRowBody = css({ px: "3", py: "3" });
 
-// Whichever of the loading/empty states shows stands alone on the plane, so it
-// takes the row inset without the rule.
-export const noticeRow = css({
-  px: "3",
-  py: "3",
-  color: "text.muted",
-});
-
 // A one-line outlet while the list is out would let the browser clamp the
 // scroll position; a viewport's worth of height keeps the reader where they were.
 export const loadingRow = css({ minH: "100dvh" });
 
-const errorBox = css({
-  bg: "error.subtle",
-  color: "error.default",
-  borderWidth: "1px",
-  borderColor: "error.default",
-  borderRadius: "lg",
-  p: "3",
-  m: "3",
-  fontSize: "sm",
-});
-
 // A 404 is the one answer that repeating the request cannot change.
 const retryable = (error: ApiError): boolean =>
   error.kind === "network" || error.status !== 404;
-
-// Errors are ordinary render branches, not exceptions (ADR-0008). Both the
-// wording and whether recovery is offered at all belong to the call site: an
-// account that is not here says something different from a list that did not
-// arrive, and only one of the two can be worth a second request.
-export const ErrorCard = (props: {
-  message: string;
-  onRetry: (() => void) | undefined;
-  // `offersSignIn`: the button shows only where a session could change the
-  // verdict.
-  signIn?: boolean;
-}) => (
-  <p class={errorBox} role="alert">
-    {props.message}{" "}
-    <Show when={props.onRetry !== undefined}>
-      <button
-        type="button"
-        class={outlineButton({ tone: "error" })}
-        onClick={props.onRetry}
-      >
-        Retry
-      </button>
-    </Show>{" "}
-    <Show when={props.signIn}>
-      <SignInButton />
-    </Show>
-  </p>
-);
 
 // The list's own end while more is coming: no closing rule, since the last
 // post row's rule already sits above it and nothing follows.
@@ -397,8 +352,11 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
               authenticated(),
             )}
             onRetry={() => void store.loadInitial()}
-            signIn={offersSignIn(failure())}
-          />
+          >
+            <Show when={offersSignIn(failure())}>
+              <SignInButton />
+            </Show>
+          </ErrorCard>
         )}
       </Show>
 
@@ -504,8 +462,11 @@ export const ProfilePage = (props: ParentProps) => {
           <ErrorCard
             message={failureMessage(failure(), "this account", authenticated())}
             onRetry={retryable(failure()) ? retry : undefined}
-            signIn={offersSignIn(failure())}
-          />
+          >
+            <Show when={offersSignIn(failure())}>
+              <SignInButton />
+            </Show>
+          </ErrorCard>
         )}
       </Show>
 

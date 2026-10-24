@@ -18,11 +18,7 @@ import {
 import { statusPath } from "../entities/status/url";
 import { FollowList } from "../pages/profile/FollowList";
 import { followers, following } from "../pages/profile/follow-list";
-import {
-  ErrorCard,
-  ProfilePage,
-  ProfilePosts,
-} from "../pages/profile/ProfilePage";
+import { ProfilePage, ProfilePosts } from "../pages/profile/ProfilePage";
 import { preloadProfile } from "../pages/profile/profile-query";
 import { media, posts, postsAndReplies } from "../pages/profile/profile-tabs";
 import { ThreadPage } from "../pages/thread/ThreadPage";
@@ -43,6 +39,7 @@ import {
 import { TimelinePage } from "../pages/timeline/TimelinePage";
 import { TimelineShell } from "../pages/timeline/TimelineShell";
 import { bubble, federated, home, local } from "../pages/timeline/timelines";
+import { ErrorCard } from "../ui/ErrorCard";
 import { outlineButton } from "../ui/outline-button";
 import { LoginScreen } from "./LoginScreen";
 import { OAuthCallback } from "./OAuthCallback";
