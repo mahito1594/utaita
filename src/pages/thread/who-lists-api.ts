@@ -1,7 +1,11 @@
 import { type ApiError, client, toResult } from "../../api/client";
 import { ok, type Result } from "../../api/result";
+import type { components } from "../../api/schema";
 import type { EmojiReaction } from "../../entities/status/parse";
-import type { Account } from "../profile/profile-api";
+
+// Pages do not import each other, so this page names the generated account
+// shape itself, as src/pages/profile/profile-api.ts does.
+export type Account = components["schemas"]["Account"];
 
 // Both endpoints answer with the whole list in one response: Akkoma reads them
 // with `Repo.all` and attaches no Link header
