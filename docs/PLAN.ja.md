@@ -36,7 +36,7 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
       ADR-0016 (draft)、各 story の sub-item
 - [x] Phase 2 kickoff (2026-10-19)。Done 条件と着手順は
       [stories.ja.md](./stories.ja.md) の Phase 2 冒頭。検索は Icebox へ
-- [ ] Phase 2。通知 story の前に issue #71 を消化する (着手条件は stories.ja.md)
+- [ ] Phase 2。着手順と各 story の着手条件は stories.ja.md
 
 ## Phase 0 — 基盤
 
