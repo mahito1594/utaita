@@ -68,9 +68,11 @@ for a missing token and for content it cannot see (ADR-0015). The
 Consequences' "Phase 2 costs exactly one re-authorization prompt" holds
 only in this form.
 
-Draft until the scope-change story ships (stories.ja.md, Phase 2, first
-story); the implementation may still move the boundary between what the
-client stores and what it infers.
+Draft until the notifications story ships (stories.ja.md, Phase 2). The
+scope-change story stores the scope and classifies the 403, but it has no
+write action; marking notifications as read is the first, so the distinct
+wording first appears there. Either story may still move the boundary
+between what the client stores and what it infers.
 
 ## References
 
