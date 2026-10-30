@@ -39,7 +39,7 @@
     "solid-js": "^1.9.13"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.2",
+    "@biomejs/biome": "2.6.3",
     "@pandacss/dev": "^2.0.0",
     "@pandacss/preset-base": "^2.1.1",
     "@pandacss/preset-panda": "^2.1.1",
@@ -57,5 +57,5 @@
     "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.9"
   },
-  "packageManager": "pnpm@12.15.0"
+  "packageManager": "pnpm@12.16.1"
 }
