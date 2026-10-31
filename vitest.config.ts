@@ -18,6 +18,9 @@ export default defineConfig({
     // every suite to jsdom silently instead of failing on a missing package.
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
+    // Node 25+ defines its own global localStorage (undefined without
+    // --localstorage-file), and vitest keeps that over happy-dom's.
+    execArgv: ["--no-webstorage"],
     // vite-plugin-solid adds the "browser" condition, which vitest forwards to
     // Node for external deps; @mswjs/interceptors maps its node-only entries
     // (e.g. ./ClientRequest) to null under it. Inlining both moves msw's imports
