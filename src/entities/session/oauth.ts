@@ -5,10 +5,9 @@
 export const REDIRECT_PATH = "/oauth-callback";
 
 // Register once with the full scope set (registration carries no capability
-// by itself), request tokens with only what the current phase uses — the
-// read-only MVP asks for `read` (ADR-0003).
+// by itself), request tokens with only what the current phase uses (ADR-0003).
 export const REGISTRATION_SCOPES = "read write follow push";
-const TOKEN_SCOPE = "read";
+const TOKEN_SCOPE = "read write";
 
 export const buildAuthorizeUrl = (params: {
   clientId: string;
@@ -21,14 +20,25 @@ export const buildAuthorizeUrl = (params: {
     redirect_uri: params.redirectUri,
     scope: TOKEN_SCOPE,
     state: params.state,
+    // Without it Akkoma answers a session cookie holding a valid token with
+    // `?access_token=` instead of a code (issue #56).
+    force_login: "true",
   })}`;
+
+// A reissued token or a form posted with scopes unticked can grant less than
+// was requested; a token without both is not a session this app supports
+// (ADR-0003).
+export const grantsReadWrite = (scope: string): boolean => {
+  const granted = new Set(scope.split(/\s+/));
+  return granted.has("read") && granted.has("write");
+};
 
 export type CallbackParams =
   // `state` is required-but-nullable: parsing always evaluates it, so "key
   // absent" would be a meaningless third state (exactOptionalPropertyTypes).
   | { kind: "code"; code: string; state: string | undefined }
-  // The instance redirected back with an OAuth error (e.g. access_denied
-  // when the user refused the authorization prompt).
+  // The instance redirected back with an OAuth error. Akkoma's Cancel is a
+  // link to `/` and never lands here, but RFC 6749 §4.1.2.1 allows this reply.
   | { kind: "denied"; error: string }
   // Someone landed on the callback path without OAuth params at all.
   | { kind: "invalid" };

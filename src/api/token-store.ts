@@ -12,7 +12,10 @@ export type AppCredentials = { clientId: string; clientSecret: string };
 
 const CLIENT_ID = "utaita:client_id";
 const CLIENT_SECRET = "utaita:client_secret";
-const ACCESS_TOKEN = "utaita:access_token";
+// Renamed from Phase 1's "utaita:access_token": tokens under that key were
+// granted `read` only, so they must not count as a session (ADR-0003).
+const ACCESS_TOKEN = "utaita:token";
+const LEGACY_ACCESS_TOKEN = "utaita:access_token";
 
 export const loadCredentials = (): AppCredentials | undefined => {
   const clientId = localStorage.getItem(CLIENT_ID);
@@ -41,4 +44,13 @@ export const saveToken = (token: string): void => {
 // once per origin (ADR-0003) and stays valid for the next login.
 export const clearToken = (): void => {
   localStorage.removeItem(ACCESS_TOKEN);
+};
+
+// The only access to the Phase 1 key. It is cleared only once the token is
+// revoked, so a failed revoke is retried at the next sign-in.
+export const loadLegacyToken = (): string | undefined =>
+  localStorage.getItem(LEGACY_ACCESS_TOKEN) ?? undefined;
+
+export const clearLegacyToken = (): void => {
+  localStorage.removeItem(LEGACY_ACCESS_TOKEN);
 };

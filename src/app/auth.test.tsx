@@ -100,7 +100,11 @@ const signIn = async () => {
   sessionStorage.setItem("utaita:oauth_state", "nonce-1");
   server.use(
     http.post("*/oauth/token", () =>
-      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+      HttpResponse.json({
+        access_token: "tok-1",
+        token_type: "Bearer",
+        scope: "read write",
+      }),
     ),
   );
   const result = await completeLogin("code-1", "nonce-1");
@@ -112,7 +116,11 @@ const homeTimelineOk = () =>
 
 const tokenExchangeOk = () =>
   http.post("*/oauth/token", () =>
-    HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+    HttpResponse.json({
+      access_token: "tok-1",
+      token_type: "Bearer",
+      scope: "read write",
+    }),
   );
 
 // The thread route's preload runs on a match, gate or no gate, so these answer
@@ -369,7 +377,11 @@ test("callback exchanges the code, injects the token, and lands on the timeline"
       expect(body.get("grant_type")).toBe("authorization_code");
       expect(body.get("code")).toBe("code-1");
       expect(body.get("client_id")).toBe("cid-1");
-      return HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" });
+      return HttpResponse.json({
+        access_token: "tok-1",
+        token_type: "Bearer",
+        scope: "read write",
+      });
     }),
     http.get("*/api/v1/timelines/home", ({ request }) => {
       timelineAuthHeader = request.headers.get("Authorization");
@@ -384,7 +396,7 @@ test("callback exchanges the code, injects the token, and lands on the timeline"
   const { findByText } = render(() => <App />);
 
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
-  expect(localStorage.getItem("utaita:access_token")).toBe("tok-1");
+  expect(localStorage.getItem("utaita:token")).toBe("tok-1");
   expect(timelineAuthHeader).toBe("Bearer tok-1");
 });
 
@@ -428,7 +440,11 @@ test("a sign-in this tab started exchanges the code even with a token already st
     http.post("*/oauth/token", async ({ request }) => {
       const body = new URLSearchParams(await request.text());
       exchangedCode = body.get("code") ?? undefined;
-      return HttpResponse.json({ access_token: "tok-2", token_type: "Bearer" });
+      return HttpResponse.json({
+        access_token: "tok-2",
+        token_type: "Bearer",
+        scope: "read write",
+      });
     }),
     homeTimelineOk(),
   );
@@ -441,7 +457,7 @@ test("a sign-in this tab started exchanges the code even with a token already st
 
   expect(await findByText("Hello from fixture one")).toBeInTheDocument();
   expect(exchangedCode).toBe("code-2");
-  expect(localStorage.getItem("utaita:access_token")).toBe("tok-2");
+  expect(localStorage.getItem("utaita:token")).toBe("tok-2");
 });
 
 test("a return path pointing outside the app is refused", async () => {
@@ -473,7 +489,7 @@ test("callback with a mismatched state stores no token", async () => {
   const { findByText } = render(() => <App />);
 
   expect(await findByText(/state mismatch/i)).toBeInTheDocument();
-  expect(localStorage.getItem("utaita:access_token")).toBeNull();
+  expect(localStorage.getItem("utaita:token")).toBeNull();
 });
 
 test("empty access_token in the exchange response is rejected, not stored", async () => {
@@ -490,7 +506,205 @@ test("empty access_token in the exchange response is rejected, not stored", asyn
   const { findByText } = render(() => <App />);
 
   expect(await findByText(/malformed token response/i)).toBeInTheDocument();
+  expect(localStorage.getItem("utaita:token")).toBeNull();
+});
+
+// Records every token sent to the revoke endpoint.
+const recordRevokes = (revoked: string[]) =>
+  http.post("*/oauth/revoke", async ({ request }) => {
+    revoked.push(new URLSearchParams(await request.text()).get("token") ?? "");
+    return HttpResponse.json({});
+  });
+
+test("a token without write is revoked, not stored, and the Phase 1 token is left alone", async () => {
+  seedCredentials();
+  localStorage.setItem("utaita:access_token", "tok-legacy");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  const revoked: string[] = [];
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-read", scope: "read" }),
+    ),
+    recordRevokes(revoked),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-1&state=nonce-1",
+  );
+  const { findByRole } = render(() => <App />);
+
+  expect(await findByRole("alert")).toHaveTextContent(/granted: read/);
+  expect(await findByRole("button", { name: "Log in" })).toBeEnabled();
+  expect(localStorage.getItem("utaita:token")).toBeNull();
+  expect(revoked).toEqual(["tok-read"]);
+  expect(localStorage.getItem("utaita:access_token")).toBe("tok-legacy");
+});
+
+test("a token response without scope is rejected, not stored", async () => {
+  seedCredentials();
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+    ),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-1&state=nonce-1",
+  );
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText(/malformed token response/i)).toBeInTheDocument();
+  expect(localStorage.getItem("utaita:token")).toBeNull();
+});
+
+test("a successful sign-in replaces the Phase 1 token and revokes it", async () => {
+  seedCredentials();
+  localStorage.setItem("utaita:access_token", "tok-legacy");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  const revoked: string[] = [];
+  server.use(tokenExchangeOk(), homeTimelineOk(), recordRevokes(revoked));
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-1&state=nonce-1",
+  );
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  expect(localStorage.getItem("utaita:token")).toBe("tok-1");
+  // Not awaited by the sign-in, so it may land after the timeline.
+  await waitFor(() => expect(revoked).toEqual(["tok-legacy"]));
+  await waitFor(() =>
+    expect(localStorage.getItem("utaita:access_token")).toBeNull(),
+  );
+});
+
+test("a Phase 1 token whose revoke fails is kept for the next sign-in", async () => {
+  seedCredentials();
+  localStorage.setItem("utaita:access_token", "tok-legacy");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  let revokeAttempted = false;
+  server.use(
+    tokenExchangeOk(),
+    homeTimelineOk(),
+    http.post("*/oauth/revoke", () => {
+      revokeAttempted = true;
+      return HttpResponse.error();
+    }),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-1&state=nonce-1",
+  );
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
+  await waitFor(() => expect(revokeAttempted).toBe(true));
+  expect(localStorage.getItem("utaita:access_token")).toBe("tok-legacy");
+});
+
+test("the Phase 1 token handed back without a screen is revoked and named as such", async () => {
+  // A cookie holding only the user makes the instance reissue its newest
+  // token for this app — the Phase 1 one — with no authorize page shown.
+  seedCredentials();
+  localStorage.setItem("utaita:access_token", "tok-legacy");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  const revoked: string[] = [];
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-legacy", scope: "read" }),
+    ),
+    recordRevokes(revoked),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-1&state=nonce-1",
+  );
+  const { findByRole } = render(() => <App />);
+
+  const alert = await findByRole("alert");
+  expect(alert).toHaveTextContent(/earlier read-only sign-in/);
+  expect(alert).not.toHaveTextContent(/granted/);
+  expect(revoked).toEqual(["tok-legacy"]);
   expect(localStorage.getItem("utaita:access_token")).toBeNull();
+  expect(localStorage.getItem("utaita:token")).toBeNull();
+});
+
+test("the Phase 1 token handed back but not revoked is not reported as revoked", async () => {
+  seedCredentials();
+  localStorage.setItem("utaita:access_token", "tok-legacy");
+  sessionStorage.setItem("utaita:oauth_state", "nonce-1");
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-legacy", scope: "read" }),
+    ),
+    http.post("*/oauth/revoke", () => HttpResponse.error()),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-1&state=nonce-1",
+  );
+  const { findByRole } = render(() => <App />);
+
+  const alert = await findByRole("alert");
+  expect(alert).toHaveTextContent(/could not be revoked/);
+  expect(alert).not.toHaveTextContent(/now revoked/);
+  expect(localStorage.getItem("utaita:access_token")).toBe("tok-legacy");
+});
+
+test("a Phase 1 token alone is no session: a thread is fetched anonymously", async () => {
+  localStorage.setItem("utaita:access_token", "tok-legacy");
+  const authorizations: (string | null)[] = [];
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", ({ request }) => {
+      authorizations.push(request.headers.get("Authorization"));
+      return HttpResponse.json({ ancestors: [], descendants: [] });
+    }),
+    http.get("*/api/v1/statuses/:id", ({ request }) => {
+      authorizations.push(request.headers.get("Authorization"));
+      return HttpResponse.json(threadSubject);
+    }),
+  );
+  window.history.replaceState(null, "", THREAD_PATH);
+  const { findByText } = render(() => <App />);
+
+  expect(await findByText("The post that was opened")).toBeInTheDocument();
+  expect(authorizations.length).toBeGreaterThan(0);
+  expect(authorizations.every((value) => value === null)).toBe(true);
+});
+
+test("a re-sign-in without write keeps the session that works", async () => {
+  await signIn();
+  sessionStorage.setItem("utaita:oauth_state", "nonce-2");
+  const revoked: string[] = [];
+  server.use(
+    http.post("*/oauth/token", () =>
+      HttpResponse.json({ access_token: "tok-2", scope: "read" }),
+    ),
+    recordRevokes(revoked),
+    homeTimelineOk(),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    "/oauth-callback?code=code-2&state=nonce-2",
+  );
+  const first = render(() => <App />);
+
+  expect(await first.findByRole("alert")).toHaveTextContent(/granted: read/);
+  expect(localStorage.getItem("utaita:token")).toBe("tok-1");
+  expect(revoked).toEqual(["tok-2"]);
+  cleanup();
+
+  window.history.replaceState(null, "", "/");
+  const { findByText } = render(() => <App />);
+  expect(await findByText("Hello from fixture one")).toBeInTheDocument();
 });
 
 test("revisiting the callback while signed in goes home instead of erroring", async () => {
@@ -633,7 +847,7 @@ test("logout revokes the token and reloads the document without waiting for the 
   // which would take this test out of MSW's reach; observing it is the point.
   let whenReloaded: { token: string | null } | undefined;
   const reload = vi.spyOn(window.location, "reload").mockImplementation(() => {
-    whenReloaded = { token: localStorage.getItem("utaita:access_token") };
+    whenReloaded = { token: localStorage.getItem("utaita:token") };
   });
   onTestFinished(() => reload.mockRestore());
   const { findByRole, findByText } = render(() => <App />);

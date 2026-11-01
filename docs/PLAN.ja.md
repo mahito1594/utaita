@@ -83,8 +83,7 @@ followers コレクション、Akkoma の `local`)。UI に現れる連合の痕
 
 Done 条件に入るのは先頭 4 本 (詳細は stories.ja.md)。
 
-- [ ] トークン scope を `read write` に広げる + ログイン画面の仕上げ (全員が
-      再認可を通るので同スロット)
+- [x] トークン scope を `read write` に広げる + dev の authorize 画面に CSS を当てる
 - [ ] 通知 (既読管理込み。`pleroma:emoji_reaction`, `move` など未知の type で
       落ちない。scope 変更の直後に着手 — 既読を付ける API がすべて write scope
       のため。Phase 1 から移動)
@@ -210,7 +209,10 @@ Done 条件に入るのは先頭 4 本 (詳細は stories.ja.md)。
   フォーム POST (`src/api/oauth.ts`) は omit に揃えないこと: `/oauth/token`
   の応答も Cookie を発行し (`after_token_exchange`)、`/oauth/revoke` は送られてきた
   Cookie のトークンが revoke 対象と一致するときだけそのセッションを消す
-  (`o_auth_controller.ex`)。
+  (`o_auth_controller.ex`)。authorize の `force_login` は Cookie に有効なトークンが
+  あるときだけ効き、Cookie に user だけが残っていると既存のトークンが画面無しで
+  返りうる。セッション Cookie には `max_age` が無い。認可画面の Cancel は同意画面に
+  しか無く、`/` へのリンクで callback には来ない。詳細は ADR-0003 の amendment。
 - **フロントエンドのルートは Akkoma が root で所有する prefix を避ける** (2026-09-16 に
   ringed.space / Akkoma 3.20 で実測)。Akkoma は `/users/:nickname` 配下を actor 用に
   広く持つ: feed redirect、`feed`、static-fe の `with_replies` / `media`、AP の

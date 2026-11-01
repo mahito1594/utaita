@@ -3,8 +3,8 @@ import type { ApiError } from "../../api/client";
 // The one place an ApiError becomes a sentence. `subject` is a noun phrase
 // ("this account", "older posts"); `signedIn` is passed in so this stays pure.
 // 401/403/404 follow ADR-0015 (docs/adr/0015-sign-in-gates-only-personal-surfaces.md);
-// a new meaning for a status (e.g. a 403 for a missing scope) is a new branch
-// here. SignInButton does not use this: what fails there is the sign-in itself.
+// a new meaning for a status is a new branch here. SignInButton does not use
+// this: what fails there is the sign-in itself.
 export const failureMessage = (
   error: ApiError,
   subject: string,

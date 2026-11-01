@@ -18,9 +18,9 @@ cp .env.example .env.local   # then fill in your dev instance
 pnpm dev
 ```
 
-The dev server proxies `/api`, `/oauth`, and `/nodeinfo` to
-`DEV_INSTANCE_URL`, so the app talks to a real instance while staying
-same-origin. If `DEV_ACCESS_TOKEN` is set, the proxy injects it server-side
+The dev server proxies `/api`, `/oauth`, `/nodeinfo`, `/static-fe`, and
+`/favicon.png` to `DEV_INSTANCE_URL`, so the app talks to a real instance
+while staying same-origin. If `DEV_ACCESS_TOKEN` is set, the proxy injects it server-side
 as an `Authorization` header; the token never reaches the browser
 ([ADR-0006](./docs/adr/0006-dev-token-injection.md)). Leave it unset to
 exercise the unauthenticated paths (401 or 403 — it differs per endpoint;

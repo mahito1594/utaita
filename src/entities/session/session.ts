@@ -7,8 +7,10 @@ import { exchangeCode, revokeToken } from "../../api/oauth";
 import { err, ok, type Result } from "../../api/result";
 import {
   type AppCredentials,
+  clearLegacyToken,
   clearToken,
   loadCredentials,
+  loadLegacyToken,
   loadToken,
   saveCredentials,
   saveToken,
@@ -16,6 +18,7 @@ import {
 import {
   buildAuthorizeUrl,
   generateState,
+  grantsReadWrite,
   parseReturnPath,
   REDIRECT_PATH,
   REGISTRATION_SCOPES,
@@ -134,7 +137,49 @@ export const completeLogin = async (
     redirectUri: redirectUri(),
   });
   if (!token.ok) return token;
-  saveToken(token.value.access_token);
+  const { access_token, scope } = token.value;
+  const { clientId, clientSecret } = credentials;
+  const legacy = loadLegacyToken();
+  if (!grantsReadWrite(scope)) {
+    // Awaited and revoked so that a retry from a cookie holding only the user
+    // cannot be handed this same token back. A stored session stays as is: a
+    // failed re-sign-in must not break one that works (ADR-0003).
+    const revoked = await revokeToken({
+      clientId,
+      clientSecret,
+      token: access_token,
+    });
+    // From a cookie holding only the user, the instance reissues the Phase 1
+    // token with no screen: the reader withheld nothing.
+    if (access_token === legacy) {
+      if (!revoked.ok) {
+        return err({
+          kind: "flow",
+          message:
+            "the instance returned the earlier read-only sign-in and it could not be revoked — try again",
+        });
+      }
+      clearLegacyToken();
+      return err({
+        kind: "flow",
+        message:
+          "the instance returned the earlier read-only sign-in, now revoked — log in again",
+      });
+    }
+    return err({
+      kind: "flow",
+      message: `this sign-in did not grant read and write access (granted: ${scope})`,
+    });
+  }
+  saveToken(access_token);
+  // The exchange just moved the instance's session cookie to the new token,
+  // so revoking the Phase 1 one cannot end that session.
+  if (legacy !== undefined)
+    void revokeToken({ clientId, clientSecret, token: legacy }).then(
+      (revoked) => {
+        if (revoked.ok) clearLegacyToken();
+      },
+    );
   setAuthenticated(true);
   // Preloads that ran before login cached 401/403 Results; flush everything
   // so the now-authenticated pages refetch (discussion decision 2026-07-12).

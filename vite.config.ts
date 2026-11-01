@@ -24,6 +24,9 @@ export default defineConfig(({ mode }) => {
               // return leg to the instance.
               "^/oauth(/|$)": entry,
               "/nodeinfo": entry,
+              // Stylesheets and logo of the instance's own authorize page.
+              "/static-fe": entry,
+              "/favicon.png": entry,
             },
           },
         }
