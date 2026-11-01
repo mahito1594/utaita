@@ -23,8 +23,9 @@ const errorBox = css({
   fontSize: "sm",
 });
 
-// Registration failures, authorize denial, and code-exchange failures all
-// converge on the same inline message + the button as retry (wireframe).
+// Registration failures, authorize denial, code-exchange failures, and a
+// token granted without write all converge on the same inline message + the
+// button as retry (wireframe).
 const errorText = (error: SessionError): string => {
   switch (error.kind) {
     case "http":

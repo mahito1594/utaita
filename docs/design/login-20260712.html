@@ -58,11 +58,11 @@ li{margin-bottom:4px}
 </figure>
 
 <figure style="margin:0">
-<figcaption class="caption" style="margin-bottom:8px">4. error (registration failed / authorize denied / exchange failed — all converge here)</figcaption>
+<figcaption class="caption" style="margin-bottom:8px">4. error (registration failed / authorize denied / exchange failed / write not granted — all converge here)</figcaption>
 <div class="frame">
   <div class="brand">utaita</div>
   <div class="host">ringed.space</div>
-  <div class="err">Login failed: 〈message from ApiError / access_denied〉</div>
+  <div class="err">Login failed: 〈message from ApiError / access_denied / granted scope without write〉</div>
   <div class="btn">Log in</div>
 </div>
 </figure>
@@ -73,8 +73,9 @@ li{margin-bottom:4px}
 <ul>
 <li>Gate, not prompt: the reference instance requires auth for timelines, so an unauthenticated shell would be all errors. Full-screen login at any URL; on success the same URL renders its real page (no redirect bookkeeping).</li>
 <li>Identity is app name + <code>location.host</code> only. No <code>/api/v1/instance</code> fetch before login — it would add a failure mode to the very first screen for decoration. Phase 4 polish candidate.</li>
-<li>The callback screen is not a separate design: state 3 is the same centered column. Errors from all three failure sources (registration, authorize denial, code exchange) land in the same inline message + retry button (errors travel as values, ADR-0008).</li>
+<li>The callback screen is not a separate design: state 3 is the same centered column. Errors from all four failure sources (registration, authorize denial, code exchange, a token granted without write) land in the same inline message + retry button (errors travel as values, ADR-0008).</li>
 <li>Centered single column, button in one-handed reach on mobile; semantic tokens only.</li>
+<li>Akkoma's Cancel on its authorize page is a link to <code>/</code>; it never reaches the callback, so it lands on this gate in state 1.</li>
 <li>No scope explanation on this screen — the instance's own /oauth/authorize page shows what is being granted.</li>
 </ul>
 

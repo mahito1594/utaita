@@ -15,7 +15,11 @@ export const signIn = async (server: SetupServer): Promise<void> => {
   sessionStorage.setItem("utaita:oauth_state", "nonce-1");
   server.use(
     http.post("*/oauth/token", () =>
-      HttpResponse.json({ access_token: "tok-1", token_type: "Bearer" }),
+      HttpResponse.json({
+        access_token: "tok-1",
+        token_type: "Bearer",
+        scope: "read write",
+      }),
     ),
   );
   onTestFinished(async () => {

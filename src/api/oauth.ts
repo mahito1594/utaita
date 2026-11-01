@@ -6,9 +6,10 @@
 import { type ApiError, errorMessage } from "./client";
 import { err, ok, type Result } from "./result";
 
-// Only the field the app consumes. Akkoma sends more (token_type, scope,
-// created_at); model them when a caller actually needs them.
-export type TokenResponse = { access_token: string };
+// Only the fields the app consumes. `scope` is what the instance actually
+// granted, which can be less than was requested; Akkoma also sends
+// token_type and created_at.
+export type TokenResponse = { access_token: string; scope: string };
 
 // Parse, don't validate: narrow the untyped body without type assertions,
 // so a future shape change fails here instead of downstream.
@@ -17,8 +18,10 @@ const parseTokenResponse = (body: unknown): TokenResponse | undefined =>
   body !== null &&
   "access_token" in body &&
   typeof body.access_token === "string" &&
-  body.access_token !== ""
-    ? { access_token: body.access_token }
+  body.access_token !== "" &&
+  "scope" in body &&
+  typeof body.scope === "string"
+    ? { access_token: body.access_token, scope: body.scope }
     : undefined;
 
 const postForm = async (

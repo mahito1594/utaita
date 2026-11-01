@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildAuthorizeUrl,
   generateState,
+  grantsReadWrite,
   parseCallbackParams,
   parseReturnPath,
   stateMatches,
@@ -22,8 +23,24 @@ describe("buildAuthorizeUrl", () => {
     expect(params.get("redirect_uri")).toBe(
       "http://localhost:5173/oauth-callback",
     );
-    expect(params.get("scope")).toBe("read");
+    expect(params.get("scope")).toBe("read write");
     expect(params.get("state")).toBe("nonce-1");
+    expect(params.get("force_login")).toBe("true");
+  });
+});
+
+describe("grantsReadWrite", () => {
+  test.each([
+    "read write",
+    "write read",
+    "read write follow push",
+    "read  write",
+  ])("%j grants both", (scope) => {
+    expect(grantsReadWrite(scope)).toBe(true);
+  });
+
+  test.each(["read", "write", ""])("%j does not", (scope) => {
+    expect(grantsReadWrite(scope)).toBe(false);
   });
 });
 

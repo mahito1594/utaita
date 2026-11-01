@@ -63,19 +63,19 @@
 
 ### Done 条件に入るストーリー
 
-- [ ] トークン scope を `read` から `read write` に広げ、ログイン画面をワイヤー ([docs/design/login-20260712.html](./design/login-20260712.html)) に合わせて仕上げる (Phase 1 では意図的に直さなかった — 接触頻度が低く、全員が再認可のためログインを通り直すこのタイミングに実装するのが同スロットで安い)。
-  - 受け入れ条件: Phase 1 の `read` トークンで開くと再認可に誘導され、通過後は `read write` トークンで動く / トークン応答の `scope` がトークンと並んで保存され、認可画面で write を外されたトークンは「サインイン済みだが書き込み不可」として、サインインを促す場合とは別の状態に分類される (scope 不足の 403 `Insufficient permissions` も同じ扱い。この story には書き込み操作が無く文言を出す場所が無いので、表示は通知 story で確かめる) / ログイン画面が PC と 375px でワイヤーに一致する / セッション Cookie がある状態での再サインインが `?access_token=` で戻るバグ (issue #56) がこの経路の中で解消される
-  - 設計 (scope を保存する理由、記録の無いトークンの扱い、403 の区別) は ADR-0003 の amendment (2026-10-19、draft) に従う。実装で境界が動いたら amendment を直す。accepted にするのは通知 story で文言が出てから
+- [x] トークン scope を `read` から `read write` に広げ、dev の authorize 画面に CSS を当てる。
+  - 受け入れ条件: Phase 1 の `read` トークンを持つブラウザで開くと未サインインとして扱われ (タイムラインはゲート画面、スレッドとプロフィールは匿名で描画)、Log in から write を付けたまま承認すると write トークンで動き、開いていた URL に戻り、Phase 1 のトークンには revoke が送られる / utaita が authorize へ自動で飛ばすことはなく、Akkoma の同意画面で Cancel すると `/` のゲート画面に止まる / write の無いトークンが返ると (Akkoma の CSS が scope のチェックボックスを隠すので画面からは外せないが、既存トークンの再発行やチェックを外したフォームの送信で起きる)、トークンは保存されず revoke が送られ、ゲート画面に付与された scope を含むエラーと Log in ボタンが出る。保存済みのトークンと Phase 1 のトークンはそのまま残る / セッション Cookie に有効なトークンがある状態での再サインインが同意画面を通り `?code=` で戻る (issue #56) / dev でも Akkoma の authorize 画面に `/static-fe` の CSS とロゴ (`/favicon.png`) が当たる
+  - 設計 (キー名の変更による Phase 1 トークンの区別、write の無いトークンの扱い、Akkoma のセッション Cookie による分岐) は ADR-0003 の amendment に従う
 - [ ] 通知を読め、どこまで読んだかが分かる。メンション・ブースト・フォロー・絵文字リアクションが一目で区別でき、`pleroma:emoji_reaction` や `move` など未知の type で落ちない。未読が見分けられ、閲覧で既読になる。
-  - 受け入れ条件: 種別ごとにアイコンか文言で区別でき、未知の type は汎用行で出て一覧が壊れない / 未読と既読の境界が一覧上で見え、一覧を開くと既読になる / 新着と取りこぼしの gap がタイムラインと同じく先頭に伸びる / 通知の行から投稿 (スレッド) とアカウント (プロフィール) に遷移し、Back で一覧の位置に戻る / write を外したトークンでは既読化の失敗が「サインイン済みだが書き込み不可」として、サインインを促す表示とは別の文言で出る (scope 変更 story の分類を表示する。ここで ADR-0003 の amendment を accepted にする)
+  - 受け入れ条件: 種別ごとにアイコンか文言で区別でき、未知の type は汎用行で出て一覧が壊れない / 未読と既読の境界が一覧上で見え、一覧を開くと既読になる / 新着と取りこぼしの gap がタイムラインと同じく先頭に伸びる / 通知の行から投稿 (スレッド) とアカウント (プロフィール) に遷移し、Back で一覧の位置に戻る
   - 着手条件: issue #71 (pages 横断 import の規則化と既存 3 本の解消) がマージ済みであること。通知ページが `AccountRow` / `ErrorCard` の 4 本目・5 本目の横断 import を足すため、先に直す方が安い
-  - Phase 1 から移動。既読を付ける経路 (`POST /api/v1/pleroma/notifications/read` は `write:notifications`、`POST /api/v1/markers` は `follow` / `write:blocks`) がすべて write scope で、Phase 1 の `read` トークンでは `pleroma.is_seen` が全件 false に張り付いて未読表示が成立しない。一覧だけ先に Phase 1 で出す案は、既読前提で行と store を 2 回設計することになるため棄却
+  - Phase 1 から移動。既読を付ける経路 (`POST /api/v1/pleroma/notifications/read` は `write:notifications`、`POST /api/v1/markers` は `write:statuses`) がすべて write scope で、Phase 1 の `read` トークンでは `pleroma.is_seen` が全件 false に張り付いて未読表示が成立しない。一覧だけ先に Phase 1 で出す案は、既読前提で行と store を 2 回設計することになるため棄却
   - 一覧は先頭に伸びる (新着 + 取りこぼしの gap) ので timeline の segment モデルが要る。現状は Status 固定で `pages/timeline` にあり、この story が 3 件目 (rule of three) として要素型をパラメータ化して `entities/` へ移す。既読状態は一覧の要素に書き戻さず別の signal で持つ (書き戻すと全行が作り直される)。通知 id は整数連番なので既読境界の比較は数値で行う (PLAN の落とし穴)
 - [ ] CW・公開範囲 (`local` 含む) 付きで投稿でき、カスタム絵文字の補完が効く。
   - compose は session に加えて `entities/status` の Emoji 型・`EmojiText`・公開範囲のアイコンを使う。置き場所は entity 間 import の禁止 (`no-entity-sideways`) と合わせて決める (リアクション story の session の注記と同じ壁)
 - [ ] タイムライン上からファボ・ブースト・ブックマーク・絵文字リアクションができる。
   - 着手前に決めること: 同じ status が 5 か所 (timeline の segment、cursor list、pinned の query、thread の query、retention の snapshot) に別オブジェクトで保持されていて、1 件だけ更新する経路が無い。canonical store か閲覧者フラグの overlay かは ADR-0016 (draft) で決める / スレッド起点の統計行 (N boosts · N favourites · N reactions) とリアクション数の表示を残すかも同時に決める (数を出すと「バズっている投稿」が見えて疲れる、という使い手の観察から。「誰が」一覧の sub-item にある統計行の根拠はこの再考の対象)
-  - `ActionBar` (`entities/status`) からは session を読めない (`no-entity-sideways`)。書き込み可否は prop で通すか、session の事実 (トークンの有無と付与 scope) を `src/api/token-store.ts` の素の関数として下ろす。同じページの中では session は変わらない (login は `location.assign`、logout は reload) ので、entities からはリアクティブでない読み出しで足りる
+  - `ActionBar` (`entities/status`) からは session を読めない (`no-entity-sideways`)。書き込み可否は prop で通すか、session の事実 (トークンの有無) を `src/api/token-store.ts` の素の関数として下ろす。同じページの中では session は変わらない (login は `location.assign`、logout は reload) ので、entities からはリアクティブでない読み出しで足りる
 
 ### Done 条件に入らないストーリー
 
