@@ -40,10 +40,11 @@ see the Akkoma pitfalls in [docs/PLAN.md](./docs/PLAN.md)).
 locally is green there. `package.json` holds the rest — each part of `check`
 on its own, `test:watch`, `preview`.
 
-When the Akkoma API changes, `pnpm api:spec` refetches `openapi.json` from
-`DEV_INSTANCE_URL` and `pnpm api:types` regenerates `src/api/schema.d.ts`
-from it. Both files are committed; regenerate them together so API changes
-show up as one reviewable diff.
+After each Akkoma upgrade, `pnpm api:spec` refetches `openapi.json` from
+`DEV_INSTANCE_URL`; diff it against the committed copy. `src/api/schema.d.ts`
+has no working generator (openapi-typescript is unmaintained and fails under
+TypeScript 7), so a spec change triggers the migration tracked in
+[#120](https://github.com/mahito1594/utaita/issues/120) rather than a regeneration.
 
 ## Documentation
 
