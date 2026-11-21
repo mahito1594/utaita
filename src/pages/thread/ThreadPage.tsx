@@ -1,6 +1,5 @@
 import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
-  createAsync,
   revalidate,
   useIsRouting,
   useNavigate,
@@ -12,12 +11,13 @@ import {
   createRenderEffect,
   createSignal,
   For,
+  isPending,
   Show,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
 import type { Result } from "../../api/result";
-import { markRetentionFrame } from "../../entities/retention/retention";
+import { useRetentionFrameMarker } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
 import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
@@ -63,7 +63,7 @@ const ThreadError = (props: { error: ApiError; onRetry: () => void }) => {
           <button
             type="button"
             class={outlineButton({ tone: "error" })}
-            onClick={props.onRetry}
+            onClick={() => props.onRetry()}
           >
             Retry
           </button>
@@ -139,7 +139,7 @@ const RefreshNotice = (props: { error: ApiError; onRetry: () => void }) => (
     <button
       type="button"
       class={outlineButton({ tone: "error" })}
-      onClick={props.onRetry}
+      onClick={() => props.onRetry()}
     >
       Retry
     </button>
@@ -284,42 +284,37 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isRouting = useIsRouting();
-  // `createAsync` keeps answering with the previous post's value while a new
-  // `:id` loads, so the id travels with the answer: pairing it with the
-  // current one files a conversation under another's URL. Both statements
-  // stay ahead of the first await — `query` registers against the calling
-  // listener, which an await would lose, and with it `revalidate`'s hold.
-  const thread = createAsync(async () => {
-    const id = params.id;
-    return { id, result: await threadQuery(id) };
-  });
-  const answer = (): Result<Thread, ApiError> | undefined => {
-    const current = thread();
-    return current === undefined || current.id !== params.id
-      ? undefined
-      : current.result;
-  };
+  const answer = createMemo(() => threadQuery(params.id));
 
   // A conversation keeps nothing of its own, but it still takes a place in the
   // retention stack so that a pop past it lands where the reader's history says
   // it should (src/entities/retention/retention.tsx). Per arrival rather than
   // per mount: opening a post from inside a conversation moves `:id` without
   // recreating the page.
+  const markRetentionFrame = useRetentionFrameMarker();
   createRenderEffect(
     () => params.id,
-    (id) => markRetentionFrame(statusPath(id)),
+    (id) => {
+      markRetentionFrame(statusPath(id));
+    },
   );
 
   // One value per arrival, whether the route was matched afresh or only `:id`
   // moved. Reading the request is what consumes it, so this belongs in a
   // computation that runs exactly once per id — not in an effect that reruns
-  // as the thread below it is rebuilt.
-  const arrival = createMemo(() => ({
-    id: params.id,
-    requested: takeThreadRequest(params.id),
-  }));
+  // as the thread below it is rebuilt. The first one is also remembered as
+  // the arrival the page opened on, from inside the memo rather than by a read
+  // at setup, which would be a read of `:id` outside any tracking scope.
+  let opening: { readonly id: string; readonly requested: boolean } | undefined;
+  const arrival = createMemo(() => {
+    const current = {
+      id: params.id,
+      requested: takeThreadRequest(params.id),
+    };
+    opening ??= current;
+    return current;
+  });
 
-  const opening = arrival();
   // `data` describes the entry the page opened on and no other. From there,
   // opening another post pushes an entry above that one, and a traversal is
   // standing above it unless it is back on the post the page opened with —
@@ -327,7 +322,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   const canGoBack = () => {
     const current = arrival();
     if (current === opening) return props.data.canGoBack;
-    if (current.requested || current.id !== opening.id) return true;
+    if (current.requested || current.id !== opening?.id) return true;
     return props.data.canGoBack;
   };
 
@@ -355,6 +350,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
     return result === undefined || result.ok ? undefined : result.error;
   };
   const retry = () => void revalidate(threadQuery.keyFor(params.id));
+  const switching = () => isPending(() => params.id);
 
   const connected = () => rows().filter((row) => row.place !== "detached");
   const detached = () => rows().filter((row) => row.place === "detached");
@@ -569,53 +565,29 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
         </h2>
       </div>
 
-      <Show when={error()} keyed>
-        {(failure) => (
-          <Show
-            when={rows().length > 0}
-            fallback={<ThreadError error={failure} onRetry={retry} />}
-          >
-            <RefreshNotice error={failure} onRetry={retry} />
-          </Show>
-        )}
-      </Show>
+      {/* Opening another post holds the navigation until its conversation
+          lands; the conversation being left steps aside meanwhile rather
+          than standing under the new post's URL. */}
+      <Show when={!switching()}>
+        <Show when={error()} keyed>
+          {(failure) => (
+            <Show
+              when={rows().length > 0}
+              fallback={<ThreadError error={failure} onRetry={retry} />}
+            >
+              <RefreshNotice error={failure} onRetry={retry} />
+            </Show>
+          )}
+        </Show>
 
-      {/* The plane is visible in its own right — an empty one is a bare strip
+        {/* The plane is visible in its own right — an empty one is a bare strip
           of surface, and a hairline of border on md — so it arrives with the
           first row rather than standing under the heading while the
           conversation loads or after a load that brought none. */}
-      <Show when={connected().length > 0}>
-        {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
-        <ol class={list} role="list">
-          <For each={connected()}>
-            {(row) => (
-              <ThreadRowItem
-                row={row}
-                onRef={(element) => noteRow(row, element)}
-                onFetchParent={fetchParent}
-              />
-            )}
-          </For>
-        </ol>
-      </Show>
-
-      {/* Posts the context delivered that no chain of replies ties to the
-          subject — federation loses middle posts, and dropping them would take
-          whole branches out of the view without a trace (thread-tree.ts). */}
-      <Show when={detached().length > 0}>
-        <section class={detachedPlane}>
-          <div class={detachedBand}>
-            <h3 class={css({ fontSize: "sm", fontWeight: "semibold" })}>
-              Not connected to this post
-            </h3>
-            <p class={css({ fontSize: "xs", color: "text.muted" })}>
-              These came with the conversation, but the posts that would link
-              them to it are missing.
-            </p>
-          </div>
+        <Show when={connected().length > 0}>
           {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
-          <ol class={detachedRows} role="list">
-            <For each={detached()}>
+          <ol class={list} role="list">
+            <For each={connected()}>
               {(row) => (
                 <ThreadRowItem
                   row={row}
@@ -625,7 +597,36 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
               )}
             </For>
           </ol>
-        </section>
+        </Show>
+
+        {/* Posts the context delivered that no chain of replies ties to the
+          subject — federation loses middle posts, and dropping them would take
+          whole branches out of the view without a trace (thread-tree.ts). */}
+        <Show when={detached().length > 0}>
+          <section class={detachedPlane}>
+            <div class={detachedBand}>
+              <h3 class={css({ fontSize: "sm", fontWeight: "semibold" })}>
+                Not connected to this post
+              </h3>
+              <p class={css({ fontSize: "xs", color: "text.muted" })}>
+                These came with the conversation, but the posts that would link
+                them to it are missing.
+              </p>
+            </div>
+            {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops the implied role under list-style:none */}
+            <ol class={detachedRows} role="list">
+              <For each={detached()}>
+                {(row) => (
+                  <ThreadRowItem
+                    row={row}
+                    onRef={(element) => noteRow(row, element)}
+                    onFetchParent={fetchParent}
+                  />
+                )}
+              </For>
+            </ol>
+          </section>
+        </Show>
       </Show>
     </section>
   );

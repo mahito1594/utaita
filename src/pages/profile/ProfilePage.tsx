@@ -1,18 +1,17 @@
+import { revalidate, useMatch, useParams } from "@solidjs/router";
 import {
-  createAsync,
-  revalidate,
-  useMatch,
-  useParams,
-} from "@solidjs/router";
-import {
+  createContext,
   createEffect,
+  createMemo,
   createSignal,
   For,
+  isPending,
   Loading,
   onCleanup,
   onSettled,
   type ParentProps,
   Show,
+  useContext,
 } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
@@ -233,19 +232,14 @@ export const PostsSentinel = (props: {
  * belonging to this strip rather than to `status.pinned` gets us.
  */
 const PinnedPosts = (props: { acct: string }) => {
-  // `acct` is read ahead of the await: `query` registers against the calling
-  // listener, which an await would lose, and with it `revalidate`'s hold.
-  const pinned = createAsync(async () => {
-    const acct = props.acct;
-    return pinnedQuery(acct);
-  });
+  const pinned = createMemo(() => pinnedQuery(props.acct));
   const items = (): Status[] => {
     const answer = pinned();
-    return answer?.ok ? answer.value : [];
+    return answer.ok ? answer.value : [];
   };
   const error = () => {
     const answer = pinned();
-    return answer === undefined || answer.ok ? undefined : answer.error;
+    return answer.ok ? undefined : answer.error;
   };
 
   return (
@@ -269,16 +263,25 @@ const PinnedPosts = (props: { acct: string }) => {
   );
 };
 
+// The account the profile body is drawn for, handed to the leaves under it as
+// a plain string. The body is recreated per acct (the keyed `<Show>` in
+// ProfilePage), so a leaf reads the acct once at setup and keeps it for its
+// whole life; reading `:acct` from the route params instead would be a
+// reactive read the leaf could never follow. The router decodes the segment,
+// so `/accounts/alice%40remote.example` and the raw spelling the tabs link to
+// name one account and claim one retention frame rather than two.
+const ProfileAcctContext = createContext<string>();
+
+/** The acct of the profile body a leaf is mounted under. */
+export const useProfileAcct = (): string => useContext(ProfileAcctContext);
+
 /**
  * The list under the tab bar, one tab's filter over one account's posts. The
  * leaf of the profile route (App.tsx): a new `acct` or a new tab is a new
  * mount, so the store it owns is never reset by hand.
  */
 export const ProfilePosts = (props: { tab: ProfileTab }) => {
-  const params = useParams<{ acct: string }>();
-  // The router decodes the segment, so `/accounts/alice%40remote.example` and
-  // the raw spelling the tabs link to claim one frame rather than two.
-  const acct = params.acct;
+  const acct = useProfileAcct();
   // Claimed before the store exists, because what the frame hands back is what
   // the store starts from: this list as the reader left it when they pop back
   // onto this entry, nothing otherwise.
@@ -411,32 +414,18 @@ export const ProfilePage = (props: ParentProps) => {
   const params = useParams<{ acct: string }>();
   const acct = () => params.acct;
 
-  // `createAsync` keeps answering with the previous account's value while a
-  // new `:acct` loads, so the acct travels with the answer: pairing it with
-  // the current one files one account's profile under another's URL. Both
-  // statements stay ahead of the first await — `query` registers against the
-  // calling listener, which an await would lose, and with it `revalidate`'s
-  // hold.
-  const account = createAsync(async () => {
-    const requested = acct();
-    return { acct: requested, result: await profileQuery(requested) };
-  });
-  const answer = () => {
-    const current = account();
-    return current === undefined || current.acct !== acct()
-      ? undefined
-      : current.result;
-  };
+  const answer = createMemo(() => profileQuery(acct()));
 
   const loadedAccount = (): Account | undefined => {
     const result = answer();
-    return result === undefined || !result.ok ? undefined : result.value;
+    return result.ok ? result.value : undefined;
   };
   const error = () => {
     const result = answer();
-    return result === undefined || result.ok ? undefined : result.error;
+    return result.ok ? undefined : result.error;
   };
   const retry = () => void revalidate(profileQuery.keyFor(acct()));
+  const switching = () => isPending(() => acct());
 
   // The tab bar names the post lists only, and a follow list carries its own
   // heading, so the bar is left out while one is the leaf. Matched on the
@@ -448,68 +437,82 @@ export const ProfilePage = (props: ParentProps) => {
 
   return (
     <section class={plane}>
-      {/* Not keyed, here and on the posts card: every failed request is a new
-          error object, so keying would rebuild the card — and unmount the
-          Retry button under the reader's focus — each time a retry fails
-          again. The card's props are reactive, so a non-keyed `Show` still
-          updates the copy and withdraws Retry when a network error turns
-          into a 404. */}
-      <Show when={error()}>
-        {(failure) => (
-          <ErrorCard
-            message={failureMessage(failure(), "this account", authenticated())}
-            onRetry={retryable(failure()) ? retry : undefined}
-          >
-            <Show when={offersSignIn(failure())}>
-              <SignInButton />
-            </Show>
-          </ErrorCard>
-        )}
-      </Show>
+      {/* The stretch between a `:acct` change and its answer. The router holds
+          the navigation until the new account lands, which would leave the
+          account being left on screen meanwhile; `isPending` is true for
+          exactly that stretch, so the body steps aside for this row instead.
+          Not a `<Loading on>` boundary of the page's own: a fresh boundary
+          settles the navigation on its fallback, and the router's scroll
+          restoration then runs against a page that has not drawn yet. */}
+      <Show
+        when={!switching()}
+        fallback={
+          <p role="status" class={noticeRow}>
+            Loading profile…
+          </p>
+        }
+      >
+        {/* Not keyed, here and on the posts card: every failed request is a new
+            error object, so keying would rebuild the card — and unmount the
+            Retry button under the reader's focus — each time a retry fails
+            again. The card's props are reactive, so a non-keyed `Show` still
+            updates the copy and withdraws Retry when a network error turns
+            into a 404. */}
+        <Show when={error()}>
+          {(failure) => (
+            <ErrorCard
+              message={failureMessage(
+                failure(),
+                "this account",
+                authenticated(),
+              )}
+              onRetry={retryable(failure()) ? retry : undefined}
+            >
+              <Show when={offersSignIn(failure())}>
+                <SignInButton />
+              </Show>
+            </ErrorCard>
+          )}
+        </Show>
 
-      {/* The stretch between a `:acct` change and its answer: `createAsync`
-          keeps serving the account being left, `answer()` discards it as
-          another account's, and neither branch below has anything to draw
-          until the new one lands. */}
-      <Show when={answer() === undefined}>
-        <p role="status" class={noticeRow}>
-          Loading profile…
-        </p>
-      </Show>
-
-      <Show when={loadedAccount()}>
-        {(loaded) => (
-          // Keyed on the acct string: a change of `:acct` alone does not
-          // remount this route, so the body is recreated here instead — and
-          // the outlet sits inside, so the leaf's posts store goes with it.
-          // Nothing resets that store by hand. The key is the string rather
-          // than the account object so a revalidation of `profileQuery`
-          // (fresh counts after a follow, later) only re-renders the header,
-          // and the decoded string rather than the raw segment so a tab click
-          // that only canonicalizes the spelling keeps the list.
-          <Show when={acct()} keyed>
-            <ProfileHeader account={loaded()} />
-            <Show when={onPostTab()}>
-              <nav aria-label="Profile sections" class={tabBar}>
-                <For each={profileTabs}>
-                  {(tab) => (
-                    // `noscroll`: a tab swaps a section of a page the reader
-                    // has not left, so the router's scroll-to-top on push is
-                    // out of place here. Back/forward restoration is unaffected.
-                    <a
-                      href={profileTabPath(acct(), tab)}
-                      class={tabLink}
-                      noscroll
-                    >
-                      {tab.label}
-                    </a>
-                  )}
-                </For>
-              </nav>
+        <Show when={loadedAccount()}>
+          {(loaded) => (
+            // Keyed on the acct string: a change of `:acct` alone does not
+            // remount this route, so the body is recreated here instead — and
+            // the outlet sits inside, so the leaf's posts store goes with it.
+            // Nothing resets that store by hand. The key is the string rather
+            // than the account object so a revalidation of `profileQuery`
+            // (fresh counts after a follow, later) only re-renders the header,
+            // and the decoded string rather than the raw segment so a tab click
+            // that only canonicalizes the spelling keeps the list.
+            <Show when={acct()} keyed>
+              {(shown) => (
+                <ProfileAcctContext value={shown}>
+                  <ProfileHeader account={loaded()} />
+                  <Show when={onPostTab()}>
+                    <nav aria-label="Profile sections" class={tabBar}>
+                      <For each={profileTabs}>
+                        {(tab) => (
+                          // `noscroll`: a tab swaps a section of a page the reader
+                          // has not left, so the router's scroll-to-top on push is
+                          // out of place here. Back/forward restoration is unaffected.
+                          <a
+                            href={profileTabPath(acct(), tab)}
+                            class={tabLink}
+                            noscroll
+                          >
+                            {tab.label}
+                          </a>
+                        )}
+                      </For>
+                    </nav>
+                  </Show>
+                  {props.children}
+                </ProfileAcctContext>
+              )}
             </Show>
-            {props.children}
-          </Show>
-        )}
+          )}
+        </Show>
       </Show>
     </section>
   );

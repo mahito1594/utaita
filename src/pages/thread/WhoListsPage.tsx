@@ -1,11 +1,7 @@
 import ArrowLeft from "@lucide/solid/icons/arrow-left";
+import { revalidate, useNavigate, useParams } from "@solidjs/router";
 import {
-  createAsync,
-  revalidate,
-  useNavigate,
-  useParams,
-} from "@solidjs/router";
-import {
+  createMemo,
   createRenderEffect,
   For,
   Loading,
@@ -13,7 +9,7 @@ import {
   Show,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
-import { markRetentionFrame } from "../../entities/retention/retention";
+import { useRetentionFrameMarker } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
 import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
@@ -118,34 +114,22 @@ export const WhoList = (props: { list: AccountWhoList }) => {
   // retention stack so that a pop past it lands where the reader's history
   // says it should (src/entities/retention/retention.tsx). Per `:id` rather
   // than per mount, as the conversation does it (ThreadPage.tsx).
+  const markRetentionFrame = useRetentionFrameMarker();
   createRenderEffect(
     () => params.id,
-    (id) => markRetentionFrame(whoListPath(id, props.list)),
+    (id) => {
+      markRetentionFrame(whoListPath(id, props.list));
+    },
   );
 
-  // `createAsync` keeps answering with the previous post's value while a new
-  // `:id` loads, so the id travels with the answer: pairing it with the
-  // current one files one post's list under another's URL. Both statements
-  // stay ahead of the first await — `query` registers against the calling
-  // listener, which an await would lose, and with it `revalidate`'s hold.
-  const answer = createAsync(async () => {
-    const id = params.id;
-    const fetchList = accountListQuery(props.list);
-    return { id, result: await fetchList(id) };
-  });
-  const result = () => {
-    const current = answer();
-    return current === undefined || current.id !== params.id
-      ? undefined
-      : current.result;
-  };
+  const result = createMemo(() => accountListQuery(props.list)(params.id));
   const accounts = () => {
     const settled = result();
-    return settled?.ok === true ? settled.value : [];
+    return settled.ok ? settled.value : [];
   };
   const error = () => {
     const settled = result();
-    return settled === undefined || settled.ok ? undefined : settled.error;
+    return settled.ok ? undefined : settled.error;
   };
   const retry = () =>
     void revalidate(accountListQuery(props.list).keyFor(params.id));
@@ -173,13 +157,7 @@ export const WhoList = (props: { list: AccountWhoList }) => {
 
       {/* Empty-success state: the fetch settled without accounts and without
           an error — waiting for it is the page's Loading boundary, not a row here. */}
-      <Show
-        when={
-          result() !== undefined &&
-          error() === undefined &&
-          accounts().length === 0
-        }
-      >
+      <Show when={error() === undefined && accounts().length === 0}>
         <p role="status" class={noticeRow}>
           {props.list.empty}
         </p>
@@ -233,31 +211,22 @@ const peopleOf = (count: number): string =>
 export const ReactionsList = () => {
   const params = useParams<{ id: string }>();
 
+  const markRetentionFrame = useRetentionFrameMarker();
   createRenderEffect(
     () => params.id,
-    (id) => markRetentionFrame(whoListPath(id, reactions)),
+    (id) => {
+      markRetentionFrame(whoListPath(id, reactions));
+    },
   );
 
-  // Same shape as the flat lists above, for the same reason: the answer
-  // carries the id it was asked for, and both statements stay ahead of the
-  // first await so `query` sees the calling listener.
-  const answer = createAsync(async () => {
-    const id = params.id;
-    return { id, result: await reactionsQuery(id) };
-  });
-  const result = () => {
-    const current = answer();
-    return current === undefined || current.id !== params.id
-      ? undefined
-      : current.result;
-  };
+  const result = createMemo(() => reactionsQuery(params.id));
   const groups = () => {
     const settled = result();
-    return settled?.ok === true ? settled.value : [];
+    return settled.ok ? settled.value : [];
   };
   const error = () => {
     const settled = result();
-    return settled === undefined || settled.ok ? undefined : settled.error;
+    return settled.ok ? undefined : settled.error;
   };
   const retry = () => void revalidate(reactionsQuery.keyFor(params.id));
 
@@ -286,13 +255,7 @@ export const ReactionsList = () => {
 
       {/* Also the answer of an instance running with `show_reactions: false`,
           which withholds the list as an empty one rather than as an error. */}
-      <Show
-        when={
-          result() !== undefined &&
-          error() === undefined &&
-          groups().length === 0
-        }
-      >
+      <Show when={error() === undefined && groups().length === 0}>
         <p role="status" class={noticeRow}>
           {reactions.empty}
         </p>
@@ -337,19 +300,11 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
   const navigate = useNavigate();
 
   // A cache hit on the conversation the reader came from, and the request the
-  // preload started on a direct arrival (who-lists-query.ts). The id travels
-  // with the answer for the same reason it does in the leaf.
-  const thread = createAsync(async () => {
-    const id = params.id;
-    return { id, result: await threadQuery(id) };
-  });
+  // preload started on a direct arrival (who-lists-query.ts).
+  const thread = createMemo(() => threadQuery(params.id));
   const subject = (): Status | undefined => {
-    const current = thread();
-    return current === undefined ||
-      current.id !== params.id ||
-      !current.result.ok
-      ? undefined
-      : current.result.value.subject;
+    const result = thread();
+    return result.ok ? result.value.subject : undefined;
   };
 
   // Named by their author, as a post is in conversation. An account whose

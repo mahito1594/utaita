@@ -72,7 +72,7 @@ const TimelineError = (props: { error: ApiError; onRetry: () => void }) => {
           <button
             type="button"
             class={outlineButton({ tone: "error" })}
-            onClick={props.onRetry}
+            onClick={() => props.onRetry()}
           >
             Retry
           </button>
