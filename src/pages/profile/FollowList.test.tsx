@@ -3,19 +3,15 @@
 // the paging cursor, the two empty states, the failure path, and what survives
 // a trip to one of the profiles the list links to. Page-level with MSW as the
 // only seam (ADR-0009).
-import {
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { Retention } from "../../entities/retention/retention";
+import { renderRoutes } from "../../test/router";
 import { FollowList } from "./FollowList";
 import { followers, following, followListPath } from "./follow-list";
 import { ProfilePage, ProfilePosts } from "./ProfilePage";
@@ -152,45 +148,46 @@ afterAll(() => {
 
 // Mirrors App.tsx: the profile is a layout route with the preload attached,
 // the follow lists are two of its leaves, and retention is the pathless route
-// above them. The Suspense fallback is deliberately not the page's own
+// above them. The Loading fallback is deliberately not the page's own
 // "Loading…" row, so the two are distinguishable in assertions.
 const Chrome = (props: ParentProps) => (
-  <Suspense fallback={<p>Routing…</p>}>{props.children}</Suspense>
+  <Loading fallback={<p>Routing…</p>}>{props.children}</Loading>
 );
 
 const renderProfile = (path: string) => {
-  const history = createMemoryHistory();
-  history.set({ value: path, replace: true });
+  const history = memoryHistory(path);
   const RetainingRoutes = (props: ParentProps) => (
     <Retention signedIn={true}>{props.children}</Retention>
   );
-  return {
-    history,
-    ...render(() => (
-      <MemoryRouter history={history} root={Chrome}>
-        <Route component={RetainingRoutes}>
-          <Route
-            path="/accounts/:acct"
-            component={ProfilePage}
-            preload={preloadProfile}
-          >
-            <Route
-              path={posts.path}
-              component={() => <ProfilePosts tab={posts} />}
-            />
-            <Route
-              path={following.path}
-              component={() => <FollowList list={following} />}
-            />
-            <Route
-              path={followers.path}
-              component={() => <FollowList list={followers} />}
-            />
-          </Route>
-        </Route>
-      </MemoryRouter>
-    )),
-  };
+  return renderRoutes(
+    [
+      {
+        component: RetainingRoutes,
+        children: [
+          {
+            path: "/accounts/:acct",
+            component: ProfilePage,
+            preload: preloadProfile,
+            children: [
+              {
+                path: posts.path,
+                component: () => <ProfilePosts tab={posts} />,
+              },
+              {
+                path: following.path,
+                component: () => <FollowList list={following} />,
+              },
+              {
+                path: followers.path,
+                component: () => <FollowList list={followers} />,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    { history, root: Chrome },
+  );
 };
 
 test("the following list names each account, links to its profile, and asks by the account's id", async () => {

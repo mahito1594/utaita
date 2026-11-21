@@ -5,21 +5,16 @@
 // re-issued, and the resumed page can still load older content — the last one
 // being the canary for a store held across the disposal of the page that
 // created it, whose memos would come back frozen.
-import {
-  A,
-  createMemoryHistory,
-  MemoryRouter,
-  Route,
-  useParams,
-} from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { memoryHistory, useParams } from "@solidjs/router";
+import { cleanup } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { createSignal, type ParentProps } from "solid-js";
+import { createSignal, flush, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { Retention } from "../../entities/retention/retention";
 import type { Status } from "../../entities/status/StatusCard";
+import { renderRoutes } from "../../test/router";
 import { TimelinePage } from "./TimelinePage";
 import { TimelineShell } from "./TimelineShell";
 import { home, local } from "./timelines";
@@ -125,10 +120,8 @@ afterAll(() => {
 // memory history.
 const AppChrome = (props: ParentProps) => (
   <>
-    <A href="/accounts/alice">Open profile</A>
-    <A href={home.path} end>
-      Back to home
-    </A>
+    <a href="/accounts/alice">Open profile</a>
+    <a href={home.path}>Back to home</a>
     {props.children}
   </>
 );
@@ -147,34 +140,41 @@ const ProfileStub = () => {
 // a profile and coming back takes the same path through the router the app
 // takes.
 const renderApp = (
-  history = createMemoryHistory(),
+  history = memoryHistory(),
   signedIn: () => boolean = () => true,
 ) => {
   const RetainingRoutes = (props: ParentProps) => (
     <Retention signedIn={signedIn()}>{props.children}</Retention>
   );
-  return render(() => (
-    <MemoryRouter history={history} root={AppChrome}>
-      <Route component={RetainingRoutes}>
-        <Route component={TimelineShell}>
-          <Route
-            path={home.path}
-            component={() => <TimelinePage timeline={home} />}
-          />
-          <Route
-            path={local.path}
-            component={() => <TimelinePage timeline={local} />}
-          />
-        </Route>
-        <Route path="/accounts/:acct" component={ProfileStub} />
-      </Route>
-    </MemoryRouter>
-  ));
+  return renderRoutes(
+    [
+      {
+        component: RetainingRoutes,
+        children: [
+          {
+            component: TimelineShell,
+            children: [
+              {
+                path: home.path,
+                component: () => <TimelinePage timeline={home} />,
+              },
+              {
+                path: local.path,
+                component: () => <TimelinePage timeline={local} />,
+              },
+            ],
+          },
+          { path: "/accounts/:acct", component: ProfileStub },
+        ],
+      },
+    ],
+    { history, root: AppChrome },
+  );
 };
 
 test("returning from a profile shows the accumulated pages again, without refetching", async () => {
   server.use(...timelineHandlers);
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByText, findByRole, queryByText } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
@@ -207,7 +207,7 @@ test("the resumed timeline still loads older pages", async () => {
   // sentinel would read a stale `loadingOlder` and either stall forever or
   // fire without limit.
   server.use(...timelineHandlers);
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByText, findByRole } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
@@ -279,14 +279,18 @@ test("a timeline retained on the way out is dropped when the session ends", asyn
   // drops it on the session signal itself.
   server.use(...timelineHandlers);
   const [signedIn, setSignedIn] = createSignal(true);
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByText, findByRole } = renderApp(history, signedIn);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
   await userEvent.click(await findByRole("link", { name: "Open profile" }));
   expect(await findByText("@alice")).toBeInTheDocument();
 
+  // Flushed before the pop: the session ends, then the reader navigates. The
+  // two are separate events in the app, and the provider reacts to the first
+  // when it is applied, not when the setter is called.
   setSignedIn(false);
+  flush();
   history.back();
 
   expect(await findByText("Post 40")).toBeInTheDocument();

@@ -1,15 +1,10 @@
 // @vitest-environment happy-dom
-import {
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import {
   afterAll,
   afterEach,
@@ -20,6 +15,7 @@ import {
   vi,
 } from "vitest";
 import type { Status } from "../../entities/status/types";
+import { renderRoutes } from "../../test/router";
 import { signIn } from "../../test/sign-in";
 import { FollowList } from "./FollowList";
 import { followers, following, followListPath } from "./follow-list";
@@ -148,50 +144,42 @@ afterAll(() => {
 });
 
 // Mirrors App.tsx: the profile is a layout route with the preload attached
-// and one leaf per tab, and the Suspense boundary the page's pending state
+// and one leaf per tab, and the Loading boundary the page's pending state
 // falls into belongs to the layout above it, not to the page. The fallback
 // text is deliberately not the page's own "Loading…" row, so the two are
 // distinguishable in assertions.
 const Chrome = (props: ParentProps) => (
-  <Suspense fallback={<p>Routing…</p>}>{props.children}</Suspense>
+  <Loading fallback={<p>Routing…</p>}>{props.children}</Loading>
 );
 
 const renderProfile = (path: string) => {
-  const history = createMemoryHistory();
-  history.set({ value: path, replace: true });
-  return {
-    history,
-    ...render(() => (
-      <MemoryRouter history={history} root={Chrome}>
-        <Route
-          path="/accounts/:acct"
-          component={ProfilePage}
-          preload={preloadProfile}
-        >
-          <Route
-            path={posts.path}
-            component={() => <ProfilePosts tab={posts} />}
-          />
-          <Route
-            path={postsAndReplies.path}
-            component={() => <ProfilePosts tab={postsAndReplies} />}
-          />
-          <Route
-            path={media.path}
-            component={() => <ProfilePosts tab={media} />}
-          />
-          <Route
-            path={following.path}
-            component={() => <FollowList list={following} />}
-          />
-          <Route
-            path={followers.path}
-            component={() => <FollowList list={followers} />}
-          />
-        </Route>
-      </MemoryRouter>
-    )),
-  };
+  const history = memoryHistory(path);
+  return renderRoutes(
+    [
+      {
+        path: "/accounts/:acct",
+        component: ProfilePage,
+        preload: preloadProfile,
+        children: [
+          { path: posts.path, component: () => <ProfilePosts tab={posts} /> },
+          {
+            path: postsAndReplies.path,
+            component: () => <ProfilePosts tab={postsAndReplies} />,
+          },
+          { path: media.path, component: () => <ProfilePosts tab={media} /> },
+          {
+            path: following.path,
+            component: () => <FollowList list={following} />,
+          },
+          {
+            path: followers.path,
+            component: () => <FollowList list={followers} />,
+          },
+        ],
+      },
+    ],
+    { history, root: Chrome },
+  );
 };
 
 /**
@@ -904,7 +892,7 @@ test("the tab bar links every tab and marks only the current one", async () => {
   expect(links.map((link) => link.getAttribute("href"))).toEqual(
     profileTabs.map((tab) => profileTabPath(ALICE_ACCT, tab)),
   );
-  // `<A>` marks an exact match only, so the Posts tab's shorter path is not
+  // the router marks an exact match only, so the Posts tab's shorter path is not
   // current on the other two tabs' URLs.
   expect(
     links.map((link) => [link.textContent, link.getAttribute("aria-current")]),
@@ -1004,10 +992,10 @@ test("activating a tab refetches under its filter, keeps the account, and keeps 
 });
 
 test("a percent-encoded :acct names the same account as the raw one", async () => {
-  // `/accounts/alice%40remote` is the same URL as `/accounts/alice@remote`, but
-  // solid-router hands the segment over undecoded and openapi-fetch encodes
-  // path params, so without a decode the API would be asked for
-  // `alice%2540remote` (acctFromPath, mention.ts).
+  // `/accounts/alice%40remote` is the same URL as `/accounts/alice@remote`.
+  // solid-router hands the segment over decoded and openapi-fetch encodes path
+  // params, so a second decode in the page, or none in the router, would show
+  // up here as a request for some other account path.
   const accountPaths: string[] = [];
   server.use(
     http.get("*/api/v1/accounts/:id", ({ request }) => {
@@ -1050,7 +1038,7 @@ test("a percent-encoded :acct names the same account as the raw one", async () =
 
 test("a tab or a count switches sections without scrolling to the top, and a link out of the profile still scrolls", async () => {
   // A push ends in `window.scrollTo(0, 0)` unless the anchor carries
-  // `noScroll` (node_modules/@solidjs/router/dist/index.js, `scrollToHash`),
+  // `noscroll` (node_modules/@solidjs/router/dist/index.js, `scrollToHash`),
   // which is what this observes — happy-dom keeps no scroll position.
   const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   onTestFinished(() => scrollTo.mockRestore());

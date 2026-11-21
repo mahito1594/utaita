@@ -5,22 +5,17 @@
 // The difference is that the thread route waits on data: the router holds the
 // timeline page mounted for the whole transition, so the two pages' lifetimes
 // overlap instead of meeting end to end.
-import {
-  A,
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { Retention } from "../../entities/retention/retention";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { renderRoutes } from "../../test/router";
 import { TimelinePage } from "../timeline/TimelinePage";
 import { TimelineShell } from "../timeline/TimelineShell";
 import { home, local } from "../timeline/timelines";
@@ -121,45 +116,52 @@ afterAll(() => {
 });
 
 // Mirrors App.tsx's route table: the retention provider wraps both the
-// timeline shell and the thread, and the Suspense the thread falls into is the
+// timeline shell and the thread, and the Loading the thread falls into is the
 // layout's, above the provider.
 const AppChrome = (props: ParentProps) => (
   <>
-    <A href={statusPath(THREAD_ID)}>Open thread</A>
-    <Suspense fallback={<p>Loading…</p>}>{props.children}</Suspense>
+    <a href={statusPath(THREAD_ID)}>Open thread</a>
+    <Loading fallback={<p>Loading…</p>}>{props.children}</Loading>
   </>
 );
 
-const renderApp = (history = createMemoryHistory()) => {
+const renderApp = (history = memoryHistory()) => {
   const RetainingRoutes = (props: ParentProps) => (
     <Retention signedIn={true}>{props.children}</Retention>
   );
-  return render(() => (
-    <MemoryRouter history={history} root={AppChrome}>
-      <Route component={RetainingRoutes}>
-        <Route component={TimelineShell}>
-          <Route
-            path={home.path}
-            component={() => <TimelinePage timeline={home} />}
-          />
-          <Route
-            path={local.path}
-            component={() => <TimelinePage timeline={local} />}
-          />
-        </Route>
-        <Route
-          path="/statuses/:id"
-          component={ThreadPage}
-          preload={preloadThread}
-        />
-      </Route>
-    </MemoryRouter>
-  ));
+  return renderRoutes(
+    [
+      {
+        component: RetainingRoutes,
+        children: [
+          {
+            component: TimelineShell,
+            children: [
+              {
+                path: home.path,
+                component: () => <TimelinePage timeline={home} />,
+              },
+              {
+                path: local.path,
+                component: () => <TimelinePage timeline={local} />,
+              },
+            ],
+          },
+          {
+            path: "/statuses/:id",
+            component: ThreadPage,
+            preload: preloadThread,
+          },
+        ],
+      },
+    ],
+    { history, root: AppChrome },
+  );
 };
 
 test("returning from a conversation shows the accumulated pages again, without refetching", async () => {
   server.use(...handlers);
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByText, findByRole, queryByText } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
@@ -186,7 +188,7 @@ test("the timeline resumed after a conversation still loads older pages", async 
   // would come back frozen, and the resumed sentinel would either stall or
   // fire without limit.
   server.use(...handlers);
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByText, findByRole } = renderApp(history);
 
   expect(await findByText("Post 40")).toBeInTheDocument();
