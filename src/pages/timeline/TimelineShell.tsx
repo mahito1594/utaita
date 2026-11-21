@@ -1,5 +1,5 @@
 import { A } from "@solidjs/router";
-import RotateCw from "lucide-solid/icons/rotate-cw";
+import RotateCw from "@lucide/solid/icons/rotate-cw";
 import {
   type Accessor,
   createContext,

@@ -1,4 +1,4 @@
-import X from "lucide-solid/icons/x";
+import X from "@lucide/solid/icons/x";
 import { onMount, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";

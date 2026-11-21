@@ -1,8 +1,8 @@
-import Bookmark from "lucide-solid/icons/bookmark";
-import SmilePlus from "lucide-solid/icons/face-slightly-smiling-plus";
-import Repeat2 from "lucide-solid/icons/repeat-2";
-import Reply from "lucide-solid/icons/reply";
-import Star from "lucide-solid/icons/star";
+import Bookmark from "@lucide/solid/icons/bookmark";
+import SmilePlus from "@lucide/solid/icons/face-slightly-smiling-plus";
+import Repeat2 from "@lucide/solid/icons/repeat-2";
+import Reply from "@lucide/solid/icons/reply";
+import Star from "@lucide/solid/icons/star";
 import { For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { Status } from "./types";

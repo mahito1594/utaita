@@ -1,4 +1,4 @@
-import Check from "lucide-solid/icons/check";
+import Check from "@lucide/solid/icons/check";
 import { For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";

@@ -6,7 +6,7 @@ import {
   useNavigate,
   useParams,
 } from "@solidjs/router";
-import ArrowLeft from "lucide-solid/icons/arrow-left";
+import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
   createEffect,
   createMemo,

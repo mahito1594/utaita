@@ -15,7 +15,7 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+    "jsxImportSource": "@solidjs/web",
 
     /* Linting */
     /* strict is the TS 6.0 compiler default; spelled out so a TS downgrade

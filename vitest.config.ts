@@ -1,4 +1,4 @@
-import solid from "vite-plugin-solid";
+import solid from "@solidjs/vite-plugin";
 import { defineConfig } from "vitest/config";
 
 // Standalone config (not merged with vite.config.ts): tests never need the
