@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { cleanup, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
+import { renderRoutes } from "../../test/router";
 import { TimelinePage } from "./TimelinePage";
 import { TimelineShell } from "./TimelineShell";
 import { home } from "./timelines";
@@ -122,13 +122,14 @@ afterAll(() => {
 // button) is a layout route wrapping the timeline leaves, so the refresh
 // control these tests drive is reached the same way the app reaches it.
 const renderTimeline = () =>
-  render(() => (
-    <MemoryRouter>
-      <Route component={TimelineShell}>
-        <Route path="/" component={() => <TimelinePage timeline={home} />} />
-      </Route>
-    </MemoryRouter>
-  ));
+  renderRoutes([
+    {
+      component: TimelineShell,
+      children: [
+        { path: "/", component: () => <TimelinePage timeline={home} /> },
+      ],
+    },
+  ]);
 
 test("renders fetched statuses as cards", async () => {
   server.use(

@@ -2,20 +2,16 @@
 // Pulling a reply's missing parent onto the instance. The operation is a
 // remote round trip and a write to the instance's database, so what these
 // tests are about is as much when it does *not* happen as when it does.
-import {
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { renderRoutes } from "../../test/router";
 import { ThreadPage } from "./ThreadPage";
 import type { ThreadContext } from "./thread-api";
 import { preloadThread } from "./thread-query";
@@ -124,22 +120,19 @@ afterAll(() => {
 });
 
 const Chrome = (props: ParentProps) => (
-  <Suspense fallback={<p>Loading…</p>}>{props.children}</Suspense>
+  <Loading fallback={<p>Loading…</p>}>{props.children}</Loading>
 );
 
 /** Renders straight at the thread URL, the way a shared link opens it. */
-const renderThread = (history = createMemoryHistory()) => {
+const renderThread = (history = memoryHistory()) => {
   history.set({ value: statusPath(SUBJECT_ID), replace: true });
-  return render(() => (
-    <MemoryRouter history={history} root={Chrome}>
-      <Route path="/" component={() => <p>Home timeline</p>} />
-      <Route
-        path="/statuses/:id"
-        component={ThreadPage}
-        preload={preloadThread}
-      />
-    </MemoryRouter>
-  ));
+  return renderRoutes(
+    [
+      { path: "/", component: () => <p>Home timeline</p> },
+      { path: "/statuses/:id", component: ThreadPage, preload: preloadThread },
+    ],
+    { history, root: Chrome },
+  );
 };
 
 /** Lets the router's transition and the effects behind it run to completion. */
@@ -514,7 +507,7 @@ test("revalidates the thread the fetch started in, not the one the reader moved 
       },
     ),
   );
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByRole, findByText } = renderThread(history);
 
   await userEvent.click(

@@ -4,23 +4,18 @@
 // observable through the page rebuilt on return — the accumulated posts are on
 // screen again, the request log shows nothing was refetched, and the resumed
 // list still pages on from its own tail.
-import {
-  A,
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render, waitFor, within } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { Retention } from "../../entities/retention/retention";
 import { profilePath } from "../../entities/status/mention";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { renderRoutes } from "../../test/router";
 import { ThreadPage } from "../thread/ThreadPage";
 import { preloadThread } from "../thread/thread-query";
 import { TimelinePage } from "../timeline/TimelinePage";
@@ -172,52 +167,59 @@ afterAll(() => {
 // way back is the browser's, driven here through the memory history.
 const AppChrome = (props: ParentProps) => (
   <>
-    <A href={profilePath(ALICE_ACCT)}>Open profile</A>
-    <A href={statusPath(THREAD_ID)}>Open conversation</A>
-    <Suspense fallback={<p>Routing…</p>}>{props.children}</Suspense>
+    <a href={profilePath(ALICE_ACCT)}>Open profile</a>
+    <a href={statusPath(THREAD_ID)}>Open conversation</a>
+    <Loading fallback={<p>Routing…</p>}>{props.children}</Loading>
   </>
 );
 
 // Mirrors App.tsx's route table: the retention provider is a pathless layout
 // route wrapping the timeline shell, the profile and the conversation, so each
 // trip takes the same path through the router the app takes.
-const renderApp = (history = createMemoryHistory()) => {
+const renderApp = (history = memoryHistory()) => {
   const RetainingRoutes = (props: ParentProps) => (
     <Retention signedIn={true}>{props.children}</Retention>
   );
-  return render(() => (
-    <MemoryRouter history={history} root={AppChrome}>
-      <Route component={RetainingRoutes}>
-        <Route component={TimelineShell}>
-          <Route
-            path={home.path}
-            component={() => <TimelinePage timeline={home} />}
-          />
-        </Route>
-        <Route
-          path="/accounts/:acct"
-          component={ProfilePage}
-          preload={preloadProfile}
-        >
-          <Route
-            path={posts.path}
-            component={() => <ProfilePosts tab={posts} />}
-          />
-        </Route>
-        <Route
-          path="/statuses/:id"
-          component={ThreadPage}
-          preload={preloadThread}
-        />
-      </Route>
-    </MemoryRouter>
-  ));
+  return renderRoutes(
+    [
+      {
+        component: RetainingRoutes,
+        children: [
+          {
+            component: TimelineShell,
+            children: [
+              {
+                path: home.path,
+                component: () => <TimelinePage timeline={home} />,
+              },
+            ],
+          },
+          {
+            path: "/accounts/:acct",
+            component: ProfilePage,
+            preload: preloadProfile,
+            children: [
+              {
+                path: posts.path,
+                component: () => <ProfilePosts tab={posts} />,
+              },
+            ],
+          },
+          {
+            path: "/statuses/:id",
+            component: ThreadPage,
+            preload: preloadThread,
+          },
+        ],
+      },
+    ],
+    { history, root: AppChrome },
+  );
 };
 
 /** A history already sitting on the profile, as a shared link would open it. */
 const onProfile = () => {
-  const history = createMemoryHistory();
-  history.set({ value: profilePath(ALICE_ACCT), replace: true });
+  const history = memoryHistory(profilePath(ALICE_ACCT));
   return history;
 };
 
@@ -258,7 +260,7 @@ test("returning from a conversation shows the profile's accumulated posts again,
 
 test("a timeline, a profile opened from it and a conversation opened from that all come back, each fetched once", async () => {
   server.use(accountHandler, postsHandler, timelineHandler, ...threadHandlers);
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByText, findByRole, queryByText } = renderApp(history);
 
   expect(await findByText("Home post")).toBeInTheDocument();

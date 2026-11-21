@@ -1,15 +1,10 @@
 // @vitest-environment happy-dom
-import {
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import {
   afterAll,
   afterEach,
@@ -19,6 +14,7 @@ import {
   test,
 } from "vitest";
 import type { Status } from "../../entities/status/types";
+import { renderRoutes } from "../../test/router";
 import { ProfilePage, ProfilePosts } from "./ProfilePage";
 import type { Account } from "./profile-api";
 import { preloadProfile } from "./profile-query";
@@ -117,34 +113,29 @@ afterAll(() => server.close());
 // tab. The fallback text is deliberately not the page's own "Loading…" row, so
 // the two are distinguishable in assertions.
 const Chrome = (props: ParentProps) => (
-  <Suspense fallback={<p>Routing…</p>}>{props.children}</Suspense>
+  <Loading fallback={<p>Routing…</p>}>{props.children}</Loading>
 );
 
 const renderProfile = (path: string) => {
-  const history = createMemoryHistory();
-  history.set({ value: path, replace: true });
-  return render(() => (
-    <MemoryRouter history={history} root={Chrome}>
-      <Route
-        path="/accounts/:acct"
-        component={ProfilePage}
-        preload={preloadProfile}
-      >
-        <Route
-          path={posts.path}
-          component={() => <ProfilePosts tab={posts} />}
-        />
-        <Route
-          path={postsAndReplies.path}
-          component={() => <ProfilePosts tab={postsAndReplies} />}
-        />
-        <Route
-          path={media.path}
-          component={() => <ProfilePosts tab={media} />}
-        />
-      </Route>
-    </MemoryRouter>
-  ));
+  const history = memoryHistory(path);
+  return renderRoutes(
+    [
+      {
+        path: "/accounts/:acct",
+        component: ProfilePage,
+        preload: preloadProfile,
+        children: [
+          { path: posts.path, component: () => <ProfilePosts tab={posts} /> },
+          {
+            path: postsAndReplies.path,
+            component: () => <ProfilePosts tab={postsAndReplies} />,
+          },
+          { path: media.path, component: () => <ProfilePosts tab={media} /> },
+        ],
+      },
+    ],
+    { history, root: Chrome },
+  );
 };
 
 test("the Posts tab shows the statuses fetched with pinned=true above the regular list, each labeled Pinned", async () => {
@@ -237,7 +228,7 @@ test("a pinned fetch still in flight leaves the header and the regular list on s
     `/accounts/${ALICE_ACCT}`,
   );
 
-  // The strip's own <Suspense> is what keeps its pending read from suspending
+  // The strip's own <Loading> is what keeps its pending read from suspending
   // the route boundary, which would swap all of this for "Routing…".
   expect(await findByText("Alice's newer post")).toBeInTheDocument();
   expect(await findByRole("heading", { level: 2 })).toHaveTextContent(

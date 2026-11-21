@@ -1,19 +1,14 @@
 // @vitest-environment happy-dom
-import {
-  A,
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render, waitFor, within } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { renderRoutes } from "../../test/router";
 import { signIn } from "../../test/sign-in";
 import { ThreadPage } from "./ThreadPage";
 import type { ThreadContext } from "./thread-api";
@@ -127,28 +122,25 @@ afterAll(() => {
 });
 
 // Mirrors App.tsx: the thread is a sibling of the timeline routes, and the
-// Suspense boundary the page's loading state falls into belongs to the layout
+// Loading boundary the page's loading state falls into belongs to the layout
 // above it, not to the page.
 const Chrome = (props: ParentProps) => (
   <>
-    <A href={statusPath(SUBJECT_ID)}>Open thread</A>
-    <A href="/accounts/alice">Open profile</A>
-    <Suspense fallback={<p>Loading…</p>}>{props.children}</Suspense>
+    <a href={statusPath(SUBJECT_ID)}>Open thread</a>
+    <a href="/accounts/alice">Open profile</a>
+    <Loading fallback={<p>Loading…</p>}>{props.children}</Loading>
   </>
 );
 
-const renderApp = (history = createMemoryHistory()) =>
-  render(() => (
-    <MemoryRouter history={history} root={Chrome}>
-      <Route path="/" component={() => <p>Home timeline</p>} />
-      <Route path="/accounts/:acct" component={() => <p>A profile</p>} />
-      <Route
-        path="/statuses/:id"
-        component={ThreadPage}
-        preload={preloadThread}
-      />
-    </MemoryRouter>
-  ));
+const renderApp = (history = memoryHistory()) =>
+  renderRoutes(
+    [
+      { path: "/", component: () => <p>Home timeline</p> },
+      { path: "/accounts/:acct", component: () => <p>A profile</p> },
+      { path: "/statuses/:id", component: ThreadPage, preload: preloadThread },
+    ],
+    { history, root: Chrome },
+  );
 
 /** Lets the router's transition and the effects behind it run to completion. */
 const settle = async (): Promise<void> => {
@@ -159,8 +151,7 @@ const settle = async (): Promise<void> => {
 
 /** Renders straight at the thread URL, the way a shared link opens it. */
 const renderThreadDirectly = () => {
-  const history = createMemoryHistory();
-  history.set({ value: statusPath(SUBJECT_ID), replace: true });
+  const history = memoryHistory(statusPath(SUBJECT_ID));
   return renderApp(history);
 };
 
@@ -195,7 +186,7 @@ test("marks the opened post so it is not just a card among cards", async () => {
 
   expect(await findByText("The post that was opened")).toBeInTheDocument();
 
-  // `aria-current="page"` is what an <A> puts on the active link; the opened
+  // `aria-current="page"` is what the router puts on the active link; the opened
   // post is the current item of a set, which is the bare `true`.
   const marked = container.querySelectorAll('[aria-current="true"]');
   expect(marked).toHaveLength(1);
@@ -280,7 +271,7 @@ test("leaves the offset alone when the thread is re-entered by going back", asyn
   // as a scroll it did not make arrives — so landing on the subject here would
   // throw away the position the reader left the thread at.
   server.use(...threadHandlers(subject, wholeThread));
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByText, findByRole } = renderApp(history);
 
   await userEvent.click(await findByRole("link", { name: "Open thread" }));
@@ -316,7 +307,7 @@ test("does not move focus on a traversal back into the thread", async () => {
   // The same gate as the scroll: focus moved on a restore would fight the
   // scroll restoration the traversal exists to keep.
   server.use(...threadHandlers(subject, wholeThread));
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const { findByRole, findByText } = renderApp(history);
 
   await userEvent.click(await findByRole("link", { name: "Open thread" }));
@@ -420,7 +411,7 @@ test("leaves the offset alone when stepping back between two conversations", asy
   // The same invariant as re-entering the thread from another route, on the
   // traversal the router cannot report: `:id` moves but the page does not.
   server.use(...conversationHandlers(allPosts, wholeThread));
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const view = renderApp(history);
 
   await digIntoReply(view);
@@ -463,7 +454,7 @@ test("still offers the way back after returning to the post opened from the time
   // entry the arrival described, so its answer holds: the timeline is still
   // behind it, and a Home link here would push and lose the reading position.
   server.use(...conversationHandlers(allPosts, wholeThread));
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const view = renderApp(history);
 
   await digIntoReply(view);
@@ -548,8 +539,9 @@ test("a post that is not here reads as simply absent once signed in", async () =
 });
 
 test("does not leave the previous conversation under the URL of one that failed", async () => {
-  // `createAsync` answers with the post that loaded last while the next one is
-  // in flight, and a failure must not adopt that answer as this URL's own.
+  // An async memo keeps answering with the post that loaded last while the
+  // next one is in flight, and a failure must not adopt that answer as this
+  // URL's own.
   server.use(
     http.get<{ id: string }>("*/api/v1/statuses/:id/context", ({ params }) =>
       params.id === SUBJECT_ID
@@ -562,7 +554,7 @@ test("does not leave the previous conversation under the URL of one that failed"
         : HttpResponse.json({ error: "Record not found" }, { status: 404 }),
     ),
   );
-  const history = createMemoryHistory();
+  const history = memoryHistory();
   const view = renderApp(history);
 
   await userEvent.click(await view.findByRole("link", { name: "Open thread" }));

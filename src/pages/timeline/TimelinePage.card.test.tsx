@@ -2,13 +2,14 @@
 // Card-behavior tests through the timeline page (ADR-0009: observable
 // behavior at page level; the pipeline internals are covered in
 // entities/status/content.test.ts under jsdom).
-import { MemoryRouter, Route, useParams } from "@solidjs/router";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { useParams } from "@solidjs/router";
+import { cleanup, screen } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
+import { renderRoutes } from "../../test/router";
 import { TimelinePage } from "./TimelinePage";
 import { TimelineShell } from "./TimelineShell";
 import { home } from "./timelines";
@@ -62,15 +63,16 @@ const ProfileStub = () => {
 };
 
 const renderApp = () =>
-  render(() => (
-    <MemoryRouter>
-      <Route component={TimelineShell}>
-        <Route path="/" component={() => <TimelinePage timeline={home} />} />
-      </Route>
-      <Route path="/accounts/:acct" component={ProfileStub} />
-      <Route path="/statuses/:id" component={ThreadStub} />
-    </MemoryRouter>
-  ));
+  renderRoutes([
+    {
+      component: TimelineShell,
+      children: [
+        { path: "/", component: () => <TimelinePage timeline={home} /> },
+      ],
+    },
+    { path: "/accounts/:acct", component: ProfileStub },
+    { path: "/statuses/:id", component: ThreadStub },
+  ]);
 
 test("a mention tap navigates to the in-app profile page", async () => {
   server.use(

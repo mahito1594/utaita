@@ -3,22 +3,17 @@
 // them: the tab bar over the three lists, the rows, the empty answer, the
 // failure path, and the way back to the post. Page-level with MSW as the only
 // seam (ADR-0009).
-import {
-  A,
-  createMemoryHistory,
-  MemoryRouter,
-  query,
-  Route,
-} from "@solidjs/router";
-import { cleanup, render, within } from "@solidjs/testing-library";
+import { memoryHistory, query } from "@solidjs/router";
+import { cleanup, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ParentProps, Suspense } from "solid-js";
+import { Loading, type ParentProps } from "solid-js";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import { Retention } from "../../entities/retention/retention";
 import type { Status } from "../../entities/status/types";
 import { statusPath } from "../../entities/status/url";
+import { renderRoutes } from "../../test/router";
 import { signIn } from "../../test/sign-in";
 import { ReactionsList, WhoList, WhoListsPage } from "./WhoListsPage";
 import { boosts, favourites, reactions, whoListPath } from "./who-lists";
@@ -134,14 +129,14 @@ afterAll(() => {
 });
 
 // Mirrors App.tsx: the lists are leaves of a layout route sharing the thread's
-// path, retention is the pathless route above, and the Suspense boundary the
+// path, retention is the pathless route above, and the Loading boundary the
 // page's loading falls into belongs to the layout. The fallback is
 // deliberately not the page's own "Loading…" row, so the two are
 // distinguishable in assertions.
 const Chrome = (props: ParentProps) => (
   <>
-    <A href={whoListPath(SUBJECT_ID, favourites)}>Open favourites</A>
-    <Suspense fallback={<p>Routing…</p>}>{props.children}</Suspense>
+    <a href={whoListPath(SUBJECT_ID, favourites)}>Open favourites</a>
+    <Loading fallback={<p>Routing…</p>}>{props.children}</Loading>
   </>
 );
 
@@ -149,36 +144,37 @@ const RetainingRoutes = (props: ParentProps) => (
   <Retention signedIn={true}>{props.children}</Retention>
 );
 
-const renderApp = (history = createMemoryHistory()) =>
-  render(() => (
-    <MemoryRouter history={history} root={Chrome}>
-      <Route path="/" component={() => <p>Home timeline</p>} />
-      <Route path="/accounts/:acct" component={() => <p>A profile</p>} />
-      <Route component={RetainingRoutes}>
-        <Route path="/statuses/:id" component={() => <p>The conversation</p>} />
-        <Route
-          path="/statuses/:id"
-          component={WhoListsPage}
-          preload={preloadWhoLists}
-        >
-          <Route
-            path={favourites.path}
-            component={() => <WhoList list={favourites} />}
-          />
-          <Route
-            path={boosts.path}
-            component={() => <WhoList list={boosts} />}
-          />
-          <Route path={reactions.path} component={ReactionsList} />
-        </Route>
-      </Route>
-    </MemoryRouter>
-  ));
+const renderApp = (history = memoryHistory()) =>
+  renderRoutes(
+    [
+      { path: "/", component: () => <p>Home timeline</p> },
+      { path: "/accounts/:acct", component: () => <p>A profile</p> },
+      {
+        component: RetainingRoutes,
+        children: [
+          { path: "/statuses/:id", component: () => <p>The conversation</p> },
+          {
+            path: "/statuses/:id",
+            component: WhoListsPage,
+            preload: preloadWhoLists,
+            children: [
+              {
+                path: favourites.path,
+                component: () => <WhoList list={favourites} />,
+              },
+              { path: boosts.path, component: () => <WhoList list={boosts} /> },
+              { path: reactions.path, component: ReactionsList },
+            ],
+          },
+        ],
+      },
+    ],
+    { history, root: Chrome },
+  );
 
 /** Renders straight at a list URL, the way a shared link opens it. */
 const renderListDirectly = (path: string) => {
-  const history = createMemoryHistory();
-  history.set({ value: path, replace: true });
+  const history = memoryHistory(path);
   return renderApp(history);
 };
 
@@ -195,7 +191,7 @@ test("the favourites tab names the post, marks its own tab current, and lists ea
     getByRole("navigation", { name: "Post sections" }),
   ).toBeInTheDocument();
 
-  // Three tabs, and `aria-current="page"` — what an `<A>` puts on an exact
+  // Three tabs, and `aria-current="page"` — what the router puts on an exact
   // path match — is the only marker of which one is open.
   const tabs = await findAllByRole("link", {
     name: /^(Favourites|Boosts|Reactions)/,
@@ -493,8 +489,7 @@ test("Back returns to the conversation after a tab switch, when the list was ope
     listHandler("favourited_by", [zoe]),
     listHandler("reblogged_by", [bob]),
   );
-  const history = createMemoryHistory();
-  history.set({ value: statusPath(SUBJECT_ID), replace: true });
+  const history = memoryHistory(statusPath(SUBJECT_ID));
   const { findByRole, findByText } = renderApp(history);
 
   await userEvent.click(await findByRole("link", { name: "Open favourites" }));

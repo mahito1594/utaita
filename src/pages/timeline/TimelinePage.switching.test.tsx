@@ -5,13 +5,13 @@
 // reusing the previous timeline's content, that the active tab is marked
 // via `aria-current`, and that the tab keeps keyboard focus across the
 // switch it triggered.
-import { MemoryRouter, Route } from "@solidjs/router";
-import { cleanup, render } from "@solidjs/testing-library";
+import { cleanup } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import type { Status } from "../../entities/status/StatusCard";
+import { renderRoutes } from "../../test/router";
 import { TimelinePage } from "./TimelinePage";
 import { TimelineShell } from "./TimelineShell";
 import { bubble, federated, home, local } from "./timelines";
@@ -64,28 +64,26 @@ const settle = async (): Promise<void> => {
 // same structure that guarantees a tab switch remounts `TimelinePage` while
 // leaving the shell's tabs mounted.
 const renderApp = () =>
-  render(() => (
-    <MemoryRouter>
-      <Route component={TimelineShell}>
-        <Route
-          path={home.path}
-          component={() => <TimelinePage timeline={home} />}
-        />
-        <Route
-          path={local.path}
-          component={() => <TimelinePage timeline={local} />}
-        />
-        <Route
-          path={bubble.path}
-          component={() => <TimelinePage timeline={bubble} />}
-        />
-        <Route
-          path={federated.path}
-          component={() => <TimelinePage timeline={federated} />}
-        />
-      </Route>
-    </MemoryRouter>
-  ));
+  renderRoutes([
+    {
+      component: TimelineShell,
+      children: [
+        { path: home.path, component: () => <TimelinePage timeline={home} /> },
+        {
+          path: local.path,
+          component: () => <TimelinePage timeline={local} />,
+        },
+        {
+          path: bubble.path,
+          component: () => <TimelinePage timeline={bubble} />,
+        },
+        {
+          path: federated.path,
+          component: () => <TimelinePage timeline={federated} />,
+        },
+      ],
+    },
+  ]);
 
 test("switching to Local requests /public with local=true, and the home content is gone (fresh store on remount)", async () => {
   server.use(
