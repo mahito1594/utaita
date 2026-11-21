@@ -31,7 +31,7 @@ export const ErrorCard = (props: {
       <button
         type="button"
         class={outlineButton({ tone: "error" })}
-        onClick={props.onRetry}
+        onClick={() => props.onRetry?.()}
       >
         Retry
       </button>

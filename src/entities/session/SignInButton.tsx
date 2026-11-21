@@ -7,7 +7,7 @@
 //
 // Every element here is phrasing content: two of the call sites render it
 // inside the `<p role="alert">` their failure is already written in.
-import { createSignal, onCleanup, onSettled, Show } from "solid-js";
+import { createSignal, flush, onCleanup, onSettled, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { outlineButton } from "../../ui/outline-button";
 import { login, type SessionError } from "./session";
@@ -90,8 +90,9 @@ export const SignInButton = (props: {
   // Clicking sets `disabled` on the still-focused button, which blurs it
   // (HTML focus rules) — without an explicit landing spot a keyboard or
   // screen-reader user is left on <body> with no announcement when the
-  // flow fails. Solid renders synchronously, so the ref is set right after
-  // setError and the message can take focus itself.
+  // flow fails. The writes are flushed before the message takes focus: Solid
+  // applies them at the next microtask otherwise, and until then the message
+  // is not rendered and the ref is unset.
   let errorEl: HTMLSpanElement | undefined;
 
   onSettled(() => {
@@ -106,6 +107,7 @@ export const SignInButton = (props: {
     if (!result.ok) {
       setError(result.error);
       setBusy(false);
+      flush();
       errorEl?.focus();
     }
     // Ok means the browser is navigating to the authorize page — stay busy.

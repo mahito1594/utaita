@@ -87,6 +87,11 @@ export const createCursorListStore = <T extends { id?: string }>(
   // same entry point: a failed first load leaves the page owing one still.
   let initialLoadOwed = resume === undefined;
 
+  // Reentry guard for `loadOlder`, kept beside the `loadingOlder` signal
+  // rather than read from it: a signal write is only read back after the next
+  // flush, so two calls in one tick would both see it unset.
+  let olderInFlight = false;
+
   const loadInitial = async (): Promise<void> => {
     if (!initialLoadOwed || initialInFlight) return;
     initialInFlight = true;
@@ -106,19 +111,21 @@ export const createCursorListStore = <T extends { id?: string }>(
   };
 
   const loadOlder = async (): Promise<void> => {
-    if (loadingOlder()) return;
+    if (olderInFlight) return;
     // `id` is optional in the generated types even though every real status
     // and account carries one (segments.ts holds the same line); an idless
     // tail simply ends the list rather than paging from `undefined`.
     const cursor = items().at(-1)?.id;
     if (cursor === undefined) return;
 
+    olderInFlight = true;
     setLoadingOlder(true);
     // Cleared before the request, not after: the sentinel's own `retrying`
     // flag is what keeps its Retry button mounted across the gap
     // (ProfilePage.tsx).
     setLoadOlderError(undefined);
     const result = await fetchPage(cursor);
+    olderInFlight = false;
 
     if (!result.ok) {
       // One update, not two: an in-between state of "not loading, no error"

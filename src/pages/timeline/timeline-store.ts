@@ -115,9 +115,18 @@ export const createTimelineStore = (
   // the other's target). Approach A in the review — later fetches queue
   // rather than being silently dropped; a per-anchor parallel model is
   // iceboxed in stories.ja.md pending dogfooding evidence.
+  //
+  // The queue itself is a plain variable, mirrored into the signal for the
+  // busy rows: a signal write is only read back after the next flush, and
+  // the drain loop and the dedup below must see their own writes at once.
+  let olderQueue: readonly string[] = [];
   const [pendingOlderAnchors, setPendingOlderAnchors] = createSignal<
     readonly string[]
   >([]);
+  const setOlderQueue = (next: readonly string[]): void => {
+    olderQueue = next;
+    setPendingOlderAnchors(next);
+  };
   // One entry per anchor that most recently failed. A single-signal design
   // was fine when only one older-fetch could be in flight, but once the
   // queue lets a *following* fetch start before the user has seen the
@@ -262,13 +271,13 @@ export const createTimelineStore = (
   // empty queue before its own push (see `wasEmpty` below).
   const drainOlderQueue = async (): Promise<void> => {
     while (true) {
-      const anchorId = pendingOlderAnchors()[0];
+      const anchorId = olderQueue[0];
       if (anchorId === undefined) return;
       await fetchOlderFor(anchorId);
       // Errors are absorbed inside `fetchOlderFor` (stored per anchor in
       // `loadOlderFailures`); the queue advances either way so that one
       // failure doesn't strand the remaining anchors.
-      setPendingOlderAnchors((prev) => prev.slice(1));
+      setOlderQueue(olderQueue.slice(1));
     }
   };
 
@@ -283,10 +292,10 @@ export const createTimelineStore = (
 
     // Dedup: a re-click on the same gap row, or a re-fire from
     // IntersectionObserver, must not stack duplicate work on the queue.
-    if (pendingOlderAnchors().includes(anchorId)) return;
+    if (olderQueue.includes(anchorId)) return;
 
-    const wasEmpty = pendingOlderAnchors().length === 0;
-    setPendingOlderAnchors((prev) => [...prev, anchorId]);
+    const wasEmpty = olderQueue.length === 0;
+    setOlderQueue([...olderQueue, anchorId]);
     if (!wasEmpty) return;
 
     await drainOlderQueue();

@@ -53,14 +53,21 @@ export function claimRetentionFrame(path: string): RetentionClaim<unknown> {
 }
 
 /**
- * Called by a page that has no snapshot of its own, to take its place in the
- * stack anyway. Skipping it would misalign the stack with the history: a
- * profile, a conversation opened from it, and the same profile pushed again
- * from inside that conversation leave two frames for one path, and a pop past
- * an unmarked conversation would land on the newer of the two.
+ * Called by a page that has no snapshot of its own, during setup, for the
+ * function that takes its place in the stack anyway. Skipping the mark would
+ * misalign the stack with the history: a profile, a conversation opened from
+ * it, and the same profile pushed again from inside that conversation leave
+ * two frames for one path, and a pop past an unmarked conversation would land
+ * on the newer of the two.
+ *
+ * The stack is looked up here rather than when marking because a page marks
+ * per arrival, from an effect, and an effect's callback runs without the
+ * owner the context is read through.
  */
-export const markRetentionFrame = (path: string): void =>
-  useContext(RetentionStackContext).mark(path);
+export const useRetentionFrameMarker = (): ((path: string) => void) => {
+  const { mark } = useContext(RetentionStackContext);
+  return mark;
+};
 
 /**
  * Pathless layout route holding the reading position of every page the reader
@@ -173,7 +180,14 @@ export const Retention = (props: ParentProps<{ signedIn: boolean }>) => {
   };
 
   return (
-    <RetentionStackContext value={{ claim, mark: enter }}>
+    <RetentionStackContext
+      value={{
+        claim,
+        mark: (path) => {
+          enter(path);
+        },
+      }}
+    >
       {props.children}
     </RetentionStackContext>
   );

@@ -1,5 +1,4 @@
-import { createAsync, useParams } from "@solidjs/router";
-import { For, onCleanup, onSettled, Show } from "solid-js";
+import { createMemo, For, onCleanup, onSettled, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
@@ -18,7 +17,7 @@ import {
   listHidden,
 } from "./follow-list";
 import { fetchFollowList } from "./follow-list-api";
-import { loadingRow, PostsSentinel } from "./ProfilePage";
+import { loadingRow, PostsSentinel, useProfileAcct } from "./ProfilePage";
 import type { Account } from "./profile-api";
 import { profileQuery } from "./profile-query";
 
@@ -55,10 +54,7 @@ const listSubject = (list: ListDefinition): string =>
  * new side is a new mount, so the store it owns is never reset by hand.
  */
 export const FollowList = (props: { list: ListDefinition }) => {
-  const params = useParams<{ acct: string }>();
-  // The router decodes the segment, so `/accounts/alice%40remote.example` and
-  // the raw spelling the app links to claim one frame rather than two.
-  const acct = params.acct;
+  const acct = useProfileAcct();
   // Claimed before the store exists, because what the frame hands back is what
   // the store starts from: this list as the reader left it when they pop back
   // onto this entry, nothing otherwise.
@@ -88,16 +84,15 @@ export const FollowList = (props: { list: ListDefinition }) => {
   });
 
   // A cache hit on the account the route already loaded (profile-query.ts).
-  // No acct travels with the answer as it does on the page above: this leaf
-  // lives inside the profile body, which is recreated per acct
-  // (ProfilePage.tsx), so a stale answer cannot reach it.
-  const account = createAsync(() => profileQuery(acct));
+  // This leaf lives inside the profile body, which is recreated per acct
+  // (ProfilePage.tsx), so the answer is always the account it was asked for.
+  const account = createMemo(() => profileQuery(acct));
   // Akkoma answers a withheld list with an empty page rather than an error, so
   // the flag is what tells the reader which of the two empty states they are
   // looking at (follow-list.ts).
   const hidden = () => {
     const result = account();
-    return result?.ok === true && listHidden(result.value, props.list);
+    return result.ok && listHidden(result.value, props.list);
   };
 
   // The store's dedupe absorbs re-fires on its own; this gate is what keeps an
