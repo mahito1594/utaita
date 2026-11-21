@@ -1,6 +1,5 @@
 import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
-  A,
   createAsync,
   revalidate,
   useNavigate,
@@ -71,7 +70,7 @@ const plane = css({
 // edge and the two lines would sit on each other.
 const tabBar = css({ display: "flex" });
 
-// Router-driven active styling: `<A>` sets `aria-current="page"` on an exact
+// Router-driven active styling: the router sets `aria-current="page"` on an exact
 // match, which is the only state saying which list is open.
 const tabLink = css({
   flex: 1,
@@ -390,13 +389,13 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
         <Show
           when={props.data.canGoBack}
           fallback={
-            <A
+            <a
               href={statusPath(params.id)}
               aria-label="Back"
               class={ghostIconButton}
             >
               <ArrowLeft size={20} aria-hidden="true" />
-            </A>
+            </a>
           }
         >
           <button
@@ -432,7 +431,7 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
               // A tab switch is a move within one page, so it replaces the
               // entry instead of adding one: Back stays a history back out of
               // the page, which scroll restoration needs (docs/stories.ja.md).
-              <A href={whoListPath(params.id, list)} replace class={tabLink}>
+              <a href={whoListPath(params.id, list)} replace class={tabLink}>
                 {list.label}
                 {/* The count alone waits for the conversation: without a
                     boundary here the tabs would be unreachable until it
@@ -444,7 +443,7 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
                     )}
                   </Show>
                 </Loading>
-              </A>
+              </a>
             )}
           </For>
         </nav>

@@ -1,5 +1,4 @@
 import RotateCw from "@lucide/solid/icons/rotate-cw";
-import { A } from "@solidjs/router";
 import {
   type Accessor,
   createContext,
@@ -112,7 +111,7 @@ const timelineNav = css({
   overflowX: "auto",
 });
 
-// Router-driven active styling (`aria-current="page"`, set by `<A>` itself
+// Router-driven active styling (`aria-current="page"`, set by the router itself
 // on an exact path match) rather than a second, hand-maintained active
 // state — the plain link color is the inactive look, matching the weight
 // and size of the static "Home" label the tabs replaced.
@@ -210,18 +209,18 @@ export const TimelineShell = (props: ParentProps) => {
       <div class={panel}>
         <div class={bar}>
           <nav aria-label="Timelines" class={timelineNav}>
-            <A href={home.path} end class={timelineNavLink}>
+            <a href={home.path} class={timelineNavLink}>
               {home.label}
-            </A>
-            <A href={local.path} end class={timelineNavLink}>
+            </a>
+            <a href={local.path} class={timelineNavLink}>
               {local.label}
-            </A>
-            <A href={bubble.path} end class={timelineNavLink}>
+            </a>
+            <a href={bubble.path} class={timelineNavLink}>
               {bubble.label}
-            </A>
-            <A href={federated.path} end class={timelineNavLink}>
+            </a>
+            <a href={federated.path} class={timelineNavLink}>
               {federated.label}
-            </A>
+            </a>
           </nav>
           <button
             type="button"

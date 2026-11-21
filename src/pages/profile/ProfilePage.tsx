@@ -1,5 +1,4 @@
 import {
-  A,
   createAsync,
   revalidate,
   useMatch,
@@ -21,7 +20,6 @@ import { claimRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
 import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
-import { acctFromPath } from "../../entities/status/mention";
 import { StatusCard } from "../../entities/status/StatusCard";
 import type { Status } from "../../entities/status/types";
 import { ErrorCard } from "../../ui/ErrorCard";
@@ -68,7 +66,7 @@ const tabBar = css({
 });
 
 // Router-driven active styling, as in the timeline switcher
-// (TimelineShell.tsx): `<A>` sets `aria-current="page"` on an exact match,
+// (TimelineShell.tsx): the router sets `aria-current="page"` on an exact match,
 // so `/accounts/alice` is not current while `/accounts/alice/media` is shown.
 const tabLink = css({
   flex: 1,
@@ -278,9 +276,9 @@ const PinnedPosts = (props: { acct: string }) => {
  */
 export const ProfilePosts = (props: { tab: ProfileTab }) => {
   const params = useParams<{ acct: string }>();
-  // The decoded acct, so `/accounts/alice%40remote.example` and the raw spelling
-  // the tabs link to claim one frame rather than two.
-  const acct = acctFromPath(params.acct);
+  // The router decodes the segment, so `/accounts/alice%40remote.example` and
+  // the raw spelling the tabs link to claim one frame rather than two.
+  const acct = params.acct;
   // Claimed before the store exists, because what the frame hands back is what
   // the store starts from: this list as the reader left it when they pop back
   // onto this entry, nothing otherwise.
@@ -411,7 +409,7 @@ export const ProfilePage = (props: ParentProps) => {
   // Untyped useParams is an index signature — bracket access then trips
   // useLiteralKeys, dot access noPropertyAccessFromIndexSignature.
   const params = useParams<{ acct: string }>();
-  const acct = () => acctFromPath(params.acct);
+  const acct = () => params.acct;
 
   // `createAsync` keeps answering with the previous account's value while a
   // new `:acct` loads, so the acct travels with the answer: pairing it with
@@ -495,16 +493,16 @@ export const ProfilePage = (props: ParentProps) => {
               <nav aria-label="Profile sections" class={tabBar}>
                 <For each={profileTabs}>
                   {(tab) => (
-                    // `noScroll`: a tab swaps a section of a page the reader
+                    // `noscroll`: a tab swaps a section of a page the reader
                     // has not left, so the router's scroll-to-top on push is
                     // out of place here. Back/forward restoration is unaffected.
-                    <A
+                    <a
                       href={profileTabPath(acct(), tab)}
                       class={tabLink}
-                      noScroll
+                      noscroll
                     >
                       {tab.label}
-                    </A>
+                    </a>
                   )}
                 </For>
               </nav>

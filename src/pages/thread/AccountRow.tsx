@@ -1,5 +1,4 @@
 // Second copy of src/pages/profile/AccountRow.tsx; the third use decides a home below pages.
-import { A } from "@solidjs/router";
 import { Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import { EmojiText } from "../../entities/status/EmojiText";
@@ -97,9 +96,9 @@ export const AccountRow = (props: { account: Account }) => {
           </div>
         }
       >
-        <A href={profilePath(acct())} class={rowBody}>
+        <a href={profilePath(acct())} class={rowBody}>
           <Body />
-        </A>
+        </a>
       </Show>
     </li>
   );

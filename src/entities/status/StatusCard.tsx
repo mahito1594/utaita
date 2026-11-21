@@ -7,7 +7,7 @@ import Mail from "@lucide/solid/icons/mail";
 import Pin from "@lucide/solid/icons/pin";
 import Repeat2 from "@lucide/solid/icons/repeat-2";
 import Reply from "@lucide/solid/icons/reply";
-import { A, useLocation, useNavigate } from "@solidjs/router";
+import { useLocation, useNavigate } from "@solidjs/router";
 import { Dynamic } from "@solidjs/web";
 import { createSignal, createUniqueId, For, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
@@ -283,19 +283,22 @@ export const StatusCard = (props: {
         })}
       >
         <Show when={authorPath()} fallback={<Avatar />}>
+          {/* biome-ignore-start lint/a11y/useAnchorContent: the rule reads only a camelCase tabIndex, which the Solid 2 JSX types reject, so it misses the tabindex={-1} below */}
           {(path) => (
             // A second anchor to the destination the name already announces:
             // hidden from assistive tech and from the tab order, since one
             // anchor around both would have to wrap the whole header row.
-            <A
+            // biome-ignore lint/a11y/noAriaHiddenOnFocusable: the same camelCase-only reading as the suppression above
+            <a
               href={path()}
-              tabIndex={-1}
+              tabindex={-1}
               aria-hidden="true"
               class={css({ display: "flex", flexShrink: 0 })}
             >
               <Avatar />
-            </A>
+            </a>
           )}
+          {/* biome-ignore-end lint/a11y/useAnchorContent: see the start */}
         </Show>
         <div class={css({ flex: 1, minWidth: 0 })}>
           <div
@@ -309,9 +312,9 @@ export const StatusCard = (props: {
           >
             <Show when={authorPath()} fallback={<AuthorName />}>
               {(path) => (
-                <A href={path()} class={headerLinkStyle}>
+                <a href={path()} class={headerLinkStyle}>
                   <AuthorName />
-                </A>
+                </a>
               )}
             </Show>
           </div>
@@ -468,10 +471,10 @@ export const StatusCard = (props: {
                 <Show when={index() > 0}>
                   <span aria-hidden="true">·</span>
                 </Show>
-                <A href={entry.to} class={headerLinkStyle}>
+                <a href={entry.to} class={headerLinkStyle}>
                   {entry.count} {entry.noun}
                   {entry.count === 1 ? "" : "s"}
-                </A>
+                </a>
               </>
             )}
           </For>

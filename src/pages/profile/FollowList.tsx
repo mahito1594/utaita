@@ -5,7 +5,6 @@ import { claimRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
 import { SignInButton } from "../../entities/session/SignInButton";
 import { authenticated, offersSignIn } from "../../entities/session/session";
-import { acctFromPath } from "../../entities/status/mention";
 import { ErrorCard } from "../../ui/ErrorCard";
 import { noticeRow } from "../../ui/notice-row";
 import { AccountRow } from "./AccountRow";
@@ -57,9 +56,9 @@ const listSubject = (list: ListDefinition): string =>
  */
 export const FollowList = (props: { list: ListDefinition }) => {
   const params = useParams<{ acct: string }>();
-  // The decoded acct, so `/accounts/alice%40remote.example` and the raw spelling
-  // the app links to claim one frame rather than two.
-  const acct = acctFromPath(params.acct);
+  // The router decodes the segment, so `/accounts/alice%40remote.example` and
+  // the raw spelling the app links to claim one frame rather than two.
+  const acct = params.acct;
   // Claimed before the store exists, because what the frame hands back is what
   // the store starts from: this list as the reader left it when they pop back
   // onto this entry, nothing otherwise.
