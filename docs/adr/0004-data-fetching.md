@@ -218,6 +218,15 @@ when the reader pops back onto its entry.
   content comes back synchronously from the frame, so the router's offset
   restore has a rendered page to land on.
 
+## Note (2026-11-21): partly superseded by ADR-0017
+
+Router 2 removed `createAsync`; entity fetches are now async memos over the
+same `query()`s ([ADR-0017](./0017-solid-2-data-fetching.md)). ADR-0017 also
+replaces three statements in the amendments above: scroll restoration is the
+router's default rather than `<Router scrollRestoration>`, the router-internal
+names behind the push/pop detection changed, and path params arrive decoded.
+The Decision otherwise stands.
+
 ## References
 
 - https://docs.solidjs.com/solid-router/reference/data-apis/query

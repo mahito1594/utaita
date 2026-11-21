@@ -88,6 +88,14 @@ Supporting choices:
   interaction under happy-dom, openapi-msw handler) validates both open
   points at once.
 
+## Note (2026-11-21): Solid 2 test setup
+
+The `resolve.conditions` consequence above no longer applies:
+`@solidjs/vite-plugin` adds the conditions itself in test mode. The vitest
+config must also not set `environment: "node"` explicitly, and
+`@solidjs/testing-library` is on a 1.0 release candidate
+([ADR-0017](./0017-solid-2-data-fetching.md)). The Decision is unchanged.
+
 ## References
 
 - Terminology (classical vs London): Vladimir Khorikov, *Unit Testing

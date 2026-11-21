@@ -100,6 +100,13 @@ consequences follow:
   Harmless — both endpoints answer 200 anonymously and `completeLogin`
   flushes the cache — but the gate is not a fetch boundary.
 
+## Note (2026-11-21): partly superseded by ADR-0017
+
+The thread's fetch is now an async memo over the same `query()`, not
+`createAsync`, and opening another post hides the conversation being left
+until the next one arrives ([ADR-0017](./0017-solid-2-data-fetching.md)).
+The rest of the Decision stands.
+
 ## References
 
 - Design discussion and API measurements, 2026-08-09 (Akkoma pitfalls
