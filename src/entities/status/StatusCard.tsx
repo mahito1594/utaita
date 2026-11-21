@@ -1,4 +1,3 @@
-import { A, useLocation, useNavigate } from "@solidjs/router";
 import ChevronDown from "@lucide/solid/icons/chevron-down";
 import Globe from "@lucide/solid/icons/globe";
 import House from "@lucide/solid/icons/house";
@@ -8,8 +7,9 @@ import Mail from "@lucide/solid/icons/mail";
 import Pin from "@lucide/solid/icons/pin";
 import Repeat2 from "@lucide/solid/icons/repeat-2";
 import Reply from "@lucide/solid/icons/reply";
+import { A, useLocation, useNavigate } from "@solidjs/router";
+import { Dynamic } from "@solidjs/web";
 import { createSignal, createUniqueId, For, Show } from "solid-js";
-import { Dynamic } from "solid-js/web";
 import { css, cx } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 import { ActionBar } from "./ActionBar";
@@ -378,7 +378,7 @@ export const StatusCard = (props: {
       <Show when={spoiler() !== ""}>
         <button
           type="button"
-          aria-expanded={cwExpanded()}
+          aria-expanded={cwExpanded() ? "true" : "false"}
           aria-controls={bodyId}
           onClick={() => setCwExpanded((expanded) => !expanded)}
           class={css({

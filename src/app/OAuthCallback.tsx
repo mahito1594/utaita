@@ -2,7 +2,7 @@
 // has a URL: it draws no content of its own, and the route table mounts it as
 // a sibling of everything so the gate can never swallow it (App.tsx).
 import { useLocation, useNavigate } from "@solidjs/router";
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, onSettled, Show } from "solid-js";
 import { css } from "../../styled-system/css";
 import { parseCallbackParams } from "../entities/session/oauth";
 import {
@@ -20,7 +20,7 @@ export const OAuthCallback = () => {
   const navigate = useNavigate();
   const [error, setError] = createSignal<SessionError>();
 
-  onMount(async () => {
+  const finish = async () => {
     const params = parseCallbackParams(location.search);
     // A sign-in this tab started outranks a stored token, which may be the
     // expired one being replaced — a 401 never clears it (ADR-0015). Its
@@ -52,6 +52,9 @@ export const OAuthCallback = () => {
     } else {
       setError(result.error);
     }
+  };
+  onSettled(() => {
+    void finish();
   });
 
   return (

@@ -51,13 +51,16 @@ export const StatusContent = (props: StatusContentProps) => {
   };
 
   let container: HTMLDivElement | undefined;
-  createEffect(() => {
-    const fragment = renderContent(props.content, {
-      emojis: props.emojis,
-      hasQuoteCard: props.hasQuoteCard,
-    });
-    container?.replaceChildren(fragment);
-  });
+  createEffect(
+    () =>
+      renderContent(props.content, {
+        emojis: props.emojis,
+        hasQuoteCard: props.hasQuoteCard,
+      }),
+    (fragment) => {
+      container?.replaceChildren(fragment);
+    },
+  );
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: delegated listener refining anchor clicks; the div itself is not interactive

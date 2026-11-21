@@ -7,7 +7,7 @@
 //
 // Every element here is phrasing content: two of the call sites render it
 // inside the `<p role="alert">` their failure is already written in.
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, onCleanup, onSettled, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { outlineButton } from "../../ui/outline-button";
 import { login, type SessionError } from "./session";
@@ -94,7 +94,7 @@ export const SignInButton = (props: {
   // setError and the message can take focus itself.
   let errorEl: HTMLSpanElement | undefined;
 
-  onMount(() => {
+  onSettled(() => {
     // Mounted already showing an error (the callback's failure hand-off).
     if (error() !== undefined) errorEl?.focus();
   });

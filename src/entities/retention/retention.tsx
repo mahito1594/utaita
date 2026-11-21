@@ -127,9 +127,12 @@ export const Retention = (props: ParentProps<{ signedIn: boolean }>) => {
   // carrying one reader's history into the next session. A render effect, so
   // the reset settles in the same pure phase the routes below are recreated
   // in — a post-render effect could run after the next page has claimed.
-  createRenderEffect(() => {
-    if (!props.signedIn) stack = [];
-  });
+  createRenderEffect(
+    () => props.signedIn,
+    (signedIn) => {
+      if (!signedIn) stack = [];
+    },
+  );
 
   const enter = (path: string): Frame => {
     // Untracked: a page claims from its setup, which the router may well run
@@ -167,8 +170,8 @@ export const Retention = (props: ParentProps<{ signedIn: boolean }>) => {
   };
 
   return (
-    <RetentionStackContext.Provider value={{ claim, mark: enter }}>
+    <RetentionStackContext value={{ claim, mark: enter }}>
       {props.children}
-    </RetentionStackContext.Provider>
+    </RetentionStackContext>
   );
 };

@@ -3,9 +3,8 @@ import {
   createMemo,
   createSignal,
   For,
-  on,
   onCleanup,
-  onMount,
+  onSettled,
   Show,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
@@ -234,13 +233,11 @@ const Sentinel = (props: {
   // already settled to whatever it was) would immediately clear a
   // `retrying` the click just set.
   createEffect(
-    on(
-      () => props.loading,
-      (loading) => {
-        if (!loading) setRetrying(false);
-      },
-      { defer: true },
-    ),
+    () => props.loading,
+    (loading) => {
+      if (!loading) setRetrying(false);
+    },
+    { defer: true },
   );
 
   const handleRetryClick = () => {
@@ -249,13 +246,13 @@ const Sentinel = (props: {
     props.onRetry();
   };
 
-  onMount(() => {
+  onSettled(() => {
     if (target === undefined) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) props.onVisible();
     });
     observer.observe(target);
-    onCleanup(() => observer.disconnect());
+    return () => observer.disconnect();
   });
 
   return (
@@ -340,7 +337,7 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
 
   // Wraps `store.refresh()` to count net new statuses and hand the outcome
   // to the SR-only live region. Only the manual paths (bar button + retry
-  // after an initial-load failure) go through this — the initial onMount
+  // after an initial-load failure) go through this — the initial onSettled
   // load doesn't announce because there is nothing to compare against yet
   // and no user action triggered it.
   //
@@ -392,7 +389,7 @@ export const TimelinePage = (props: { timeline: TimelineDefinition }) => {
     refresh: () => void runRefreshWithAnnouncement(),
   });
 
-  onMount(() => {
+  onSettled(() => {
     void store.loadInitial();
   });
 

@@ -1,5 +1,5 @@
 import X from "@lucide/solid/icons/x";
-import { onMount, Show } from "solid-js";
+import { onSettled, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import type { components } from "../../api/schema";
 
@@ -20,7 +20,7 @@ export const MediaOverlay = (props: {
   onClose: () => void;
 }) => {
   let dialogRef: HTMLDialogElement | undefined;
-  onMount(() => dialogRef?.showModal());
+  onSettled(() => dialogRef?.showModal());
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: click-to-close on the backdrop; Escape is already handled natively via the cancel event above, and the close button is the accessible affordance

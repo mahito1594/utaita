@@ -24,17 +24,19 @@ const decodePixels = (hash: string): Uint8ClampedArray | undefined => {
  */
 export const BlurhashImage = (props: { blurhash: string | null }) => {
   let canvas: HTMLCanvasElement | undefined;
-  createEffect(() => {
-    const hash = props.blurhash;
-    if (canvas === undefined || hash === null) return;
-    const pixels = decodePixels(hash);
-    if (pixels === undefined) return;
-    const context = canvas.getContext("2d");
-    if (context === null) return;
-    const imageData = context.createImageData(RASTER, RASTER);
-    imageData.data.set(pixels);
-    context.putImageData(imageData, 0, 0);
-  });
+  createEffect(
+    () => props.blurhash,
+    (hash) => {
+      if (canvas === undefined || hash === null) return;
+      const pixels = decodePixels(hash);
+      if (pixels === undefined) return;
+      const context = canvas.getContext("2d");
+      if (context === null) return;
+      const imageData = context.createImageData(RASTER, RASTER);
+      imageData.data.set(pixels);
+      context.putImageData(imageData, 0, 0);
+    },
+  );
   return (
     // aria-hidden lives on the wrapper: Biome treats <canvas> itself as
     // interactive content and rejects both aria-hidden and role there.

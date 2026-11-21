@@ -5,7 +5,7 @@ import {
   Router,
   useLocation,
 } from "@solidjs/router";
-import { ErrorBoundary, type ParentProps, Show, Suspense } from "solid-js";
+import { Errored, Loading, type ParentProps, Show } from "solid-js";
 import { css, cx } from "../../styled-system/css";
 import { Retention } from "../entities/retention/retention";
 import { REDIRECT_PATH } from "../entities/session/oauth";
@@ -92,7 +92,7 @@ const signOut = () => {
   window.location.reload();
 };
 
-// The app's one ErrorBoundary. API failures never land here — they travel as
+// The app's one error boundary. API failures never land here — they travel as
 // Result values down to the page that rendered them (ADR-0008); anything
 // caught here is a genuine bug.
 const Layout = (props: ParentProps) => {
@@ -153,10 +153,10 @@ const Layout = (props: ParentProps) => {
         </div>
       </header>
       <main class={css({ ...column, py: "4" })}>
-        <ErrorBoundary
-          fallback={(err) => <p>Something went wrong: {String(err)}</p>}
+        <Errored
+          fallback={(err) => <p>Something went wrong: {String(err())}</p>}
         >
-          <Suspense
+          <Loading
             fallback={
               <p role="status" class={css({ color: "text.muted" })}>
                 Loading…
@@ -164,8 +164,8 @@ const Layout = (props: ParentProps) => {
             }
           >
             {props.children}
-          </Suspense>
-        </ErrorBoundary>
+          </Loading>
+        </Errored>
       </main>
     </>
   );

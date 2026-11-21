@@ -1,5 +1,5 @@
 import { createAsync, useParams } from "@solidjs/router";
-import { For, onCleanup, onMount, Show } from "solid-js";
+import { For, onCleanup, onSettled, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { claimRetentionFrame } from "../../entities/retention/retention";
 import { failureMessage } from "../../entities/session/failure-message";
@@ -76,7 +76,9 @@ export const FollowList = (props: { list: ListDefinition }) => {
   // Unconditional: whether a first page is still owed is the store's state,
   // and a second reading of it here would be free to disagree with it
   // (ADR-0004 amendment 2026-08-09).
-  onMount(() => void store.loadInitial());
+  onSettled(() => {
+    void store.loadInitial();
+  });
   onCleanup(() => {
     // An empty list is not a reading position, and resuming from one would
     // strand the page: the store would consider its first load done and settle

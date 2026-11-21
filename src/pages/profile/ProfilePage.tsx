@@ -9,12 +9,11 @@ import {
   createEffect,
   createSignal,
   For,
-  on,
+  Loading,
   onCleanup,
-  onMount,
+  onSettled,
   type ParentProps,
   Show,
-  Suspense,
 } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import type { ApiError } from "../../api/client";
@@ -171,13 +170,11 @@ export const PostsSentinel = (props: {
   // effect's first run, which would otherwise clear the flag the click just
   // set.
   createEffect(
-    on(
-      () => props.loading,
-      (loading) => {
-        if (!loading) setRetrying(false);
-      },
-      { defer: true },
-    ),
+    () => props.loading,
+    (loading) => {
+      if (!loading) setRetrying(false);
+    },
+    { defer: true },
   );
 
   const handleRetryClick = () => {
@@ -186,13 +183,13 @@ export const PostsSentinel = (props: {
     props.onRetry();
   };
 
-  onMount(() => {
+  onSettled(() => {
     if (target === undefined) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) props.onVisible();
     });
     observer.observe(target);
-    onCleanup(() => observer.disconnect());
+    return () => observer.disconnect();
   });
 
   return (
@@ -256,7 +253,7 @@ const PinnedPosts = (props: { acct: string }) => {
   return (
     // Its own boundary so the strip's request suspends the strip alone,
     // leaving the header and the list below it on screen while it resolves.
-    <Suspense>
+    <Loading>
       <Show when={error() !== undefined}>
         <ErrorCard
           message="Couldn't load pinned posts."
@@ -270,7 +267,7 @@ const PinnedPosts = (props: { acct: string }) => {
           </div>
         )}
       </For>
-    </Suspense>
+    </Loading>
   );
 };
 
@@ -303,7 +300,9 @@ export const ProfilePosts = (props: { tab: ProfileTab }) => {
   // Unconditional: whether a first page is still owed is the store's state,
   // and a second reading of it here would be free to disagree with it
   // (ADR-0004 amendment 2026-08-09).
-  onMount(() => void store.loadInitial());
+  onSettled(() => {
+    void store.loadInitial();
+  });
   onCleanup(() => {
     // An empty list is not a reading position, and resuming from one would
     // strand the page: the store would consider its first load done and settle
