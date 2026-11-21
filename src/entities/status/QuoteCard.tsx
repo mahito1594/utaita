@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router";
-import ChevronDown from "lucide-solid/icons/chevron-down";
+import ChevronDown from "@lucide/solid/icons/chevron-down";
 import { createSignal, createUniqueId, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { EmojiText } from "./EmojiText";

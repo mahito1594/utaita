@@ -1,5 +1,5 @@
+import solid from "@solidjs/vite-plugin";
 import { defineConfig, loadEnv } from "vite";
-import solid from "vite-plugin-solid";
 
 export default defineConfig(({ mode }) => {
   // Loaded without the VITE_ prefix on purpose: the value is used only
