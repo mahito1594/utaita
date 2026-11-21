@@ -156,7 +156,7 @@ export const WhoList = (props: { list: AccountWhoList }) => {
       </Show>
 
       {/* Empty-success state: the fetch settled without accounts and without
-          an error — waiting for it is the page's Loading boundary, not a row here. */}
+          an error — waiting for it is the layout's Loading boundary, not a row here. */}
       <Show when={error() === undefined && accounts().length === 0}>
         <p role="status" class={noticeRow}>
           {props.list.empty}
@@ -402,19 +402,15 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
             )}
           </For>
         </nav>
-        {/* The page's own boundary: the layout's (App.tsx) would hide the
-            header and the tabs with the list a direct arrival is waiting for.
-            A tab switch renders under the router's transition, which keeps
-            the previous list on screen, so this row is the direct arrival's. */}
-        <Loading
-          fallback={
-            <p role="status" class={noticeRow}>
-              Loading…
-            </p>
-          }
-        >
-          {props.children}
-        </Loading>
+        {/* No boundary of the page's own: the list's pending read falls to the
+            layout's (App.tsx), which is already rendered on any navigation in
+            the app and so holds it until the list exists. A boundary mounted
+            with this page would show its fallback and let the navigation
+            settle, and a back into a who-list would then have its scroll
+            restored against that one row (ADR-0017). The cost is a direct
+            arrival, where the layout's fallback hides the heading and the
+            tabs too until the list lands. */}
+        {props.children}
       </div>
     </section>
   );

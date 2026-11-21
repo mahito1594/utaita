@@ -571,6 +571,55 @@ test("does not leave the previous conversation under the URL of one that failed"
   expect(view.container.querySelector('[aria-current="true"]')).toBeNull();
 });
 
+test("while another post is loading, the conversation being left is not drawn", async () => {
+  // The in-flight leg of opening a post from inside a conversation: the page
+  // is not recreated, and until the new conversation lands it keeps only what
+  // names no post — the heading and Back — rather than the one being left.
+  let release = (): void => {};
+  const replyHeld = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  server.use(
+    http.get<{ id: string }>(
+      "*/api/v1/statuses/:id/context",
+      async ({ params }) => {
+        if (params.id !== SUBJECT_ID) await replyHeld;
+        return HttpResponse.json(wholeThread);
+      },
+    ),
+    http.get<{ id: string }>("*/api/v1/statuses/:id", async ({ params }) => {
+      if (params.id === SUBJECT_ID) return HttpResponse.json(subject);
+      await replyHeld;
+      return HttpResponse.json(reply);
+    }),
+  );
+  const history = memoryHistory();
+  const view = renderApp(history);
+
+  await userEvent.click(await view.findByRole("link", { name: "Open thread" }));
+  expect(await view.findByText("The post that was opened")).toBeInTheDocument();
+
+  await userEvent.click(await view.findByText("A reply to the opened post"));
+
+  await waitFor(() =>
+    expect(
+      view.queryByText("The post that was opened"),
+    ).not.toBeInTheDocument(),
+  );
+  expect(
+    view.queryByText("A reply to the opened post"),
+  ).not.toBeInTheDocument();
+  expect(
+    view.getByRole("heading", { name: "Conversation" }),
+  ).toBeInTheDocument();
+
+  release();
+
+  expect(
+    await view.findByText("A reply to the opened post"),
+  ).toBeInTheDocument();
+});
+
 test("retries a thread that failed to load", async () => {
   let attempts = 0;
   server.use(

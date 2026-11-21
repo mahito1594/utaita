@@ -179,13 +179,18 @@ export const createTimelineStore = (
     // empty-store case always adopts the page outright regardless of size.
     const mayHaveGap =
       headId !== undefined && result.value.length === PAGE_LIMIT;
-    // No awaits between reading `current` and `setSegments`, so the delta
-    // is exactly this refresh's contribution — a concurrently-completing
-    // older-fetch settles at some other microtask, never in between.
-    const current = segments();
-    const updated = applyRefresh(current, result.value, mayHaveGap);
-    setSegments(updated);
-    return countStatuses(updated) - countStatuses(current);
+    // Applied through the setter's updater, not to a read of `segments()`: a
+    // signal write is read back only after the next flush, so an older page
+    // that landed earlier in this tick is visible to the updater alone. The
+    // delta is taken from the same pair, so it is exactly this refresh's
+    // contribution.
+    let applied = 0;
+    setSegments((current) => {
+      const updated = applyRefresh(current, result.value, mayHaveGap);
+      applied = countStatuses(updated) - countStatuses(current);
+      return updated;
+    });
+    return applied;
   };
 
   // A resumed store skips this on purpose: `refresh` prepends what arrived
@@ -243,27 +248,32 @@ export const createTimelineStore = (
     // strips whatever the merge already brought in and appends the rest.
     // A tail-identity lookup instead dropped such a page outright, and the
     // sentinel stalled until the next IntersectionObserver fire.
-    const latest = segments();
-    const idx = latest.findIndex((segment) =>
-      segment.statuses.some((status) => status.id === anchorId),
-    );
-    // The anchor status is in no segment at all. Statuses are never removed
-    // from the store, so this shouldn't happen — kept as a safety net so a
-    // surprise drops one page instead of corrupting a segment.
-    if (idx === -1) return;
-
-    const updated = appendOlder(latest, idx, result.value);
+    //
+    // Resolved inside the setter's updater, which sees a refresh written
+    // earlier in this tick; a read of `segments()` would not until the next
+    // flush, and the write below would then drop that refresh's statuses.
+    let reachedTail = false;
+    setSegments((latest) => {
+      const idx = latest.findIndex((segment) =>
+        segment.statuses.some((status) => status.id === anchorId),
+      );
+      // The anchor status is in no segment at all. Statuses are never removed
+      // from the store, so this shouldn't happen — kept as a safety net so a
+      // surprise drops one page instead of corrupting a segment.
+      if (idx === -1) return latest;
+      const updated = appendOlder(latest, idx, result.value);
+      // The merged run keeps index `idx`, so "the anchor's run is the tail"
+      // is `idx === updated.length - 1`.
+      reachedTail = idx === updated.length - 1;
+      return updated;
+    });
     // A short page from `max_id=anchor` proves the server holds less than a
     // page below the anchor — everything older is now known. That verdict
     // is about the *post-merge* shape: judged pre-merge, a short gap fill
     // that reaches the tail segment and collapses into it would leave
     // `exhausted` unset and cost the sentinel one provably-empty extra
-    // fetch. The merged run keeps index `idx`, so
-    // "the anchor's run is the tail" is `idx === updated.length - 1`.
-    if (idx === updated.length - 1 && result.value.length < PAGE_LIMIT) {
-      setExhausted(true);
-    }
-    setSegments(updated);
+    // fetch.
+    if (reachedTail && result.value.length < PAGE_LIMIT) setExhausted(true);
   };
 
   // Drains the queue one anchor at a time until empty. Runs at most once

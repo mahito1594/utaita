@@ -37,13 +37,17 @@ previous param; that pairing is removed, because a param change re-runs the
 memo and its pending state is what the page shows.
 
 **A param switch on a mounted page shows the page's own loading row; Solid 2's
-held update is not adopted.** ProfilePage keeps its header and replaces the
-body with "Loading profile…" while `isPending(() => acct())` is true;
-ThreadPage keeps its header and hides the conversation being left while
-`isPending(() => params.id)` is true. Holding the
-previous account or conversation under the new URL is exactly what the
-existing suites forbid ("does not leave the previous conversation under the
-URL of one that failed"). Whether held updates read better in practice is a
+held update is not adopted.** While `isPending(() => acct())` is true,
+ProfilePage shows "Loading profile…" in place of everything it draws, its
+header and tab bar included, since each of them describes the account being
+left. While `isPending(() => params.id)` is true, ThreadPage keeps its
+"Conversation" heading and Back control, which name no post, and hides the
+conversation being left. This is what the 1.x pages showed during the same
+stretch: `createAsync` kept answering with the previous param's value, and
+the pages discarded it rather than draw it. Adopting the held update would
+change that, and on a back/forward, where the browser's URL has already
+moved, it would leave the previous account or conversation under the new URL
+until the new one lands. Whether held updates read better in practice is a
 UX question for dogfooding, not part of the migration.
 
 **The row is a `<Show>` on `isPending`, not a page-level `<Loading on={key}>`.**
@@ -81,9 +85,16 @@ amendments.**
 
 - Every pending read on a route either belongs to a boundary rendered before
   the navigation or is gated by `isPending`; a new fresh `<Loading>` on a
-  route that is returned to by back/forward is a scroll-restoration bug. Two
-  remain and are known: PinnedPosts' strip, and WhoListsPage's page-level
-  boundary. A back into a who-list has not been checked for an early restore.
+  route that is returned to by back/forward is a scroll-restoration bug. A
+  warm cache does not avoid it: `query()` hands out a fresh promise on every
+  read, so the boundary still meets a pending value on its first pass.
+  WhoListsPage dropped its page-level boundary for this reason, and a direct
+  arrival there now waits on the layout's fallback, heading and tabs
+  included. The fresh boundaries that remain do not catch the read a
+  navigation waits on, so they cannot settle it early: PinnedPosts' strip,
+  where the posts list below it renders from the retention snapshot, and
+  WhoListsPage's heading and tab counts, whose fallbacks take the same single
+  line as the content they stand in for.
 - The supersessions are partial. ADR-0004's decision (router primitives, no
   solid-query, hand-rolled pagination) and ADR-0014's (one subject, data
   through the router's layer) stand. Only the `createAsync` mechanism and the
@@ -92,7 +103,13 @@ amendments.**
 - Solid 2's deferred writes (a setter's value is read back only after the
   next flush) reach the stores. The timeline's older-page queue and the cursor
   list's in-flight guard keep plain-variable mirrors for decisions made in the
-  same tick as the write.
+  same tick as the write. The timeline's segments are written through the
+  setter's updater, which receives the unflushed value, so a refresh and an
+  older page landing in the same tick both keep their statuses.
+- `revalidate()` returns `void` in Router 2; under 1.x it returned a promise
+  that settled with the refetch. A caller that has to wait for the reloaded
+  data registers an unowned `onSettled` after it, as the thread's
+  missing-parent fetch does.
 - Testing (ADR-0009): `@solidjs/testing-library` is on `1.0.0-rc.2` until a
   stable 1.0 ships. The `resolve.conditions` consequence in ADR-0009 no longer
   applies, because `@solidjs/vite-plugin` adds the conditions itself in test

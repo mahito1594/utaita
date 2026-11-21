@@ -283,12 +283,12 @@ export const StatusCard = (props: {
         })}
       >
         <Show when={authorPath()} fallback={<Avatar />}>
-          {/* biome-ignore-start lint/a11y/useAnchorContent: the rule reads only a camelCase tabIndex, which the Solid 2 JSX types reject, so it misses the tabindex={-1} below */}
+          {/* biome-ignore-start lint/a11y/useAnchorContent: the anchor's only content is the aria-hidden avatar, on purpose — the name link beside it announces the same destination, which the rule cannot see */}
           {(path) => (
             // A second anchor to the destination the name already announces:
             // hidden from assistive tech and from the tab order, since one
             // anchor around both would have to wrap the whole header row.
-            // biome-ignore lint/a11y/noAriaHiddenOnFocusable: the same camelCase-only reading as the suppression above
+            // biome-ignore lint/a11y/noAriaHiddenOnFocusable: the rule reads only a camelCase tabIndex, which the Solid 2 JSX types reject, so it misses the tabindex={-1} below
             <a
               href={path()}
               tabindex={-1}
