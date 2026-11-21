@@ -1,3 +1,4 @@
+import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
   A,
   createAsync,
@@ -5,14 +6,12 @@ import {
   useNavigate,
   useParams,
 } from "@solidjs/router";
-import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
   createRenderEffect,
   For,
-  on,
+  Loading,
   type ParentProps,
   Show,
-  Suspense,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
 import { markRetentionFrame } from "../../entities/retention/retention";
@@ -121,10 +120,8 @@ export const WhoList = (props: { list: AccountWhoList }) => {
   // says it should (src/entities/retention/retention.tsx). Per `:id` rather
   // than per mount, as the conversation does it (ThreadPage.tsx).
   createRenderEffect(
-    on(
-      () => params.id,
-      (id) => markRetentionFrame(whoListPath(id, props.list)),
-    ),
+    () => params.id,
+    (id) => markRetentionFrame(whoListPath(id, props.list)),
   );
 
   // `createAsync` keeps answering with the previous post's value while a new
@@ -176,7 +173,7 @@ export const WhoList = (props: { list: AccountWhoList }) => {
       </Show>
 
       {/* Empty-success state: the fetch settled without accounts and without
-          an error — waiting for it is the page's Suspense, not a row here. */}
+          an error — waiting for it is the page's Loading boundary, not a row here. */}
       <Show
         when={
           result() !== undefined &&
@@ -238,10 +235,8 @@ export const ReactionsList = () => {
   const params = useParams<{ id: string }>();
 
   createRenderEffect(
-    on(
-      () => params.id,
-      (id) => markRetentionFrame(whoListPath(id, reactions)),
-    ),
+    () => params.id,
+    (id) => markRetentionFrame(whoListPath(id, reactions)),
   );
 
   // Same shape as the flat lists above, for the same reason: the answer
@@ -418,7 +413,7 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
               the lists themselves survive — the post is all the heading can
               name. Its own boundary, so waiting for the author holds back the
               heading alone. */}
-          <Suspense fallback="Post">
+          <Loading fallback="Post">
             <Show when={author()} fallback="Post">
               {(who) => (
                 <>
@@ -426,7 +421,7 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
                 </>
               )}
             </Show>
-          </Suspense>
+          </Loading>
         </h2>
       </div>
 
@@ -442,13 +437,13 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
                 {/* The count alone waits for the conversation: without a
                     boundary here the tabs would be unreachable until it
                     answers, on the arrival that needs them most. */}
-                <Suspense>
+                <Loading>
                   <Show when={counts()}>
                     {(known) => (
                       <span class={tabCount}>{known()[list.kind]}</span>
                     )}
                   </Show>
-                </Suspense>
+                </Loading>
               </A>
             )}
           </For>
@@ -457,7 +452,7 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
             header and the tabs with the list a direct arrival is waiting for.
             A tab switch renders under the router's transition, which keeps
             the previous list on screen, so this row is the direct arrival's. */}
-        <Suspense
+        <Loading
           fallback={
             <p role="status" class={noticeRow}>
               Loading…
@@ -465,7 +460,7 @@ export const WhoListsPage = (props: ParentProps<{ data: WhoListsArrival }>) => {
           }
         >
           {props.children}
-        </Suspense>
+        </Loading>
       </div>
     </section>
   );

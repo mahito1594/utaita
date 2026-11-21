@@ -1,5 +1,5 @@
-import { useLocation, useNavigate } from "@solidjs/router";
 import ChevronDown from "@lucide/solid/icons/chevron-down";
+import { useLocation, useNavigate } from "@solidjs/router";
 import { createSignal, createUniqueId, Show } from "solid-js";
 import { css, cx } from "../../../styled-system/css";
 import { EmojiText } from "./EmojiText";
@@ -148,7 +148,7 @@ export const QuoteCard = (props: { status: Status }) => {
       <Show when={spoiler() !== ""}>
         <button
           type="button"
-          aria-expanded={cwExpanded()}
+          aria-expanded={cwExpanded() ? "true" : "false"}
           aria-controls={bodyId}
           onClick={() => setCwExpanded((expanded) => !expanded)}
           class={css({

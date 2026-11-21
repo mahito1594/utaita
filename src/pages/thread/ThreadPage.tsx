@@ -1,3 +1,4 @@
+import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
   A,
   createAsync,
@@ -6,14 +7,12 @@ import {
   useNavigate,
   useParams,
 } from "@solidjs/router";
-import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
   createEffect,
   createMemo,
   createRenderEffect,
   createSignal,
   For,
-  on,
   Show,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
@@ -308,10 +307,8 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   // per mount: opening a post from inside a conversation moves `:id` without
   // recreating the page.
   createRenderEffect(
-    on(
-      () => params.id,
-      (id) => markRetentionFrame(statusPath(id)),
-    ),
+    () => params.id,
+    (id) => markRetentionFrame(statusPath(id)),
   );
 
   // One value per arrival, whether the route was matched afresh or only `:id`
@@ -373,17 +370,22 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   // not run at all — scroll restoration owns the offset there. Landing is
   // remembered per arrival rather than once, so that a rebuild mid-visit never
   // re-centres the subject while reopening the same post later still does.
-  createEffect(() => {
-    const current = arrival();
-    if (!current.requested || landed === current) return;
-    const element = subjectElement();
-    if (element === undefined || !element.isConnected || isRouting()) return;
-    landed = current;
-    // Keyboard and screen-reader arrivals land where sighted ones look: the
-    // subject row takes focus, with the scroll left to scrollIntoView.
-    element.focus({ preventScroll: true });
-    element.scrollIntoView();
-  });
+  createEffect(
+    () => ({
+      current: arrival(),
+      element: subjectElement(),
+      routing: isRouting(),
+    }),
+    ({ current, element, routing }) => {
+      if (!current.requested || landed === current) return;
+      if (element === undefined || !element.isConnected || routing) return;
+      landed = current;
+      // Keyboard and screen-reader arrivals land where sighted ones look: the
+      // subject row takes focus, with the scroll left to scrollIntoView.
+      element.focus({ preventScroll: true });
+      element.scrollIntoView();
+    },
+  );
 
   // Where the subject sat in the viewport just before a rebuild that will grow
   // the thread above it; undefined whenever no such rebuild is coming. Carries
@@ -450,70 +452,87 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   // above it. The browser's own scroll anchoring cannot do this: every row is
   // rebuilt from a new object on a reload, so `<For>`'s reference keying
   // replaces the entire list and leaves no anchor candidate standing.
-  createEffect(() => {
-    rows();
-    // A reload that settles err rebuilds nothing, so `rows()` alone would leave
-    // the hold armed for a later rebuild the reader has since scrolled away
-    // from.
-    const failed = error() !== undefined;
-    const held = heldSubjectTop;
-    if (held === undefined) return;
-    if (failed || held.id !== params.id) {
+  createEffect(
+    () => {
+      rows();
+      // A reload that settles err rebuilds nothing, so `rows()` alone would
+      // leave the hold armed for a later rebuild the reader has since scrolled
+      // away from. The subject's element is subscribed to only while a hold is
+      // armed, as the hold is the only thing waiting on it.
+      return {
+        failed: error() !== undefined,
+        id: params.id,
+        element: heldSubjectTop === undefined ? undefined : subjectElement(),
+      };
+    },
+    ({ failed, id, element }) => {
+      const held = heldSubjectTop;
+      if (held === undefined) return;
+      if (failed || held.id !== id) {
+        heldSubjectTop = undefined;
+        return;
+      }
+      if (element === undefined || !element.isConnected) return;
       heldSubjectTop = undefined;
-      return;
-    }
-    const element = subjectElement();
-    if (element === undefined || !element.isConnected) return;
-    heldSubjectTop = undefined;
-    const shift = element.getBoundingClientRect().top - held.top;
-    if (shift !== 0) window.scrollBy(0, shift);
-  });
+      const shift = element.getBoundingClientRect().top - held.top;
+      if (shift !== 0) window.scrollBy(0, shift);
+    },
+  );
 
   // Hands focus to the post the reader asked for. The button that asked is gone
   // with the placeholder it stood in, so focus would otherwise fall to <body>
   // and leave a keyboard or screen-reader reader at the top of the document
   // with no sign that anything arrived. `preventScroll` because the two run off
   // the same rebuild and where the viewport ends up is `heldSubjectTop`'s call.
-  createEffect(() => {
-    rows();
-    // Read before the arm is, and so subscribed to whether or not one is
-    // waiting: a reload that settles err rebuilds nothing, and this run is the
-    // only one that comes to drop an arm whose rebuild never arrived. Reading
-    // them behind the arm would leave it standing until some later reload
-    // succeeded — and hand focus to a row the reader has since scrolled away
-    // from, silently, since the move does not scroll.
-    const failed = error() !== undefined;
-    const id = params.id;
-    const pending = pendingParentFocus;
-    if (pending === undefined) return;
-    if (failed || pending.id !== id) {
+  createEffect(
+    () => {
+      rows();
+      // Read before the arm is, and so subscribed to whether or not one is
+      // waiting: a reload that settles err rebuilds nothing, and this run is
+      // the only one that comes to drop an arm whose rebuild never arrived.
+      // Reading them behind the arm would leave it standing until some later
+      // reload succeeded — and hand focus to a row the reader has since
+      // scrolled away from, silently, since the move does not scroll.
+      return {
+        failed: error() !== undefined,
+        id: params.id,
+        target: pendingParentFocus === undefined ? undefined : parentFocusRow(),
+      };
+    },
+    ({ failed, id, target }) => {
+      const pending = pendingParentFocus;
+      if (pending === undefined) return;
+      if (failed || pending.id !== id) {
+        disarmParentFocus();
+        return;
+      }
+      // This run is the rebuild the arm was waiting for, so it is also the
+      // arm's last chance: a reload that settled without the post — Akkoma can
+      // take a beat to link the reply to a parent it has just ingested —
+      // leaves nothing behind to consume it, and an arm left standing would
+      // fire on whatever rebuild came next, silently, since the move does not
+      // scroll.
       disarmParentFocus();
-      return;
-    }
-    // This run is the rebuild the arm was waiting for, so it is also the arm's
-    // last chance: a reload that settled without the post — Akkoma can take a
-    // beat to link the reply to a parent it has just ingested — leaves nothing
-    // behind to consume it, and an arm left standing would fire on whatever
-    // rebuild came next, silently, since the move does not scroll.
-    const target = parentFocusRow();
-    disarmParentFocus();
-    if (target === undefined || target.statusId !== pending.statusId) return;
-    if (!target.element.isConnected) return;
-    // Rows are out of the tab order, so the landing spot is made focusable as
-    // it is focused rather than standing ready: every row is rebuilt from a new
-    // element on a reload, which is also what takes the attribute away again.
-    target.element.setAttribute("tabindex", "-1");
-    target.element.focus({ preventScroll: true });
-    // The hold answers for the subject, not for the parent: a tall parent fills
-    // the gap above the placeholder's row and overshoots the top, and a reader
-    // who scrolled during the seconds the fetch took can have left the whole
-    // row below the fold. Either way focus would sit where nobody can see it,
-    // so the correction runs on both — and on neither when the hold did its job.
-    const rect = target.element.getBoundingClientRect();
-    if (rect.top < 0 || rect.top >= window.innerHeight) {
-      target.element.scrollIntoView({ block: "nearest" });
-    }
-  });
+      if (target === undefined || target.statusId !== pending.statusId) return;
+      if (!target.element.isConnected) return;
+      // Rows are out of the tab order, so the landing spot is made focusable
+      // as it is focused rather than standing ready: every row is rebuilt from
+      // a new element on a reload, which is also what takes the attribute away
+      // again.
+      target.element.setAttribute("tabindex", "-1");
+      target.element.focus({ preventScroll: true });
+      // The hold answers for the subject, not for the parent: a tall parent
+      // fills the gap above the placeholder's row and overshoots the top, and
+      // a reader who scrolled during the seconds the fetch took can have left
+      // the whole row below the fold. Either way focus would sit where nobody
+      // can see it, so the correction runs on both — and on neither when the
+      // hold did its job.
+      const rect = target.element.getBoundingClientRect();
+      if (rect.top < 0 || rect.top >= window.innerHeight) {
+        target.element.scrollIntoView({ block: "nearest" });
+      }
+    },
+  );
 
   return (
     <section>

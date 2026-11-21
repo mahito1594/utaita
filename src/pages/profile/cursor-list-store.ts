@@ -1,4 +1,4 @@
-import { type Accessor, batch, createSignal } from "solid-js";
+import { type Accessor, createSignal } from "solid-js";
 import type { ApiError } from "../../api/client";
 import { PAGE_LIMIT } from "../../api/pagination";
 import type { Result } from "../../api/result";
@@ -121,14 +121,13 @@ export const createCursorListStore = <T extends { id?: string }>(
     const result = await fetchPage(cursor);
 
     if (!result.ok) {
-      // One update, not two: effects run between separate writes, and an
-      // in-between state of "not loading, no error" is one where the sentinel's
-      // error row has no reason to be mounted — it would take the Retry button
-      // the reader just pressed, and their focus, with it (ProfilePage.tsx).
-      batch(() => {
-        setLoadingOlder(false);
-        setLoadOlderError(result.error);
-      });
+      // One update, not two: an in-between state of "not loading, no error"
+      // is one where the sentinel's error row has no reason to be mounted — it
+      // would take the Retry button the reader just pressed, and their focus,
+      // with it (ProfilePage.tsx). Writes made in the same synchronous run
+      // reach readers together at the next flush, so the pair needs no wrapper.
+      setLoadingOlder(false);
+      setLoadOlderError(result.error);
       return;
     }
     setLoadingOlder(false);

@@ -1,11 +1,10 @@
-import { A } from "@solidjs/router";
 import RotateCw from "@lucide/solid/icons/rotate-cw";
+import { A } from "@solidjs/router";
 import {
   type Accessor,
   createContext,
   createSignal,
-  onCleanup,
-  onMount,
+  onSettled,
   type ParentProps,
   useContext,
 } from "solid-js";
@@ -169,8 +168,10 @@ const ControlsChannelContext = createContext<ControlsChannel>({
 // business, not something this contract should depend on.
 export const publishTimelineControls = (controls: TimelineControls): void => {
   const channel = useContext(ControlsChannelContext);
-  onMount(() => channel.publish(controls));
-  onCleanup(() => channel.withdraw(controls));
+  onSettled(() => {
+    channel.publish(controls);
+    return () => channel.withdraw(controls);
+  });
 };
 
 // Layout route wrapping the four timeline routes. The switcher tabs live
@@ -205,7 +206,7 @@ export const TimelineShell = (props: ParentProps) => {
   };
 
   return (
-    <ControlsChannelContext.Provider value={channel}>
+    <ControlsChannelContext value={channel}>
       <div class={panel}>
         <div class={bar}>
           <nav aria-label="Timelines" class={timelineNav}>
@@ -240,6 +241,6 @@ export const TimelineShell = (props: ParentProps) => {
 
         <div class={panelBody}>{props.children}</div>
       </div>
-    </ControlsChannelContext.Provider>
+    </ControlsChannelContext>
   );
 };
