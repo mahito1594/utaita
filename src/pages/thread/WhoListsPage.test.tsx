@@ -4,7 +4,7 @@
 // failure path, and the way back to the post. Page-level with MSW as the only
 // seam (ADR-0009).
 import { memoryHistory, query } from "@solidjs/router";
-import { cleanup, within } from "@solidjs/testing-library";
+import { cleanup, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -523,24 +523,16 @@ test("Back stays a link to the post after a tab switch, when the list was opened
   );
 });
 
-test("a direct arrival draws the heading, the tabs and a Loading row while the list is still out", async () => {
-  // Held answers, so the page can be read in the state a direct arrival puts
-  // it in: nothing fetched yet, everything the page owns already drawn.
-  let answerThread!: () => void;
-  const threadHeld = new Promise<void>((resolve) => {
-    answerThread = resolve;
-  });
+test("a direct arrival waits on the layout's boundary until the list lands", async () => {
+  // The page has no boundary of its own (a fresh one would settle a back into
+  // the list on its fallback, before there is anything to restore scroll
+  // against), so a direct arrival shows the layout's fallback — heading and
+  // tabs included — until the list is there.
   let answerList!: () => void;
   const listHeld = new Promise<void>((resolve) => {
     answerList = resolve;
   });
   server.use(
-    // Ahead of `subjectHandlers`, whose `/context` answer is still wanted:
-    // MSW takes the first handler that matches.
-    http.get("*/api/v1/statuses/:id", async () => {
-      await threadHeld;
-      return HttpResponse.json(subject);
-    }),
     ...subjectHandlers,
     http.get("*/api/v1/statuses/:id/favourited_by", async ({ request }) => {
       listRequests.push(new URL(request.url));
@@ -548,29 +540,49 @@ test("a direct arrival draws the heading, the tabs and a Loading row while the l
       return HttpResponse.json([zoe]);
     }),
   );
-  const { findByRole, getByRole, getAllByRole, queryByText } =
-    renderListDirectly(whoListPath(SUBJECT_ID, favourites));
-
-  expect(await findByRole("heading", { name: "Post" })).toBeInTheDocument();
-  expect(
-    getAllByRole("link", { name: /^(Favourites|Boosts|Reactions)/ }),
-  ).toHaveLength(3);
-
-  // Under the tab bar, inside the page — not the layout's fallback, which
-  // would have hidden the heading and the tabs with it.
-  const loading = getByRole("status");
-  expect(loading).toHaveTextContent("Loading…");
-  expect(loading.previousElementSibling).toBe(
-    getByRole("navigation", { name: "Post sections" }),
+  const { findByText, findByRole, queryByRole } = renderListDirectly(
+    whoListPath(SUBJECT_ID, favourites),
   );
-  expect(queryByText("Routing…")).not.toBeInTheDocument();
 
-  answerThread();
+  expect(await findByText("Routing…")).toBeInTheDocument();
   expect(
-    await findByRole("heading", { name: "Post by Alice Example" }),
-  ).toBeInTheDocument();
-  expect(getByRole("status")).toHaveTextContent("Loading…");
+    queryByRole("navigation", { name: "Post sections" }),
+  ).not.toBeInTheDocument();
 
   answerList();
   expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+  expect(
+    await findByRole("navigation", { name: "Post sections" }),
+  ).toBeInTheDocument();
+});
+
+test("a navigation into a list keeps the page being left until the list lands", async () => {
+  // What scroll restoration rests on: the navigation is held by the layout's
+  // already-rendered boundary, so it settles only once the list is drawn,
+  // never on a fallback.
+  let answerList!: () => void;
+  const listHeld = new Promise<void>((resolve) => {
+    answerList = resolve;
+  });
+  server.use(
+    ...subjectHandlers,
+    http.get("*/api/v1/statuses/:id/favourited_by", async ({ request }) => {
+      listRequests.push(new URL(request.url));
+      await listHeld;
+      return HttpResponse.json([zoe]);
+    }),
+  );
+  const { findByText, findByRole, getByText, queryByText } =
+    renderListDirectly("/");
+
+  expect(await findByText("Home timeline")).toBeInTheDocument();
+  await userEvent.click(getByText("Open favourites"));
+  await waitFor(() => expect(listRequests).toHaveLength(1));
+
+  expect(getByText("Home timeline")).toBeInTheDocument();
+  expect(queryByText("Routing…")).not.toBeInTheDocument();
+
+  answerList();
+  expect(await findByRole("link", { name: /Zoe/ })).toBeInTheDocument();
+  expect(queryByText("Home timeline")).not.toBeInTheDocument();
 });

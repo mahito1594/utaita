@@ -189,4 +189,30 @@ describe("createTimelineStore resumed from a snapshot", () => {
       },
     );
   });
+
+  test("a refresh and an older page landing in the same tick both stay", async () => {
+    // A signal write is read back only after the next flush, so the second of
+    // two writes made before it must build on the first rather than on what
+    // was last flushed — or one response silently drops the other's statuses.
+    const answers: Array<(page: Result<Status[], ApiError>) => void> = [];
+    const fetchPage: FetchTimelinePage = () =>
+      new Promise((resolve) => {
+        answers.push(resolve);
+      });
+    await withStore(
+      () => createTimelineStore(fetchPage, snapshot([segment("s10", "s09")])),
+      async (store) => {
+        const refreshed = store.refresh();
+        const older = store.loadOlder(0);
+        const [newer, below] = answers;
+        newer?.(ok([status("s11")]));
+        below?.(ok([status("s08")]));
+        const [applied] = await Promise.all([refreshed, older]);
+
+        expect(ids(store)).toEqual(["s11", "s10", "s09", "s08"]);
+        // The count is this refresh's own contribution, not the older page's.
+        expect(applied).toBe(1);
+      },
+    );
+  });
 });

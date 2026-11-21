@@ -200,6 +200,46 @@ test("fetches the missing parent when asked and reads it in the conversation", a
   expect(contextRequests).toHaveLength(2);
 });
 
+test("keeps the button busy until the reloaded conversation lands", async () => {
+  // The resolve is only half the operation: until the reload brings the parent
+  // in, the placeholder is still on screen, and a button that read as idle
+  // again would invite a second remote round trip for the same post.
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  server.use(
+    http.get("*/api/v1/statuses/:id/context", async () => {
+      if (ingested) await held;
+      return HttpResponse.json(
+        ingested
+          ? { ancestors: [parent], descendants: [] }
+          : { ancestors: [], descendants: [] },
+      );
+    }),
+    ...threadHandlers,
+    searchHandler(resolved, () => {
+      ingested = true;
+    }),
+  );
+  const { findByText, findByRole } = renderThread();
+
+  await userEvent.click(
+    await findByRole("button", { name: "Fetch new remote resource" }),
+  );
+  await waitFor(() => expect(searchQueries).toHaveLength(1));
+  await settle();
+
+  const button = await findByRole("button", { name: "Fetching…" });
+  expect(button).toHaveAttribute("aria-disabled", "true");
+
+  release();
+
+  expect(
+    await findByText("The post from the other instance"),
+  ).toBeInTheDocument();
+});
+
 test("hands focus to the parent's row once it lands in the conversation", async () => {
   // The button that asked for the fetch is gone with the placeholder it stood
   // in, so focus has somewhere to be put: left alone it falls to <body>, and a

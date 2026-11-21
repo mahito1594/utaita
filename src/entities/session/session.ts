@@ -183,7 +183,9 @@ export const completeLogin = async (
   setAuthenticated(true);
   // Preloads that ran before login cached 401/403 Results; flush everything
   // so the now-authenticated pages refetch (discussion decision 2026-07-12).
-  await revalidate();
+  // Invalidation is synchronous; the refetches belong to whichever page reads
+  // next, so there is nothing here to wait for.
+  revalidate();
   return ok(undefined);
 };
 

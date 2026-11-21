@@ -12,6 +12,7 @@ import {
   createSignal,
   For,
   isPending,
+  onSettled,
   Show,
 } from "solid-js";
 import { css } from "../../../styled-system/css";
@@ -322,6 +323,8 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   const canGoBack = () => {
     const current = arrival();
     if (current === opening) return props.data.canGoBack;
+    // `opening` is always set by now (the read of `arrival()` above sets it);
+    // the optional chain is only for the type, which cannot see that.
     if (current.requested || current.id !== opening?.id) return true;
     return props.data.canGoBack;
   };
@@ -334,9 +337,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
       const id = params.id;
       const result = answer();
       const kept = held !== undefined && held.id === id ? held : undefined;
-      return result === undefined || !result.ok
-        ? kept
-        : { id, thread: result.value };
+      return result.ok ? { id, thread: result.value } : kept;
     },
   );
   const rows = createMemo<readonly ThreadRow[]>(() => {
@@ -347,7 +348,7 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
   });
   const error = () => {
     const result = answer();
-    return result === undefined || result.ok ? undefined : result.error;
+    return result.ok ? undefined : result.error;
   };
   const retry = () => void revalidate(threadQuery.keyFor(params.id));
   const switching = () => isPending(() => params.id);
@@ -439,7 +440,15 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
       pendingParentFocus =
         statusId === undefined ? undefined : { id: threadId, statusId };
     }
-    await revalidate(threadQuery.keyFor(threadId));
+    // `revalidate` only marks the entry stale and returns; the refetch it sets
+    // off runs in the transition that follows. Answering before that lands
+    // would hand the placeholder back an idle button while it is still on
+    // screen, so the answer waits for the settle. Past the await above there
+    // is no owner (Solid does not carry one across an await), so this
+    // registers unowned and fires once the transition carrying the reload
+    // lands.
+    revalidate(threadQuery.keyFor(threadId));
+    await new Promise<void>((resolve) => onSettled(resolve));
     return result;
   };
 

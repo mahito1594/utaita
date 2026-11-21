@@ -440,7 +440,8 @@ export const ProfilePage = (props: ParentProps) => {
       {/* The stretch between a `:acct` change and its answer. The router holds
           the navigation until the new account lands, which would leave the
           account being left on screen meanwhile; `isPending` is true for
-          exactly that stretch, so the body steps aside for this row instead.
+          exactly that stretch, so the whole page — header and tab bar
+          included, as each describes that account — steps aside for this row.
           Not a `<Loading on>` boundary of the page's own: a fresh boundary
           settles the navigation on its fallback, and the router's scroll
           restoration then runs against a page that has not drawn yet. */}

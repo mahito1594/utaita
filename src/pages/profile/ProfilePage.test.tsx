@@ -822,6 +822,54 @@ test("changing only :acct leaves none of the previous account's posts behind", a
   expect(queryByText("Bob's only post")).not.toBeInTheDocument();
 });
 
+test("while a :acct change is in flight, the page shows its row and nothing of the account being left", async () => {
+  // The leg between the two settled states: the router holds the navigation
+  // until Bob's account lands, and the page must not spend that stretch
+  // showing Alice's header, tabs or posts under Bob's URL.
+  const bobHeld = deferred();
+  server.use(
+    http.get<{ id: string }>("*/api/v1/accounts/:id", async ({ params }) => {
+      if (params.id !== BOB_ACCT) return HttpResponse.json(alice);
+      await bobHeld.held;
+      return HttpResponse.json(bob);
+    }),
+    http.get<{ id: string }>(
+      "*/api/v1/accounts/:id/statuses",
+      ({ request, params }) => {
+        if (new URL(request.url).searchParams.has("pinned"))
+          return HttpResponse.json([]);
+        return HttpResponse.json(
+          params.id === BOB_ACCT
+            ? [post("110000000000000003", "Bob's only post", bob)]
+            : alicePosts,
+        );
+      },
+    ),
+  );
+  const { history, findByText, queryByText, queryByRole } = renderProfile(
+    `/accounts/${ALICE_ACCT}`,
+  );
+
+  expect(await findByText("Alice's newer post")).toBeInTheDocument();
+
+  history.set({ value: `/accounts/${BOB_ACCT}` });
+
+  expect(await findByText("Loading profile…")).toHaveAttribute(
+    "role",
+    "status",
+  );
+  expect(queryByText("Alice Example")).not.toBeInTheDocument();
+  expect(
+    queryByRole("navigation", { name: "Profile sections" }),
+  ).not.toBeInTheDocument();
+  expect(queryByText("Alice's newer post")).not.toBeInTheDocument();
+
+  bobHeld.release();
+
+  expect(await findByText("Bob's only post")).toBeInTheDocument();
+  expect(queryByText("Loading profile…")).not.toBeInTheDocument();
+});
+
 test("a page of the previous account's posts that lands after the :acct changed is dropped", async () => {
   // The first page for Alice is still out when Bob's URL takes over. It is the
   // body being rebuilt around a fresh store that makes the answer harmless:
@@ -1038,7 +1086,8 @@ test("a percent-encoded :acct names the same account as the raw one", async () =
 
 test("a tab or a count switches sections without scrolling to the top, and a link out of the profile still scrolls", async () => {
   // A push ends in `window.scrollTo(0, 0)` unless the anchor carries
-  // `noscroll` (node_modules/@solidjs/router/dist/index.js, `scrollToHash`),
+  // `noscroll` (node_modules/@solidjs/router/dist/routers/history.js,
+  // `scrollToHash`),
   // which is what this observes — happy-dom keeps no scroll position.
   const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   onTestFinished(() => scrollTo.mockRestore());
