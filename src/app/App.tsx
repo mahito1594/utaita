@@ -1,8 +1,8 @@
 import {
-  A,
-  Route,
+  createRouter,
+  defineRoutes,
+  intentPreload,
   type RoutePreloadFunc,
-  Router,
   useLocation,
 } from "@solidjs/router";
 import { Errored, Loading, type ParentProps, Show } from "solid-js";
@@ -128,12 +128,12 @@ const Layout = (props: ParentProps) => {
           >
             {/* The way back to the top of the home timeline from anywhere,
               wearing the heading's own colour rather than a link's. */}
-            <A
+            <a
               href="/"
               class={css({ color: "inherit", textDecoration: "none" })}
             >
               utaita
-            </A>
+            </a>
           </h1>
           <Show when={authenticated()}>
             <button
@@ -225,77 +225,95 @@ const RetainingRoutes = (props: ParentProps) => (
 const NotFound = () => (
   <>
     <ErrorCard message="Page not found." onRetry={undefined} />
-    <A href="/" class={outlineButton({ tone: "neutral" })}>
+    <a href="/" class={outlineButton({ tone: "neutral" })}>
       Home
-    </A>
+    </a>
   </>
 );
 
-// `scrollRestoration`: the router records `window.scrollY` per history entry
-// and restores it once routing settles after a pop. The scrolling container
-// is the document — which is why TimelineShell's panel must never clip — so
-// that offset is the whole story, and no hand-rolled save/restore is needed.
-// It only applies to back/forward: a push (a switcher tab) still lands at the
-// top, which is the intended behavior for switching timelines.
-const App = () => (
-  <Router root={Layout} scrollRestoration>
-    <Route path={REDIRECT_PATH} component={OAuthCallback} />
-    {/* Retention wraps every route the reader may step into and come back
-        from — the timelines and the detail routes alike, since it is leaving
-        the timeline route that destroys the page holding the content. It sits
-        above the gate rather than below it because the detail routes outside
-        the gate retain too; signing out still drops the stack, by the
-        `signedIn` signal RetainingRoutes passes down (retention.tsx). */}
-    <Route component={RetainingRoutes}>
-      <Route component={AuthGate}>
-        {/* The four leaves share this one route definition, which is what
-            keeps the shell's switcher tabs (and the focused link among them)
-            mounted while the page below them is recreated. */}
-        <Route component={TimelineShell}>
-          <Route path={home.path} component={HomeTimelinePage} />
-          <Route path={local.path} component={LocalTimelinePage} />
-          <Route path={bubble.path} component={BubbleTimelinePage} />
-          <Route path={federated.path} component={FederatedTimelinePage} />
-        </Route>
-      </Route>
-      {/* The URL shape is profilePath's (src/entities/status/mention.ts),
-          which also says why it is neither /@:acct nor /users/ */}
-      <Route
-        path="/accounts/:acct"
-        component={ProfilePage}
-        preload={preloadProfile}
-      >
-        <Route path={posts.path} component={ProfilePostsTab} />
-        <Route path={postsAndReplies.path} component={ProfileRepliesTab} />
-        <Route path={media.path} component={ProfileMediaTab} />
-        <Route path={following.path} component={ProfileFollowingList} />
-        <Route path={followers.path} component={ProfileFollowersList} />
-      </Route>
-      {/* The URL shape is statusPath's (src/entities/status/url.ts). Unlike
-          the timelines, this route fetches through the router's own data
-          layer, so the preload is what starts the requests (ADR-0004). */}
-      <Route
-        path="/statuses/:id"
-        component={ThreadPage}
-        preload={preloadThreadRoute}
-      />
-      {/* The accounts behind the post's counts, on the same path with the
-          list as a further segment (who-lists.ts). A parent route with
-          children matches through them only, so the conversation above
-          keeps `/statuses/:id` to itself. */}
-      <Route
-        path="/statuses/:id"
-        component={WhoListsPage}
-        preload={preloadWhoListsRoute}
-      >
-        <Route path={favourites.path} component={FavouritedByList} />
-        <Route path={boosts.path} component={RebloggedByList} />
-        <Route path={reactions.path} component={ReactionsList} />
-      </Route>
-    </Route>
-    {/* Outside the gate and retention: readable signed out, never stacked. */}
-    <Route path="*" component={NotFound} />
-  </Router>
-);
+// Scroll restoration is on by default with the browser history this router
+// uses: it records `window.scrollY` per history entry and restores it once
+// routing settles after a pop. The scrolling container is the document —
+// which is why TimelineShell's panel must never clip — so that offset is the
+// whole story, and no hand-rolled save/restore is needed. It only applies to
+// back/forward: a push (a switcher tab) still lands at the top, which is the
+// intended behavior for switching timelines.
+//
+// `intentPreload`: links warm their route's code and data on hover, focus,
+// or touch, so a conversation's requests start before the click lands.
+const Router = createRouter({
+  preloadLinks: intentPreload(),
+  routes: defineRoutes([
+    { path: REDIRECT_PATH, component: OAuthCallback },
+    // Retention wraps every route the reader may step into and come back
+    // from — the timelines and the detail routes alike, since it is leaving
+    // the timeline route that destroys the page holding the content. It sits
+    // above the gate rather than below it because the detail routes outside
+    // the gate retain too; signing out still drops the stack, by the
+    // `signedIn` signal RetainingRoutes passes down (retention.tsx).
+    {
+      component: RetainingRoutes,
+      children: [
+        {
+          component: AuthGate,
+          children: [
+            // The four leaves share this one route definition, which is what
+            // keeps the shell's switcher tabs (and the focused link among
+            // them) mounted while the page below them is recreated.
+            {
+              component: TimelineShell,
+              children: [
+                { path: home.path, component: HomeTimelinePage },
+                { path: local.path, component: LocalTimelinePage },
+                { path: bubble.path, component: BubbleTimelinePage },
+                { path: federated.path, component: FederatedTimelinePage },
+              ],
+            },
+          ],
+        },
+        // The URL shape is profilePath's (src/entities/status/mention.ts),
+        // which also says why it is neither /@:acct nor /users/
+        {
+          path: "/accounts/:acct",
+          component: ProfilePage,
+          preload: preloadProfile,
+          children: [
+            { path: posts.path, component: ProfilePostsTab },
+            { path: postsAndReplies.path, component: ProfileRepliesTab },
+            { path: media.path, component: ProfileMediaTab },
+            { path: following.path, component: ProfileFollowingList },
+            { path: followers.path, component: ProfileFollowersList },
+          ],
+        },
+        // The URL shape is statusPath's (src/entities/status/url.ts). Unlike
+        // the timelines, this route fetches through the router's own data
+        // layer, so the preload is what starts the requests (ADR-0004).
+        {
+          path: "/statuses/:id",
+          component: ThreadPage,
+          preload: preloadThreadRoute,
+        },
+        // The accounts behind the post's counts, on the same path with the
+        // list as a further segment (who-lists.ts). A parent route with
+        // children matches through them only, so the conversation above
+        // keeps `/statuses/:id` to itself.
+        {
+          path: "/statuses/:id",
+          component: WhoListsPage,
+          preload: preloadWhoListsRoute,
+          children: [
+            { path: favourites.path, component: FavouritedByList },
+            { path: boosts.path, component: RebloggedByList },
+            { path: reactions.path, component: ReactionsList },
+          ],
+        },
+      ],
+    },
+    // Outside the gate and retention: readable signed out, never stacked.
+    { path: "*", component: NotFound },
+  ]),
+});
+
+const App = () => <Router>{(props) => <Layout {...props} />}</Router>;
 
 export default App;

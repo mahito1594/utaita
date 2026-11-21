@@ -1,6 +1,5 @@
 import ArrowLeft from "@lucide/solid/icons/arrow-left";
 import {
-  A,
   createAsync,
   revalidate,
   useIsRouting,
@@ -551,9 +550,9 @@ export const ThreadPage = (props: { data: ThreadArrival }) => {
         <Show
           when={canGoBack()}
           fallback={
-            <A href="/" class={outlineButton({ tone: "neutral" })}>
+            <a href="/" class={outlineButton({ tone: "neutral" })}>
               Home
-            </A>
+            </a>
           }
         >
           <button

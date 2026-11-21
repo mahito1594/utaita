@@ -73,10 +73,11 @@ export const markRetentionFrame = (path: string): void =>
  * provider retains a snapshot. The only such replace is the tab switch under
  * a post (src/pages/thread/WhoListsPage.tsx), which keeps none; the sign-in
  * return leg (src/app/OAuthCallback.tsx) replaces from a route outside this
- * provider, where no frame exists to overwrite. Pushing a path that is already in the stack is a
- * fresh visit and starts from the top — the same verdict `<Router
- * scrollRestoration>` reaches, which restores nothing for a push, so a
- * resuming push would hand back old content scrolled to the top. Pops
+ * provider, where no frame exists to overwrite. Pushing a path that is
+ * already in the stack is a fresh visit and starts from the top — the same
+ * verdict the router's scroll restoration reaches, which restores nothing
+ * for a push, so a resuming push would hand back old content scrolled to the
+ * top. Pops
  * truncate the stack down to the frame they land on. Forward entries keep
  * their history slot but lose their frame, so a forward traversal refetches —
  * the safe side of the trade, and the verdict the no-match branch of `enter`
@@ -103,12 +104,14 @@ export const Retention = (props: ParentProps<{ signedIn: boolean }>) => {
   const location = useLocation();
 
   // How a pop is told from a push. The router announces a push or a replace
-  // with a string `to` and a browser back/forward with a number (the history
-  // delta), while a memory history traverses without announcing at all
-  // (`navigateFromRoute` and the browser history's `init` in
-  // node_modules/@solidjs/router/dist/index.js). A string is therefore the
-  // only positive signal, and "no push was announced" identifies a pop on
-  // both integrations.
+  // with a string `to` (`navigatorFactory` in
+  // node_modules/@solidjs/router/dist/routing.js) and a browser back/forward
+  // with a number, the history delta (`browserHistory` and
+  // `notifyIfNotBlocked` in node_modules/@solidjs/router/dist/routers/history.js)
+  // — or not at all, when the entry carries no depth the delta could be taken
+  // from. A memory history traverses without announcing either. A string is
+  // therefore the only positive signal, and "no push was announced"
+  // identifies a pop on both integrations.
   //
   // The target is remembered rather than a bare flag because the announcement
   // is not addressed to anyone: a route that claims no frame (a conversation

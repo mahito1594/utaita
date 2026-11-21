@@ -1,5 +1,4 @@
 import { query, type RoutePreloadFunc } from "@solidjs/router";
-import { acctFromPath } from "../../entities/status/mention";
 import { fetchAccount, fetchPinnedPosts } from "./profile-api";
 
 /**
@@ -16,12 +15,12 @@ import { fetchAccount, fetchPinnedPosts } from "./profile-api";
 export const profileQuery = query(fetchAccount, "profile");
 
 /**
- * Warms the account cache before the route renders. Decoded the same way the
- * page decodes it (ProfilePage.tsx), or the two would warm different keys.
+ * Warms the account cache before the route renders, under the key the page
+ * reads (ProfilePage.tsx): both take the router's already-decoded `:acct`.
  */
 export const preloadProfile: RoutePreloadFunc<void> = ({ params }) => {
   const { acct } = params;
-  if (acct !== undefined) void profileQuery(acctFromPath(acct));
+  if (acct !== undefined) void profileQuery(acct);
 };
 
 /**

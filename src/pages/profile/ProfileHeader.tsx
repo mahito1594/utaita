@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { css } from "../../../styled-system/css";
 import { EmojiText } from "../../entities/status/EmojiText";
@@ -126,15 +125,15 @@ const fieldValue = css({ minWidth: 0 });
 
 const countsRow = css({ display: "flex", gap: "4", fontSize: "sm" });
 
-// Router-driven active styling, as in the tab bar (ProfilePage.tsx): `<A>`
-// sets `aria-current="page"` on an exact match, so a count is only marked
+// Router-driven active styling, as in the tab bar (ProfilePage.tsx): the
+// router sets `aria-current="page"` on an exact match, so a count is only marked
 // while its own list is the page below.
 const countLink = css({ "&[aria-current=page]": { color: "text.brand" } });
 
 const countLabel = css({ color: "text.muted" });
 
 // One count, with or without the list behind it. On the page its list is
-// showing, `<A>` marks it `aria-current="page"`. A withheld number is shown as
+// showing, the router marks it `aria-current="page"`. A withheld number is shown as
 // the word instead: Akkoma sends a number either way — the real one, or 0 once
 // the list is hidden too — so the flag, not the value, is what can be read. A
 // count the payload omits renders nothing; a zero would be a claim the
@@ -157,11 +156,11 @@ const Count = (props: {
     <Show when={props.withheld || props.value !== undefined}>
       <Show when={props.href} fallback={<span>{body()}</span>}>
         {(href) => (
-          // `noScroll` for the same reason as the tab bar's links
+          // `noscroll` for the same reason as the tab bar's links
           // (ProfilePage.tsx): the count leads inside the page it sits on.
-          <A href={href()} class={countLink} noScroll>
+          <a href={href()} class={countLink} noscroll>
             {body()}
-          </A>
+          </a>
         )}
       </Show>
     </Show>
