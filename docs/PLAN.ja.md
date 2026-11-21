@@ -11,11 +11,12 @@ Akkoma のモダンな Web frontend。静的ファイルとして配布し、イ
 
 ## 技術スタック
 
-- SolidJS + @solidjs/router, Vite, Panda CSS, Biome, pnpm
+- SolidJS 2 + @solidjs/router 2, Vite, Panda CSS, Biome, pnpm
 - API 型はインスタンスが配信する OpenAPI spec (`/api/openapi`) から
   openapi-typescript で生成し、openapi-fetch で利用 — [ADR-0002](./adr/0002-api-client.md)
-- データ取得は @solidjs/router のデータプリミティブ (`query`/`createAsync` + route `preload`)。
-  タイムラインの無限スクロールはカーソルページ蓄積を自作 — [ADR-0004](./adr/0004-data-fetching.md)
+- データ取得は @solidjs/router のデータプリミティブ (`query` + async `createMemo` + route `preload`)。
+  タイムラインの無限スクロールはカーソルページ蓄積を自作 — [ADR-0004](./adr/0004-data-fetching.md),
+  [ADR-0017](./adr/0017-solid-2-data-fetching.md)
 
 ## 現在地
 

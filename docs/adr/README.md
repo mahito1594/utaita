@@ -38,3 +38,4 @@ Template:
 | [0014](./0014-thread-view.md) | Thread view — one subject, no indentation, arrival-aware scrolling |
 | [0015](./0015-sign-in-gates-only-personal-surfaces.md) | Sign-in gates only the feeds; visibility is the server's call |
 | [0016](./0016-reflecting-a-write-across-views.md) | Reflecting a write across every view of a status (draft) |
+| [0017](./0017-solid-2-data-fetching.md) | Route data on Solid 2 — async memos, a pending row on param switches |
